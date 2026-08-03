@@ -6,10 +6,13 @@ indicator("Swing Pullback Console", overlay = true, max_lines_count = 60, max_la
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
-preset = input.string("Short (3-7d)", "Speed preset", group = grpS,
+preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
      options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
-     tooltip = "Fast = more signals, more whipsaw, more cost drag. " +
-               "Swing = fewer, cleaner signals. Custom uses the values below.")
+     tooltip = "Fast is the quickest preset here by design - nothing shorter " +
+               "is offered. On a 25,000 position, delivery round-trip costs " +
+               "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
+               "breakeven win rate from 33% to ~38% at a 2R target. " +
+               "Swing (5-15d) spreads the same cost over a larger move.")
 
 // Custom values — only used when preset = "Custom"
 cFast   = input.int(20,  "Custom: Pullback EMA", minval = 1, group = grpS)
