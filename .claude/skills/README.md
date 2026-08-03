@@ -31,6 +31,32 @@ The other 66 skills in the upstream repo are not installed. Most require paid
 data APIs, and many are US-equities specific (CANSLIM, VCP, IBD, FINVIZ,
 US dividend tax accounting).
 
+## ⚠️ Local edits that a reinstall will wipe
+
+Both the US and India skill sets are kept. To stop them competing for the same
+requests, three upstream descriptions were scoped to "US" by hand. **Reinstalling
+from upstream overwrites these — redo them.**
+
+| File | Change to the `description:` line |
+|---|---|
+| `position-sizer/SKILL.md` | "for long **US** stock trades"; added "For NSE/BSE trades, or anything sized in lots (NIFTY, BANKNIFTY, Indian F&O), use india-position-sizer instead." |
+| `market-breadth-analyzer/SKILL.md` | "**US** market breadth"; added "For Indian markets (NIFTY, NSE, BSE) use india-market-breadth instead." |
+| `uptrend-analyzer/SKILL.md` | "**US** market breadth"; added the same India pointer |
+
+Without this, "how many shares should I buy?" matches both sizers and the wrong
+one can fire — giving you share counts with US cost assumptions on an NSE trade.
+
+## Routing: which skill for which market
+
+| Task | US | India |
+|---|---|---|
+| Position sizing | `position-sizer` | `india-position-sizer` |
+| Market breadth | `market-breadth-analyzer`, `uptrend-analyzer` | `india-market-breadth` |
+| Sector rotation | *(not installed — needs FMP/FINVIZ)* | `india-sector-rotation` |
+
+Name the market in your request ("size this NIFTY trade", "US market breadth")
+and the right one fires. The India skills are tracked in git; the US ones are not.
+
 ## Important: these do NOT read your TradingView chart
 
 These skills have their own data paths (CSVs, local files, optional APIs).
