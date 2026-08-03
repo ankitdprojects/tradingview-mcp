@@ -28,6 +28,13 @@ trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : pres
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpD2      = "Direction"
+confirmBar = input.bool(true, "Signal only on CLOSED bars (no repaint)", group = grpD2,
+     tooltip = "ON: a trigger fires only when the bar closes, matching the " +
+               "rules.md definition ('close back above the EMA'). What you see " +
+               "live is then identical to what you see in history.\n\n" +
+               "OFF: triggers evaluate tick-by-tick on the forming bar. You see " +
+               "them earlier, but an arrow can APPEAR and then VANISH before the " +
+               "bar closes. History will not match what you saw live.")
 dirMode    = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"], group = grpD2,
      tooltip = "Cash equity DELIVERY cannot be held short overnight in India - " +
                "use Long only for SWING/POSITIONAL equity. Intraday equity, " +
@@ -103,6 +110,11 @@ fill(pF, pS, color = color.new(emaFast > emaSlow ? cGood : cBad, 88), title = "E
 allowL = dirMode != "Short only"
 allowS = dirMode != "Long only"
 
+// barstate.isconfirmed is true for every historical bar and becomes true for
+// the live bar only at its close. Gating triggers on it makes live behaviour
+// identical to historical behaviour — the definition of non-repainting.
+barOK  = confirmBar ? barstate.isconfirmed : true
+
 // ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
 contextL = close > emaSlow
 touchedL = low <= emaFast and contextL
@@ -113,7 +125,7 @@ if allowL and touchedL and close < emaFast
 if not contextL or not allowL
     armedL := false
 
-triggerL = armedL and close > emaFast and close[1] <= emaFast
+triggerL = armedL and close > emaFast and close[1] <= emaFast and barOK
 if triggerL
     armedL := false
 
@@ -128,7 +140,7 @@ if allowS and touchedS and close > emaFast
 if not contextS or not allowS
     armedS := false
 
-triggerS = armedS and close < emaFast and close[1] >= emaFast
+triggerS = armedS and close < emaFast and close[1] >= emaFast and barOK
 if triggerS
     armedS := false
 
@@ -227,7 +239,7 @@ bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS
 tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
-var table cons = table.new(tPos, 2, 15, border_width = 0,
+var table cons = table.new(tPos, 2, 16, border_width = 0,
                            frame_width = 1, frame_color = color.new(cDim, 60),
                            bgcolor = color.new(cBg, tblOpac))
 
@@ -256,36 +268,42 @@ if barstate.islast
     table.cell(cons, 1, 3, tick(isShort ? close < emaTrend : close > emaTrend),
                text_color = okCol(isShort ? close < emaTrend : close > emaTrend), text_size = txtSz)
 
-    table.cell(cons, 0, 4, "LEVELS", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 4, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 5, "Resistance", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 5, na(nearestRes) ? "none" : str.tostring(nearestRes, format.mintick), text_color = cBad, text_size = txtSz)
-    table.cell(cons, 0, 6, "Support", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 6, na(nearestSup) ? "none" : str.tostring(nearestSup, format.mintick), text_color = cGood, text_size = txtSz)
+    // Bar status — makes the live/closed distinction explicit rather than
+    // leaving the user to wonder why a setup has not fired yet.
+    table.cell(cons, 0, 4, "Bar", text_color = cDim, text_size = txtSz)
+    table.cell(cons, 1, 4, barstate.isrealtime ? (confirmBar ? "LIVE · waits close" : "LIVE · may repaint") : "closed",
+               text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
 
-    table.cell(cons, 0, 7, "CONTEXT", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 7, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 8, "RSI " + str.tostring(rsiLen), text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 8, str.tostring(rsi, "#.0"), text_size = txtSz,
+    table.cell(cons, 0, 5, "LEVELS · lag " + str.tostring(pvtLen), text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 5, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 6, "Resistance", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 6, na(nearestRes) ? "none" : str.tostring(nearestRes, format.mintick), text_color = cBad, text_size = txtSz)
+    table.cell(cons, 0, 7, "Support", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 7, na(nearestSup) ? "none" : str.tostring(nearestSup, format.mintick), text_color = cGood, text_size = txtSz)
+
+    table.cell(cons, 0, 8, "CONTEXT", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 8, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 9, "RSI " + str.tostring(rsiLen), text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 9, str.tostring(rsi, "#.0"), text_size = txtSz,
                text_color = rsi > 70 ? cBad : rsi < 30 ? cGood : cTxt)
-    table.cell(cons, 0, 9, "Rel volume", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 9, relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x", text_size = txtSz,
+    table.cell(cons, 0, 10, "Rel volume", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 10, relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x", text_size = txtSz,
                text_color = relVol < 0.01 ? cDim : relVol >= 1.5 ? cGood : cTxt)
-    table.cell(cons, 0, 10, "ADX", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 10, str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop"),
+    table.cell(cons, 0, 11, "ADX", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 11, str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop"),
                text_size = txtSz, text_color = adx >= 25 ? cGood : cWarn)
-    table.cell(cons, 0, 11, "ATR / %", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 11, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.1") + "%", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 0, 12, "ATR / %", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 12, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.1") + "%", text_color = cTxt, text_size = txtSz)
 
-    table.cell(cons, 0, 12, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 12, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 13, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 13, str.tostring(stopLevel, format.mintick) + " / " +
+    table.cell(cons, 0, 13, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 13, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 14, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 14, str.tostring(stopLevel, format.mintick) + " / " +
                (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
                (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
                text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 0, 14, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 14,
+    table.cell(cons, 0, 15, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 15,
                lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
                          : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
                text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
