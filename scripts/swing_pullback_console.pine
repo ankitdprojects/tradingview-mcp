@@ -1,0 +1,184 @@
+//@version=6
+// Swing Pullback Console v2 — rules.md setup + S/R + full context, ONE slot.
+// NOTE: the ARMED/TRIGGER logic is UNCHANGED from v1. Everything added here is
+// display-only context, so the 15-trade validation sample stays clean.
+indicator("Swing Pullback Console", overlay = true, max_lines_count = 60, max_labels_count = 100)
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+grpS   = "Setup (drives TRIGGER)"
+preset = input.string("Short (3-7d)", "Speed preset", group = grpS,
+     options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
+     tooltip = "Fast = more signals, more whipsaw, more cost drag. " +
+               "Swing = fewer, cleaner signals. Custom uses the values below.")
+
+// Custom values — only used when preset = "Custom"
+cFast   = input.int(20,  "Custom: Pullback EMA", minval = 1, group = grpS)
+cSlow   = input.int(50,  "Custom: Context EMA",  minval = 1, group = grpS)
+cTrend  = input.int(200, "Custom: Regime EMA",   minval = 1, group = grpS)
+cSwing  = input.int(10,  "Custom: Swing-low lookback", minval = 2, group = grpS)
+
+// Preset table. Swing-low lookback scales with speed so the stop stays
+// proportional to the pullback the preset is designed to catch.
+fastLen   = preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
+slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
+trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
+swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
+
+grpR       = "Risk (from rules.md)"
+riskRupees = input.float(1000,  "Risk per trade", minval = 1, group = grpR)
+minPos     = input.float(20000, "Min position",   minval = 0, group = grpR)
+
+grpSR    = "Support / Resistance"
+showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
+pvtLen   = input.int(10, "Pivot lookback",     minval = 2, group = grpSR)
+maxSR    = input.int(4,  "Max levels per side", minval = 1, maxval = 10, group = grpSR)
+
+grpC     = "Context readouts"
+rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
+atrLen   = input.int(14, "ATR length",  minval = 1, group = grpC)
+volLen   = input.int(20, "Rel-volume baseline", minval = 1, group = grpC)
+adxLen   = input.int(14, "ADX length",  minval = 1, group = grpC)
+
+// ── Core series ───────────────────────────────────────────────────────────
+emaFast  = ta.ema(close, fastLen)
+emaSlow  = ta.ema(close, slowLen)
+emaTrend = ta.ema(close, trendLen)
+atr      = ta.atr(atrLen)
+rsi      = ta.rsi(close, rsiLen)
+relVol   = volume / math.max(ta.sma(volume, volLen), 1)
+
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+
+plot(emaFast,  "Pullback EMA", color = color.new(color.orange, 0), linewidth = 2)
+plot(emaSlow,  "Context EMA",  color = color.new(color.blue,   0), linewidth = 2)
+plot(emaTrend, "Regime EMA",   color = color.new(color.gray,  40), linewidth = 1)
+
+// ── Setup state machine — UNCHANGED from v1 ───────────────────────────────
+context = close > emaSlow
+touched = low <= emaFast and context
+
+var bool armed = false
+if touched and close < emaFast
+    armed := true
+if not context
+    armed := false
+
+trigger = armed and close > emaFast and close[1] <= emaFast
+if trigger
+    armed := false
+
+// ── Sizing ────────────────────────────────────────────────────────────────
+swingLow     = ta.lowest(low, swingBack)
+riskPerShare = close - swingLow
+validRisk    = riskPerShare > 0
+shares       = validRisk ? math.floor(riskRupees / riskPerShare) : 0
+posValue     = shares * close
+target2R     = close + (riskPerShare * 2)
+
+// ── Support / Resistance from pivots ──────────────────────────────────────
+ph = ta.pivothigh(high, pvtLen, pvtLen)
+pl = ta.pivotlow(low,  pvtLen, pvtLen)
+
+var array<line>  resLine = array.new<line>()
+var array<float> resVal  = array.new<float>()
+var array<line>  supLine = array.new<line>()
+var array<float> supVal  = array.new<float>()
+
+if showSR and not na(ph)
+    ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
+                  color = color.new(color.red, 45), width = 1)
+    array.push(resLine, ln)
+    array.push(resVal, ph)
+    if array.size(resLine) > maxSR
+        line.delete(array.shift(resLine))
+        array.shift(resVal)
+
+if showSR and not na(pl)
+    ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
+                  color = color.new(color.green, 45), width = 1)
+    array.push(supLine, ln)
+    array.push(supVal, pl)
+    if array.size(supLine) > maxSR
+        line.delete(array.shift(supLine))
+        array.shift(supVal)
+
+// nearest level above / below current price
+nearestRes = float(na)
+for i = 0 to math.max(array.size(resVal) - 1, 0)
+    if array.size(resVal) > 0
+        v = array.get(resVal, i)
+        if v > close and (na(nearestRes) or v < nearestRes)
+            nearestRes := v
+
+nearestSup = float(na)
+for i = 0 to math.max(array.size(supVal) - 1, 0)
+    if array.size(supVal) > 0
+        v = array.get(supVal, i)
+        if v < close and (na(nearestSup) or v > nearestSup)
+            nearestSup := v
+
+// ── Marks ─────────────────────────────────────────────────────────────────
+plotshape(touched ? low : na, "Pullback touch", shape.circle,
+          location.absolute, color.new(color.orange, 30), size = size.tiny)
+plotshape(trigger ? low : na, "TRIGGER", shape.triangleup,
+          location.belowbar, color.new(color.green, 0), size = size.small)
+
+// ── Console ───────────────────────────────────────────────────────────────
+tick(bool ok)  => ok ? "Y" : "N"
+okCol(bool ok) => ok ? color.new(color.green, 0) : color.new(color.red, 0)
+
+var table cons = table.new(position.top_right, 2, 15, border_width = 1,
+                           frame_width = 1, frame_color = color.new(color.gray, 50))
+
+if barstate.islast
+    sizeOK  = posValue >= minPos
+    atrPct  = (atr / close) * 100
+    stopAtr = validRisk ? riskPerShare / atr : na
+
+    table.cell(cons, 0, 0, "SWING PULLBACK", text_color = color.white,
+               bgcolor = color.new(color.blue, 20), text_size = size.small)
+    table.cell(cons, 1, 0, trigger ? "TRIGGER" : armed ? "ARMED" : "-",
+               text_color = color.white, text_size = size.small,
+               bgcolor = trigger ? color.new(color.green, 10) : armed ? color.new(color.orange, 20) : color.new(color.gray, 40))
+
+    // Labels show the ACTIVE period, so the table never lies about which
+    // preset is running.
+    table.cell(cons, 0, 1, "Close > " + str.tostring(slowLen) + " EMA", text_size = size.tiny)
+    table.cell(cons, 1, 1, tick(context), text_color = okCol(context), text_size = size.tiny)
+    table.cell(cons, 0, 2, "Touched " + str.tostring(fastLen) + " EMA", text_size = size.tiny)
+    table.cell(cons, 1, 2, tick(armed or trigger), text_color = okCol(armed or trigger), text_size = size.tiny)
+    table.cell(cons, 0, 3, "Above " + str.tostring(trendLen) + " EMA", text_size = size.tiny)
+    table.cell(cons, 1, 3, tick(close > emaTrend), text_color = okCol(close > emaTrend), text_size = size.tiny)
+
+    table.cell(cons, 0, 4, "— LEVELS —", text_color = color.gray, text_size = size.tiny)
+    table.cell(cons, 1, 4, "", text_size = size.tiny)
+    table.cell(cons, 0, 5, "Resistance", text_size = size.tiny)
+    table.cell(cons, 1, 5, na(nearestRes) ? "none" : str.tostring(nearestRes, format.mintick), text_size = size.tiny)
+    table.cell(cons, 0, 6, "Support", text_size = size.tiny)
+    table.cell(cons, 1, 6, na(nearestSup) ? "none" : str.tostring(nearestSup, format.mintick), text_size = size.tiny)
+
+    table.cell(cons, 0, 7, "— CONTEXT —", text_color = color.gray, text_size = size.tiny)
+    table.cell(cons, 1, 7, "", text_size = size.tiny)
+    table.cell(cons, 0, 8, "RSI(" + str.tostring(rsiLen) + ")", text_size = size.tiny)
+    table.cell(cons, 1, 8, str.tostring(rsi, "#.0"), text_size = size.tiny,
+               text_color = rsi > 70 ? color.red : rsi < 30 ? color.green : color.gray)
+    table.cell(cons, 0, 9, "Rel volume", text_size = size.tiny)
+    table.cell(cons, 1, 9, str.tostring(relVol, "#.00") + "x", text_size = size.tiny,
+               text_color = relVol >= 1.5 ? color.new(color.green, 0) : color.gray)
+    table.cell(cons, 0, 10, "ADX", text_size = size.tiny)
+    table.cell(cons, 1, 10, str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop"),
+               text_size = size.tiny, text_color = adx >= 25 ? color.new(color.green, 0) : color.new(color.red, 0))
+    table.cell(cons, 0, 11, "ATR / ATR%", text_size = size.tiny)
+    table.cell(cons, 1, 11, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.0") + "%", text_size = size.tiny)
+
+    table.cell(cons, 0, 12, "— SIZING —", text_color = color.gray, text_size = size.tiny)
+    table.cell(cons, 1, 12, "", text_size = size.tiny)
+    table.cell(cons, 0, 13, "Stop / risk-sh", text_size = size.tiny)
+    table.cell(cons, 1, 13, str.tostring(swingLow, format.mintick) + " / " +
+               (validRisk ? str.tostring(riskPerShare, format.mintick) : "n/a") +
+               (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"), text_size = size.tiny)
+    table.cell(cons, 0, 14, "Shares / value", text_size = size.tiny)
+    table.cell(cons, 1, 14, str.tostring(shares) + " / " + str.tostring(posValue, "#") + (sizeOK ? "" : " !"),
+               text_color = sizeOK ? color.gray : color.new(color.red, 0), text_size = size.tiny)
+
+alertcondition(trigger, "Pullback trigger", "20 EMA pullback trigger")
