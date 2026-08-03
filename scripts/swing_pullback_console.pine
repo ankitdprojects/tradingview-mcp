@@ -4,7 +4,7 @@
 // display-only context, so the 15-trade validation sample stays clean.
 indicator("Swing Pullback Console", overlay = true, max_lines_count = 60, max_labels_count = 100)
 
-// ── Inputs ────────────────────────────────────────────────────────────────
+// ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
 preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
      options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
@@ -29,7 +29,16 @@ swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : pres
 
 grpR       = "Risk (from rules.md)"
 riskRupees = input.float(1000,  "Risk per trade", minval = 1, group = grpR)
-minPos     = input.float(20000, "Min position",   minval = 0, group = grpR)
+minPos     = input.float(20000, "Min position (equity only)", minval = 0, group = grpR)
+instType   = input.string("Equity (shares)", "Instrument type", group = grpR,
+     options = ["Equity (shares)", "Futures / Commodity (lots)"],
+     tooltip = "MCX commodities and currency futures trade in LOTS. Risk per " +
+               "lot = stop distance x lot size, so risk is quantised - you " +
+               "often cannot hit the target risk exactly.")
+lotSize    = input.float(10, "Lot size (contract multiplier)", minval = 0.0001, group = grpR,
+     tooltip = "e.g. Crude Oil Mini 10 barrels, Crude Oil 100, Natural Gas Mini 250, " +
+               "Gold Mini 100 g, Silver Micro 1 kg. ALWAYS confirm the current lot " +
+               "size in the Groww order window - exchanges revise these.")
 
 grpSR    = "Support / Resistance"
 showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
@@ -71,12 +80,24 @@ if trigger
     armed := false
 
 // ── Sizing ────────────────────────────────────────────────────────────────
+// Equity sizes in shares (any integer). Futures/commodity sizes in LOTS, so
+// risk is quantised — rounding down often lands well under the target risk,
+// and 1 lot can exceed it entirely.
+isLots       = instType == "Futures / Commodity (lots)"
 swingLow     = ta.lowest(low, swingBack)
 riskPerShare = close - swingLow
 validRisk    = riskPerShare > 0
-shares       = validRisk ? math.floor(riskRupees / riskPerShare) : 0
-posValue     = shares * close
+
+riskPerUnit  = isLots ? riskPerShare * lotSize : riskPerShare
+units        = validRisk ? math.floor(riskRupees / riskPerUnit) : 0
+posValue     = isLots ? units * close * lotSize : units * close
+actualRisk   = units * riskPerUnit
 target2R     = close + (riskPerShare * 2)
+
+// A single lot whose risk already exceeds the budget is the common failure
+// at small capital. Flag it rather than quietly returning 0.
+oneLotRisk   = validRisk ? riskPerShare * lotSize : na
+lotTooBig    = isLots and validRisk and units < 1
 
 // ── Support / Resistance from pivots ──────────────────────────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
@@ -176,12 +197,15 @@ if barstate.islast
 
     table.cell(cons, 0, 12, "— SIZING —", text_color = color.gray, text_size = size.tiny)
     table.cell(cons, 1, 12, "", text_size = size.tiny)
-    table.cell(cons, 0, 13, "Stop / risk-sh", text_size = size.tiny)
+    table.cell(cons, 0, 13, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_size = size.tiny)
     table.cell(cons, 1, 13, str.tostring(swingLow, format.mintick) + " / " +
-               (validRisk ? str.tostring(riskPerShare, format.mintick) : "n/a") +
+               (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
                (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"), text_size = size.tiny)
-    table.cell(cons, 0, 14, "Shares / value", text_size = size.tiny)
-    table.cell(cons, 1, 14, str.tostring(shares) + " / " + str.tostring(posValue, "#") + (sizeOK ? "" : " !"),
-               text_color = sizeOK ? color.gray : color.new(color.red, 0), text_size = size.tiny)
+    table.cell(cons, 0, 14, isLots ? "Lots / risk" : "Shares / value", text_size = size.tiny)
+    table.cell(cons, 1, 14,
+               lotTooBig ? "0 - 1 lot risks " + str.tostring(oneLotRisk, "#")
+                         : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " !"),
+               text_color = lotTooBig ? color.new(color.red, 0) : (isLots or sizeOK ? color.gray : color.new(color.red, 0)),
+               text_size = size.tiny)
 
-alertcondition(trigger, "Pullback trigger", "20 EMA pullback trigger")
+alertcondition(trigger, "Pullback trigger", "Pullback trigger - close back above the pullback EMA")
