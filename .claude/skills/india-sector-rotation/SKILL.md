@@ -17,6 +17,32 @@ it reads the same chart you already have open.
 - TradingView Desktop running with CDP. Check with `tv_health_check`; if it
   fails, run `tv_launch` and retry. If it still fails, stop and report — this
   skill has no offline fallback.
+- **Logged in to TradingView.** A free account is enough; no paid plan needed.
+
+## ⚠️ Stale-data guard — do this before trusting any reading
+
+If the user is logged out, a signup modal blocks the chart and symbol switches
+**fail silently**. Observed on 2026-08-03: `chart_set_symbol` returned
+`success: true`, `chart_get_state` reported the *requested* symbol, and
+`quote_get` returned the **previous symbol's prices labelled as the new one**.
+Nothing in any tool result said the switch had failed.
+
+A sector table built on this is confidently wrong. Guard every switch:
+
+1. `chart_set_symbol` returns `chart_ready: false` → wait and re-read. Never
+   read data on the same turn as a switch that reported `chart_ready: false`.
+2. After switching, confirm the data actually changed: if two different symbols
+   return **identical** OHLCV (same open/high/low/close/volume), the switch did
+   not happen. Byte-identical summaries across symbols is the signature.
+3. Sanity-check magnitude. NIFTY trades in the tens of thousands, BANKNIFTY
+   higher, India VIX typically 10-30. A sector index returning a 3-digit price
+   is a stale read, not a real quote.
+4. If a switch fails, take a `capture_screenshot` and look. A blocking modal or
+   a "Join for free" prompt means the user is logged out — stop and tell them.
+   Do not work around it and do not report partial results as if complete.
+
+**If in doubt, stop and say the data is unverified.** Reporting a stale number
+as live is worse than reporting nothing.
 
 ## Method
 

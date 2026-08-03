@@ -24,7 +24,19 @@ the output every time. Do not present the score as a true breadth reading.
 ## Requirements
 
 - TradingView Desktop running with CDP (`tv_health_check`, else `tv_launch`).
+- **Logged in to TradingView.** A free account is enough; no paid plan needed.
 - Symbol list in `../india-sector-rotation/references/nse_sector_indices.md`.
+
+## ⚠️ Stale-data guard
+
+Apply the same guard documented in `india-sector-rotation/SKILL.md`. When logged
+out, symbol switches fail silently while every tool still reports success and
+returns the *previous* symbol's prices under the new symbol's name.
+
+This skill switches symbols ~20 times, so it is the most exposed to the bug.
+Verify data actually changed after each switch; if two indices return identical
+OHLCV, stop and report rather than scoring. A breadth score built on one
+symbol's data repeated 20 times will look perfectly plausible.
 
 ## Method
 
