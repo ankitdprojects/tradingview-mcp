@@ -5,3 +5,10 @@ temp_*
 *.log
 discovery-log.json
 rules.json
+
+# Personal trading data — never commit to a public repo
+journal/
+.claude/rules.md
+
+# Third-party skills (MIT, tradermonty/claude-trading-skills) — see .claude/skills/README.md
+.claude/skills/
