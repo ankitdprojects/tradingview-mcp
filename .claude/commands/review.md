@@ -22,9 +22,19 @@ Review my trading journal. Period: `$ARGUMENTS` (default: last 30 days)
 ## Headline
 Win rate: __%   Avg R: __   Total R: __   Largest loss: __R
 
+## By Mode
+| Mode | Trades | Win % | Avg R gross | Avg R NET | Total R net |
+INTRADAY / SWING / POSITIONAL as separate rows. Never pool them — they are
+three different systems with different costs and different breakeven rates.
+Net R = gross R − (costs / risk_per_trade). Report both columns.
+
+Breakeven win rate at a 2R target, from rules.md:
+  INTRADAY ~35%   SWING ~37.7%   POSITIONAL ~37.7%
+State for each mode whether its win rate clears its own breakeven.
+
 ## By Setup
-| Setup | Trades | Win % | Avg R | Total R |
-Include IMPULSE as its own row.
+| Setup | Mode | Trades | Win % | Avg R | Total R |
+Include IMPULSE as its own row, split by mode.
 
 ## By Time of Day
 | Hour bucket | Trades | Win % | Avg R |

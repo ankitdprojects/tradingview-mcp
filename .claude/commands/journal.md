@@ -24,15 +24,24 @@ Log a trade. What I told you: `$ARGUMENTS`
 ## CSV schema
 
 ```
-date,time,symbol,timeframe,setup,planned_entry,actual_entry,stop,target,exit,size,pnl,r_multiple,rule_followed,emotion,notes
+date,time,mode,symbol,timeframe,setup,planned_entry,actual_entry,stop,target,exit,size,pnl,r_multiple,costs,rule_followed,emotion,notes
 ```
 
 Field notes:
-- `setup` — must be a setup name from `rules.md`, or the literal `IMPULSE` if
-  it was not a planned setup. Do not invent a setup name to make it look planned.
+- `mode` — `INTRADAY` / `SWING` / `POSITIONAL`. Infer it from the chart
+  timeframe and the stated hold, and confirm with me if ambiguous. **This
+  field is what keeps the three systems separable in `/review` — never guess
+  it silently.**
+- `setup` — must be a setup name from `rules.md` **for that mode**, or the
+  literal `IMPULSE`. Do not invent a setup name to make it look planned.
+  A SWING setup logged under INTRADAY is a rule breach, not a naming detail.
+- `costs` — estimated round-trip charges from `india_costs.md`. SWING and
+  POSITIONAL are delivery (~₹126 on ₹25,000); INTRADAY is far cheaper
+  (~₹55) since STT is sell-side only and there is no DP charge.
 - `rule_followed` — `yes` / `no` / `partial`
 - `emotion` — one word: calm, fomo, revenge, bored, anxious, confident
-- `r_multiple` — (exit − actual_entry) / (actual_entry − stop), signed for direction
+- `r_multiple` — (exit − actual_entry) / (actual_entry − stop), signed for
+  direction. This is **gross**; `/review` nets out `costs` separately.
 
 ## After logging
 
