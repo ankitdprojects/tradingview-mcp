@@ -27,6 +27,12 @@ slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : pres
 trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
+grpD2      = "Direction"
+dirMode    = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"], group = grpD2,
+     tooltip = "Cash equity DELIVERY cannot be held short overnight in India - " +
+               "use Long only for SWING/POSITIONAL equity. Intraday equity, " +
+               "futures and commodities can be shorted freely.")
+
 grpR       = "Risk (from rules.md)"
 riskRupees = input.float(1000,  "Risk per trade", minval = 1, group = grpR)
 minPos     = input.float(20000, "Min position (equity only)", minval = 0, group = grpR)
@@ -94,18 +100,45 @@ plot(emaTrend,      "Regime EMA",   color = cTrndEma, linewidth = 1)
 fill(pF, pS, color = color.new(emaFast > emaSlow ? cGood : cBad, 88), title = "EMA ribbon")
 
 // ── Setup state machine — UNCHANGED from v1 ───────────────────────────────
-context = close > emaSlow
-touched = low <= emaFast and context
+allowL = dirMode != "Short only"
+allowS = dirMode != "Long only"
 
-var bool armed = false
-if touched and close < emaFast
-    armed := true
-if not context
-    armed := false
+// ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
+contextL = close > emaSlow
+touchedL = low <= emaFast and contextL
 
-trigger = armed and close > emaFast and close[1] <= emaFast
-if trigger
-    armed := false
+var bool armedL = false
+if allowL and touchedL and close < emaFast
+    armedL := true
+if not contextL or not allowL
+    armedL := false
+
+triggerL = armedL and close > emaFast and close[1] <= emaFast
+if triggerL
+    armedL := false
+
+// ── SHORT: exact mirror. Rally UP into the fast EMA in a downtrend, then
+// fail back below it. Same logic, inverted — not a different system.
+contextS = close < emaSlow
+touchedS = high >= emaFast and contextS
+
+var bool armedS = false
+if allowS and touchedS and close > emaFast
+    armedS := true
+if not contextS or not allowS
+    armedS := false
+
+triggerS = armedS and close < emaFast and close[1] >= emaFast
+if triggerS
+    armedS := false
+
+// Aggregate state. Long and short contexts are mutually exclusive (price
+// cannot be both above and below the context EMA), so these never collide.
+context = contextL or contextS
+touched = touchedL or touchedS
+armed   = armedL or armedS
+trigger = triggerL or triggerS
+isShort = contextS
 
 // ── Sizing ────────────────────────────────────────────────────────────────
 // Equity sizes in shares (any integer). Futures/commodity sizes in LOTS, so
@@ -113,14 +146,18 @@ if trigger
 // and 1 lot can exceed it entirely.
 isLots       = instType == "Futures / Commodity (lots)"
 swingLow     = ta.lowest(low, swingBack)
-riskPerShare = close - swingLow
+swingHigh    = ta.highest(high, swingBack)
+// Stop sits beyond the pullback extreme: below the swing low for a long,
+// above the swing high for a short.
+stopLevel    = isShort ? swingHigh : swingLow
+riskPerShare = isShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
 
 riskPerUnit  = isLots ? riskPerShare * lotSize : riskPerShare
 units        = validRisk ? math.floor(riskRupees / riskPerUnit) : 0
 posValue     = isLots ? units * close * lotSize : units * close
 actualRisk   = units * riskPerUnit
-target2R     = close + (riskPerShare * 2)
+target2R     = isShort ? close - (riskPerShare * 2) : close + (riskPerShare * 2)
 
 // A single lot whose risk already exceeds the budget is the common failure
 // at small capital. Flag it rather than quietly returning 0.
@@ -170,14 +207,21 @@ for i = 0 to math.max(array.size(supVal) - 1, 0)
             nearestSup := v
 
 // ── Marks ─────────────────────────────────────────────────────────────────
-plotshape(touched ? low : na, "Pullback touch", shape.circle,
+plotshape(touchedL ? low  : na, "Pullback touch (long)",  shape.circle,
           location.absolute, color.new(cWarn, 20), size = size.tiny)
-plotshape(trigger ? low : na, "TRIGGER", shape.triangleup,
+plotshape(touchedS ? high : na, "Pullback touch (short)", shape.circle,
+          location.absolute, color.new(cWarn, 20), size = size.tiny)
+
+plotshape(triggerL ? low : na, "BUY trigger", shape.triangleup,
           location.belowbar, cGood, size = size.small,
           text = "BUY", textcolor = cGood)
-// Faint background tint while a pullback is armed, so the "waiting" state is
-// visible without reading the table.
-bgcolor(armed and not trigger ? color.new(cWarn, 94) : na, title = "Armed tint")
+plotshape(triggerS ? high : na, "SELL trigger", shape.triangledown,
+          location.abovebar, cBad, size = size.small,
+          text = "SELL", textcolor = cBad)
+
+// Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
+bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
+        title = "Armed tint")
 
 // ── Console ───────────────────────────────────────────────────────────────
 tick(bool ok)  => ok ? "✔" : "✘"
@@ -192,22 +236,25 @@ if barstate.islast
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = trigger ? "▲ TRIGGER" : armed ? "◆ ARMED" : "— WAIT"
-    stateBg  = trigger ? cGood : armed ? cWarn : color.new(cDim, 55)
+    stateTxt = triggerL ? "▲ BUY" : triggerS ? "▼ SELL"
+             : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+    stateBg  = triggerL ? cGood : triggerS ? cBad
+             : armed    ? cWarn : color.new(cDim, 55)
 
-    table.cell(cons, 0, 0, " SWING PULLBACK ", text_color = #FFFFFF,
+    table.cell(cons, 0, 0, " PULLBACK CONSOLE ", text_color = #FFFFFF,
                bgcolor = cAccent, text_size = txtSz)
     table.cell(cons, 1, 0, stateTxt, text_color = #FFFFFF,
                text_size = txtSz, bgcolor = stateBg)
 
-    // Labels show the ACTIVE period, so the table never lies about which
-    // preset is running.
-    table.cell(cons, 0, 1, "Close > " + str.tostring(slowLen) + " EMA", text_color = cTxt, text_size = txtSz)
+    // Condition labels flip with direction, so the row always describes the
+    // side actually being evaluated rather than a fixed long bias.
+    table.cell(cons, 0, 1, (isShort ? "Close < " : "Close > ") + str.tostring(slowLen) + " EMA", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 1, tick(context), text_color = okCol(context), text_size = txtSz)
-    table.cell(cons, 0, 2, "Touched " + str.tostring(fastLen) + " EMA", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 0, 2, (isShort ? "Rallied to " : "Touched ") + str.tostring(fastLen) + " EMA", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 2, tick(armed or trigger), text_color = okCol(armed or trigger), text_size = txtSz)
-    table.cell(cons, 0, 3, "Above " + str.tostring(trendLen) + " EMA", text_color = cDim, text_size = txtSz)
-    table.cell(cons, 1, 3, tick(close > emaTrend), text_color = okCol(close > emaTrend), text_size = txtSz)
+    table.cell(cons, 0, 3, (isShort ? "Below " : "Above ") + str.tostring(trendLen) + " EMA", text_color = cDim, text_size = txtSz)
+    table.cell(cons, 1, 3, tick(isShort ? close < emaTrend : close > emaTrend),
+               text_color = okCol(isShort ? close < emaTrend : close > emaTrend), text_size = txtSz)
 
     table.cell(cons, 0, 4, "LEVELS", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 4, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
@@ -233,7 +280,7 @@ if barstate.islast
     table.cell(cons, 0, 12, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 12, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 0, 13, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 13, str.tostring(swingLow, format.mintick) + " / " +
+    table.cell(cons, 1, 13, str.tostring(stopLevel, format.mintick) + " / " +
                (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
                (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
                text_color = cTxt, text_size = txtSz)
@@ -244,4 +291,6 @@ if barstate.islast
                text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
                text_size = txtSz)
 
-alertcondition(trigger, "Pullback trigger", "Pullback trigger - close back above the pullback EMA")
+alertcondition(triggerL, "BUY trigger",  "Long pullback trigger - close back ABOVE the pullback EMA")
+alertcondition(triggerS, "SELL trigger", "Short pullback trigger - close back BELOW the pullback EMA")
+alertcondition(trigger,  "Any trigger",  "Pullback trigger fired (long or short)")
