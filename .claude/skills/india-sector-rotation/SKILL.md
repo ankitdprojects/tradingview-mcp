@@ -22,9 +22,9 @@ it reads the same chart you already have open.
 
 1. Read `references/nse_sector_indices.md` for the symbol list.
 
-2. **First run only**: confirm each symbol resolves, using `symbol_search`.
-   TradingView's exact ticker strings for NSE indices vary by data subscription.
-   Record any corrections back into the reference file so later runs skip this.
+2. Symbols in that file are already verified — use them directly. Only fall back
+   to `symbol_search` if one returns no data, and save any correction back to
+   the reference file.
 
 3. Establish the benchmark. `chart_set_symbol` to `NSE:NIFTY`, then
    `data_get_ohlcv` with `summary: true, count: 60`.
