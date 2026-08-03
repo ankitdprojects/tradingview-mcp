@@ -11,4 +11,6 @@ journal/
 .claude/rules.md
 
 # Third-party skills (MIT, tradermonty/claude-trading-skills) — see .claude/skills/README.md
-.claude/skills/
+.claude/skills/*
+!.claude/skills/README.md
+!.claude/skills/india-*/
