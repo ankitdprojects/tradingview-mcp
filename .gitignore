@@ -11,6 +11,9 @@ journal/
 .claude/rules.md
 
 # Third-party skills (MIT, tradermonty/claude-trading-skills) — see .claude/skills/README.md
-.claude/skills/*
-!.claude/skills/README.md
-!.claude/skills/india-*/
+# Listed explicitly so anything I write in .claude/skills/ is tracked by default.
+.claude/skills/market-breadth-analyzer/
+.claude/skills/position-sizer/
+.claude/skills/signal-postmortem/
+.claude/skills/trader-memory-core/
+.claude/skills/uptrend-analyzer/

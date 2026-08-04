@@ -46,6 +46,22 @@ from upstream overwrites these — redo them.**
 Without this, "how many shares should I buy?" matches both sizers and the wrong
 one can fire — giving you share counts with US cost assumptions on an NSE trade.
 
+## Skills written for this project (tracked in git)
+
+| Skill | Purpose |
+|---|---|
+| `replay-backtest` | validate a PROVISIONAL setup against historical bars via Bar Replay |
+| `india-commodity` | MCX symbol syntax, contract months, lot sizes, session, expiry |
+| `setup-scanner` | scan a universe for ARMED / TRIGGERED setups, ranked by quality |
+| `expiry-watch` | contract expiry, rollover, physical settlement, results-date risk |
+| `alert-manager` | create and prune alerts so setups are not missed |
+| `india-position-sizer` | lot/share sizing with the Indian cost stack |
+| `india-sector-rotation` | NSE sector RS vs NIFTY 50 |
+| `india-market-breadth` | Indian market participation score |
+
+These are ours and are version-controlled. Only the five upstream skills below
+are gitignored.
+
 ## Routing: which skill for which market
 
 | Task | US | India |
