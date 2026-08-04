@@ -43,6 +43,23 @@ Field notes:
 - `r_multiple` — (exit − actual_entry) / (actual_entry − stop), signed for
   direction. This is **gross**; `/review` nets out `costs` separately.
 
+## Open positions — check the time stop FIRST
+
+Before logging anything new, scan `journal/trades.csv` for rows with no `exit`
+value. For each, compare today's date against the entry date and the mode's
+time stop:
+
+| Mode | Hard exit |
+|---|---|
+| INTRADAY | 15:15 same day |
+| **SWING** | **close of the 3rd trading day after entry** |
+| POSITIONAL | 30 days |
+
+If a position has reached or passed its time stop, say so **before** anything
+else, naming the symbol and the day count. The time stop is not a suggestion —
+`rules.md` says exit at market whatever the P&L. A position held past it is a
+rule breach and must be logged as `rule_followed = no`.
+
 ## After logging
 
 1. Confirm the row you wrote, in full.
