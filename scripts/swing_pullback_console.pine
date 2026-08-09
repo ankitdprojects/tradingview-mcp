@@ -27,6 +27,17 @@ slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : pres
 trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
+grpST     = "Setup type"
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Both"], group = grpST,
+     tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
+               "rally in a downtrend).\n\nBreakout: buy a close through the " +
+               "nearest confirmed pivot resistance (or sell a close below " +
+               "support). These are near-opposite trades - log them as " +
+               "SEPARATE setups so /review can judge each on its own record.")
+brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1, group = grpST,
+     tooltip = "A breakout on below-average volume is the classic false break. " +
+               "0 disables the filter. Ignored on feeds with no real volume.")
+
 grpD2      = "Direction"
 confirmBar = input.bool(true, "Signal only on CLOSED bars (no repaint)", group = grpD2,
      tooltip = "ON: a trigger fires only when the bar closes, matching the " +
@@ -115,67 +126,6 @@ allowS = dirMode != "Long only"
 // identical to historical behaviour — the definition of non-repainting.
 barOK  = confirmBar ? barstate.isconfirmed : true
 
-// ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
-contextL = close > emaSlow
-touchedL = low <= emaFast and contextL
-
-var bool armedL = false
-if allowL and touchedL and close < emaFast
-    armedL := true
-if not contextL or not allowL
-    armedL := false
-
-triggerL = armedL and close > emaFast and close[1] <= emaFast and barOK
-if triggerL
-    armedL := false
-
-// ── SHORT: exact mirror. Rally UP into the fast EMA in a downtrend, then
-// fail back below it. Same logic, inverted — not a different system.
-contextS = close < emaSlow
-touchedS = high >= emaFast and contextS
-
-var bool armedS = false
-if allowS and touchedS and close > emaFast
-    armedS := true
-if not contextS or not allowS
-    armedS := false
-
-triggerS = armedS and close < emaFast and close[1] >= emaFast and barOK
-if triggerS
-    armedS := false
-
-// Aggregate state. Long and short contexts are mutually exclusive (price
-// cannot be both above and below the context EMA), so these never collide.
-context = contextL or contextS
-touched = touchedL or touchedS
-armed   = armedL or armedS
-trigger = triggerL or triggerS
-isShort = contextS
-
-// ── Sizing ────────────────────────────────────────────────────────────────
-// Equity sizes in shares (any integer). Futures/commodity sizes in LOTS, so
-// risk is quantised — rounding down often lands well under the target risk,
-// and 1 lot can exceed it entirely.
-isLots       = instType == "Futures / Commodity (lots)"
-swingLow     = ta.lowest(low, swingBack)
-swingHigh    = ta.highest(high, swingBack)
-// Stop sits beyond the pullback extreme: below the swing low for a long,
-// above the swing high for a short.
-stopLevel    = isShort ? swingHigh : swingLow
-riskPerShare = isShort ? stopLevel - close : close - stopLevel
-validRisk    = riskPerShare > 0
-
-riskPerUnit  = isLots ? riskPerShare * lotSize : riskPerShare
-units        = validRisk ? math.floor(riskRupees / riskPerUnit) : 0
-posValue     = isLots ? units * close * lotSize : units * close
-actualRisk   = units * riskPerUnit
-target2R     = isShort ? close - (riskPerShare * 2) : close + (riskPerShare * 2)
-
-// A single lot whose risk already exceeds the budget is the common failure
-// at small capital. Flag it rather than quietly returning 0.
-oneLotRisk   = validRisk ? riskPerShare * lotSize : na
-lotTooBig    = isLots and validRisk and units < 1
-
 // ── Support / Resistance from pivots ──────────────────────────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
 pl = ta.pivotlow(low,  pvtLen, pvtLen)
@@ -218,6 +168,100 @@ for i = 0 to math.max(array.size(supVal) - 1, 0)
         if v < close and (na(nearestSup) or v > nearestSup)
             nearestSup := v
 
+// ── BREAKOUT / BREAKDOWN ──────────────────────────────────────────────────
+// A breakout is a close THROUGH the nearest confirmed pivot level. Those
+// levels lag by pvtLen bars, which is fine here: the level was established
+// long before the break, so no future information is used.
+doPull = setupType == "Pullback" or setupType == "Both"
+doBrk  = setupType == "Breakout" or setupType == "Both"
+
+// Volume filter. Feeds without real volume report relVol ~0; treat those as
+// "no data" and pass, rather than silently blocking every signal.
+volOK  = brkVolMin <= 0 or relVol < 0.01 or relVol >= brkVolMin
+
+resPrev = nearestRes[1]
+supPrev = nearestSup[1]
+
+brkLong  = doBrk and allowL and barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev and volOK
+brkShort = doBrk and allowS and barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev and volOK
+
+// The broken level becomes the stop: a breakout that falls back through it
+// has failed by definition.
+brkStopL = resPrev
+brkStopS = supPrev
+
+// ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
+contextL = close > emaSlow
+touchedL = low <= emaFast and contextL
+
+var bool armedL = false
+if allowL and touchedL and close < emaFast
+    armedL := true
+if not contextL or not allowL
+    armedL := false
+
+triggerL = doPull and armedL and close > emaFast and close[1] <= emaFast and barOK
+if triggerL
+    armedL := false
+
+// ── SHORT: exact mirror. Rally UP into the fast EMA in a downtrend, then
+// fail back below it. Same logic, inverted — not a different system.
+contextS = close < emaSlow
+touchedS = high >= emaFast and contextS
+
+var bool armedS = false
+if allowS and touchedS and close > emaFast
+    armedS := true
+if not contextS or not allowS
+    armedS := false
+
+triggerS = doPull and armedS and close < emaFast and close[1] >= emaFast and barOK
+if triggerS
+    armedS := false
+
+// Aggregate state. Long and short contexts are mutually exclusive (price
+// cannot be both above and below the context EMA), so these never collide.
+context = contextL or contextS
+touched = touchedL or touchedS
+armed   = armedL or armedS
+isShort = contextS
+
+// Combined signals. A breakout and a pullback can in principle fire on the
+// same bar; the breakout wins for stop placement because its level is the
+// tighter, more specific invalidation.
+anyLong  = triggerL or brkLong
+anyShort = triggerS or brkShort
+trigger  = anyLong or anyShort
+
+// ── Sizing ────────────────────────────────────────────────────────────────
+// Equity sizes in shares (any integer). Futures/commodity sizes in LOTS, so
+// risk is quantised — rounding down often lands well under the target risk,
+// and 1 lot can exceed it entirely.
+isLots       = instType == "Futures / Commodity (lots)"
+swingLow     = ta.lowest(low, swingBack)
+swingHigh    = ta.highest(high, swingBack)
+// Stop sits beyond the pullback extreme: below the swing low for a long,
+// above the swing high for a short.
+// Breakout stops sit at the broken level; pullback stops at the swing extreme.
+stopLevel    = brkLong  and not na(brkStopL) ? brkStopL
+             : brkShort and not na(brkStopS) ? brkStopS
+             : isShort ? swingHigh : swingLow
+goingShort   = brkShort or (isShort and not brkLong)
+riskPerShare = goingShort ? stopLevel - close : close - stopLevel
+validRisk    = riskPerShare > 0
+
+riskPerUnit  = isLots ? riskPerShare * lotSize : riskPerShare
+units        = validRisk ? math.floor(riskRupees / riskPerUnit) : 0
+posValue     = isLots ? units * close * lotSize : units * close
+actualRisk   = units * riskPerUnit
+target2R     = isShort ? close - (riskPerShare * 2) : close + (riskPerShare * 2)
+
+// A single lot whose risk already exceeds the budget is the common failure
+// at small capital. Flag it rather than quietly returning 0.
+oneLotRisk   = validRisk ? riskPerShare * lotSize : na
+lotTooBig    = isLots and validRisk and units < 1
+
+
 // ── Marks ─────────────────────────────────────────────────────────────────
 plotshape(touchedL ? low  : na, "Pullback touch (long)",  shape.circle,
           location.absolute, color.new(cWarn, 20), size = size.tiny)
@@ -230,6 +274,15 @@ plotshape(triggerL ? low : na, "BUY trigger", shape.triangleup,
 plotshape(triggerS ? high : na, "SELL trigger", shape.triangledown,
           location.abovebar, cBad, size = size.small,
           text = "SELL", textcolor = cBad)
+
+// Breakouts get their own marks so the two setups are never confused on the
+// chart or in the journal.
+plotshape(brkLong ? low : na, "BREAKOUT", shape.labelup,
+          location.belowbar, cGood, size = size.small,
+          text = "BRK↑", textcolor = #FFFFFF)
+plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
+          location.abovebar, cBad, size = size.small,
+          text = "BRK↓", textcolor = #FFFFFF)
 
 // Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
 bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
@@ -248,10 +301,11 @@ if barstate.islast
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = triggerL ? "▲ BUY" : triggerS ? "▼ SELL"
+    stateTxt = brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+             : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
-    stateBg  = triggerL ? cGood : triggerS ? cBad
-             : armed    ? cWarn : color.new(cDim, 55)
+    stateBg  = anyLong ? cGood : anyShort ? cBad
+             : armed   ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " PULLBACK CONSOLE ", text_color = #FFFFFF,
                bgcolor = cAccent, text_size = txtSz)
@@ -309,6 +363,8 @@ if barstate.islast
                text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
                text_size = txtSz)
 
-alertcondition(triggerL, "BUY trigger",  "Long pullback trigger - close back ABOVE the pullback EMA")
-alertcondition(triggerS, "SELL trigger", "Short pullback trigger - close back BELOW the pullback EMA")
-alertcondition(trigger,  "Any trigger",  "Pullback trigger fired (long or short)")
+alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back ABOVE the pullback EMA")
+alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
+alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
+alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
+alertcondition(trigger,  "Any trigger",   "Any setup fired (pullback or breakout, long or short)")
