@@ -97,6 +97,10 @@ minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
                "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
 
 grpV     = "Appearance"
+emaFastCol = input.color(#FF4081, "Pullback EMA colour", group = grpV)
+emaSlowCol = input.color(#FFC107, "Context EMA colour",  group = grpV)
+emaTrndCol = input.color(#90A4AE, "Regime EMA colour",   group = grpV)
+emaWidth   = input.int(2, "EMA line width", minval = 1, maxval = 4, group = grpV)
 theme    = input.string("Dark", "Theme", options = ["Dark", "Light"], group = grpV)
 txtSzIn  = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpV)
 tblPos   = input.string("Top right", "Table position", options = ["Top right", "Top left", "Bottom right", "Bottom left", "Middle right"], group = grpV)
@@ -112,10 +116,12 @@ cBad     = isDark ? #FF5C6C : #E02424          // fail / bearish
 cWarn    = isDark ? #FFB020 : #C77700          // armed / caution
 cAccent  = isDark ? #2962FF : #1E53E5          // header
 
-// EMA colours — high contrast, distinguishable, colour-blind friendly
-cFastEma = #00D9FF                              // cyan   — pullback EMA
-cSlowEma = #FFB020                              // amber  — context EMA
-cTrndEma = isDark ? #5D6673 : #B2B5BE           // muted  — regime EMA
+// EMA colours — deliberately NOT blue, so they never compete with the blue
+// S/R lines. Also avoids pure red/green, which the table reserves for
+// pass/fail and bullish/bearish meaning.
+cFastEma = emaFastCol                           // magenta — pullback EMA
+cSlowEma = emaSlowCol                           // amber   — context EMA
+cTrndEma = emaTrndCol                           // muted   — regime EMA
 
 txtSz    = txtSzIn == "Tiny" ? size.tiny : txtSzIn == "Small" ? size.small : txtSzIn == "Normal" ? size.normal : size.large
 tPos     = tblPos == "Top right" ? position.top_right : tblPos == "Top left" ? position.top_left : tblPos == "Bottom right" ? position.bottom_right : tblPos == "Bottom left" ? position.bottom_left : position.middle_right
@@ -144,8 +150,8 @@ turnoverCr = turnover / 10000000
 // 20-bar average turnover gives context for whether today is unusually active.
 avgTurnCr  = ta.sma(turnover, volLen) / 10000000
 
-pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = 2)
-pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = 2)
+pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = emaWidth)
+pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = emaWidth)
 plot(emaTrend,      "Regime EMA",   color = cTrndEma, linewidth = 1)
 
 // Soft ribbon between the two active EMAs — green when the trend context
