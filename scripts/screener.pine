@@ -7,12 +7,12 @@ indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 1
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
 preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
-     options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
-     tooltip = "Fast is the quickest preset here by design - nothing shorter " +
-               "is offered. On a 25,000 position, delivery round-trip costs " +
-               "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
-               "breakeven win rate from 33% to ~38% at a 2R target. " +
-               "Swing (5-15d) spreads the same cost over a larger move.")
+    options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
+    tooltip = "Fast is the quickest preset here by design - nothing shorter " +
+            "is offered. On a 25,000 position, delivery round-trip costs " +
+            "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
+            "breakeven win rate from 33% to ~38% at a 2R target. " +
+            "Swing (5-15d) spreads the same cost over a larger move.")
 
 // Custom values — only used when preset = "Custom"
 cFast   = input.int(20,  "Custom: Pullback EMA", minval = 1, group = grpS)
@@ -29,76 +29,76 @@ swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : pres
 
 grpST     = "Setup type"
 setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
-     tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
-               "rally in a downtrend).\n\nBreakout: buy a close through the " +
-               "nearest confirmed pivot resistance (or sell a close below " +
-               "support). These are near-opposite trades - log them as " +
-               "SEPARATE setups so /review can judge each on its own record.")
+    tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
+            "rally in a downtrend).\n\nBreakout: buy a close through the " +
+            "nearest confirmed pivot resistance (or sell a close below " +
+            "support). These are near-opposite trades - log them as " +
+            "SEPARATE setups so /review can judge each on its own record.")
 brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1, group = grpST,
-     tooltip = "A breakout on below-average volume is the classic false break. " +
-               "0 disables the filter. Ignored on feeds with no real volume.")
+    tooltip = "A breakout on below-average volume is the classic false break. " +
+            "0 disables the filter. Ignored on feeds with no real volume.")
 rtWindow  = input.int(12, "Retest: bars allowed after the break", minval = 1, group = grpST,
-     tooltip = "How long a broken level stays 'live' as a retest candidate. " +
-               "On 30m equity, 12 bars is about one session.")
+    tooltip = "How long a broken level stays 'live' as a retest candidate. " +
+            "On 30m equity, 12 bars is about one session.")
 
 grpD2      = "Direction"
 confirmBar = input.bool(true, "Signal only on CLOSED bars (no repaint)", group = grpD2,
-     tooltip = "ON: a trigger fires only when the bar closes, matching the " +
-               "rules.md definition ('close back above the EMA'). What you see " +
-               "live is then identical to what you see in history.\n\n" +
-               "OFF: triggers evaluate tick-by-tick on the forming bar. You see " +
-               "them earlier, but an arrow can APPEAR and then VANISH before the " +
-               "bar closes. History will not match what you saw live.")
+    tooltip = "ON: a trigger fires only when the bar closes, matching the " +
+            "rules.md definition ('close back above the EMA'). What you see " +
+            "live is then identical to what you see in history.\n\n" +
+            "OFF: triggers evaluate tick-by-tick on the forming bar. You see " +
+            "them earlier, but an arrow can APPEAR and then VANISH before the " +
+            "bar closes. History will not match what you saw live.")
 dirMode    = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"], group = grpD2,
-     tooltip = "Cash equity DELIVERY cannot be held short overnight in India - " +
-               "use Long only for SWING/POSITIONAL equity. Intraday equity, " +
-               "futures and commodities can be shorted freely.")
+    tooltip = "Cash equity DELIVERY cannot be held short overnight in India - " +
+            "use Long only for SWING/POSITIONAL equity. Intraday equity, " +
+            "futures and commodities can be shorted freely.")
 
 grpR       = "Risk (from rules.md)"
 riskRupees = input.float(1000,  "Risk per trade", minval = 1, group = grpR)
 minPos     = input.float(20000, "Min position (equity only)", minval = 0, group = grpR)
 instType   = input.string("Equity (shares)", "Instrument type", group = grpR,
-     options = ["Equity (shares)", "Futures / Commodity (lots)"],
-     tooltip = "MCX commodities and currency futures trade in LOTS. Risk per " +
-               "lot = stop distance x lot size, so risk is quantised - you " +
-               "often cannot hit the target risk exactly.")
+    options = ["Equity (shares)", "Futures / Commodity (lots)"],
+    tooltip = "MCX commodities and currency futures trade in LOTS. Risk per " +
+            "lot = stop distance x lot size, so risk is quantised - you " +
+            "often cannot hit the target risk exactly.")
 lotSize    = input.float(10, "Lot size (contract multiplier)", minval = 0.0001, group = grpR,
-     tooltip = "e.g. Crude Oil Mini 10 barrels, Crude Oil 100, Natural Gas Mini 250, " +
-               "Gold Mini 100 g, Silver Micro 1 kg. ALWAYS confirm the current lot " +
-               "size in the Groww order window - exchanges revise these.")
+    tooltip = "e.g. Crude Oil Mini 10 barrels, Crude Oil 100, Natural Gas Mini 250, " +
+            "Gold Mini 100 g, Silver Micro 1 kg. ALWAYS confirm the current lot " +
+            "size in the Groww order window - exchanges revise these.")
 
 grpSR    = "Support / Resistance"
 showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
 pvtLen   = input.int(10, "Pivot lookback",     minval = 2, group = grpSR)
 maxSR    = input.int(4,  "Max levels per side", minval = 1, maxval = 10, group = grpSR)
 srColor  = input.color(#4FC3F7, "S/R line colour", group = grpSR,
-     tooltip = "Light blue by default — reads clearly on a dark chart. " +
-               "A mid or dark blue disappears against the background.")
+    tooltip = "Light blue by default — reads clearly on a dark chart. " +
+            "A mid or dark blue disappears against the background.")
 srWidth  = input.int(2, "S/R line width", minval = 1, maxval = 4, group = grpSR)
 srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grpSR,
-     tooltip = "0 = fully solid. Raise only if the lines start competing with " +
-               "the candles for attention.")
+    tooltip = "0 = fully solid. Raise only if the lines start competing with " +
+            "the candles for attention.")
 
 grpVC     = "VCP (Volatility Contraction)"
 showVCP   = input.bool(true, "Detect VCP", group = grpVC)
 vcpPvt    = input.int(5, "Swing sensitivity", minval = 2, group = grpVC,
-     tooltip = "Pivot lookback for the swings INSIDE the base. Smaller than the " +
-               "S/R pivot - contractions are minor swings by definition.")
+    tooltip = "Pivot lookback for the swings INSIDE the base. Smaller than the " +
+            "S/R pivot - contractions are minor swings by definition.")
 vcpMinC   = input.int(3, "Min contractions", minval = 2, maxval = 5, group = grpVC,
-     tooltip = "Minervini's classic base shows 2-4 contractions, each tighter " +
-               "than the last. 3 is the usual minimum for a valid VCP.")
+    tooltip = "Minervini's classic base shows 2-4 contractions, each tighter " +
+            "than the last. 3 is the usual minimum for a valid VCP.")
 vcpTight  = input.float(0.75, "Each contraction < this x previous", minval = 0.3, maxval = 0.95, step = 0.05, group = grpVC,
-     tooltip = "0.75 means each pullback must be at least 25% shallower than " +
-               "the one before. Lower = stricter tightening required.")
+    tooltip = "0.75 means each pullback must be at least 25% shallower than " +
+            "the one before. Lower = stricter tightening required.")
 vcpVolDry = input.float(0.85, "Base volume vs longer average", minval = 0.3, maxval = 1.2, step = 0.05, group = grpVC,
-     tooltip = "Volume must DRY UP through the base. 0.85 = recent volume below " +
-               "85% of the longer average. This is half the pattern - a base " +
-               "without volume contraction is not a VCP.")
+    tooltip = "Volume must DRY UP through the base. 0.85 = recent volume below " +
+            "85% of the longer average. This is half the pattern - a base " +
+            "without volume contraction is not a VCP.")
 vcpNear   = input.float(3.0, "Pivot proximity %", minval = 0.5, maxval = 15, step = 0.5, group = grpVC,
-     tooltip = "How close price must be to the base high to count as READY.")
+    tooltip = "How close price must be to the base high to count as READY.")
 vcpBrkVol = input.float(1.5, "Breakout volume multiple", minval = 0, step = 0.1, group = grpVC,
-     tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
-               "a low-volume breakout from a VCP as a failure signal.")
+    tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
+            "a low-volume breakout from a VCP as a failure signal.")
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
@@ -109,13 +109,13 @@ adxLen   = input.int(14, "ADX length",  minval = 1, group = grpC)
 grpF     = "Fundamentals & liquidity"
 showFund = input.bool(true, "Show P/E and turnover", group = grpF)
 peMax    = input.float(0, "Flag P/E above (0 = off)", minval = 0, group = grpF,
-     tooltip = "Colours the P/E cell red above this value. Purely a flag - it " +
-               "does not block a signal. P/E is meaningless for futures, " +
-               "commodities and indices, and for loss-making companies.")
+    tooltip = "Colours the P/E cell red above this value. Purely a flag - it " +
+            "does not block a signal. P/E is meaningless for futures, " +
+            "commodities and indices, and for loss-making companies.")
 minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
-     tooltip = "Turnover = volume x price, the honest liquidity measure. Share " +
-               "count alone is misleading: 10,000 shares of a Rs100 stock is " +
-               "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
+    tooltip = "Turnover = volume x price, the honest liquidity measure. Share " +
+            "count alone is misleading: 10,000 shares of a Rs100 stock is " +
+            "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
 
 grpV     = "Appearance"
 emaFastCol = input.color(#FF4081, "Pullback EMA colour", group = grpV)
@@ -161,7 +161,7 @@ relVol   = volume / math.max(ta.sma(volume, volLen), 1)
 // ignore_invalid_symbol = true so futures, commodities and indices return na
 // instead of erroring. A missing P/E is correct for those, not a fault.
 epsTTM = showFund ? request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "TTM",
-                                     ignore_invalid_symbol = true) : na
+                                    ignore_invalid_symbol = true) : na
 peRatio = not na(epsTTM) and epsTTM > 0 ? close / epsTTM : na
 
 // Turnover in rupees, then crore. Volume in shares is a poor liquidity proxy
@@ -199,7 +199,7 @@ var array<float> supVal  = array.new<float>()
 
 if showSR and not na(ph)
     ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
-                  color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
     array.push(resLine, ln)
     array.push(resVal, ph)
     if array.size(resLine) > maxSR
@@ -208,7 +208,7 @@ if showSR and not na(ph)
 
 if showSR and not na(pl)
     ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
-                  color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
     array.push(supLine, ln)
     array.push(supVal, pl)
     if array.size(supLine) > maxSR
@@ -276,12 +276,12 @@ vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 
 
 // READY: base is formed, volume dry, price coiled just under the pivot.
 vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
-       and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
+    and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
 
 // BREAKOUT: clears the base high on expanding volume.
 vcpBrk = showVCP and doVCP and allowL and barOK and vTightening and not na(vLastHi)
-     and close > vLastHi and close[1] <= vLastHi
-     and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
+    and close > vLastHi and close[1] <= vLastHi
+    and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
 
 // Stop sits below the low of the final contraction — the tightest one, which
 // is what makes a VCP entry low-risk relative to the base it came from.
@@ -339,7 +339,7 @@ if not na(rtLevelL) and low <= rtLevelL and close >= rtLevelL
     rtTouchL := true
 
 rtLong = doRT and allowL and barOK and rtTouchL and not na(rtLevelL)
-     and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
+    and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
 
 // Mirror for the short side: break down, rally back to the level, fail.
 var float rtLevelS = na
@@ -362,7 +362,7 @@ if not na(rtLevelS) and high >= rtLevelS and close <= rtLevelS
     rtTouchS := true
 
 rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
-      and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
+    and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
 
 // Retest stop: just beyond the level being defended.
 rtStopL = rtLevelL
@@ -426,11 +426,11 @@ swingHigh    = ta.highest(high, swingBack)
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
 stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
-             : rtLong   and not na(rtStopL)  ? rtStopL
-             : rtShort  and not na(rtStopS)  ? rtStopS
-             : brkLong  and not na(brkStopL) ? brkStopL
-             : brkShort and not na(brkStopS) ? brkStopS
-             : isShort ? swingHigh : swingLow
+            : rtLong   and not na(rtStopL)  ? rtStopL
+            : rtShort  and not na(rtStopS)  ? rtStopS
+            : brkLong  and not na(brkStopL) ? brkStopL
+            : brkShort and not na(brkStopS) ? brkStopS
+            : isShort ? swingHigh : swingLow
 goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
@@ -449,37 +449,37 @@ lotTooBig    = isLots and validRisk and units < 1
 
 // ── Marks ─────────────────────────────────────────────────────────────────
 plotshape(touchedL ? low  : na, "Pullback touch (long)",  shape.circle,
-          location.absolute, color.new(cWarn, 20), size = size.tiny)
+        location.absolute, color.new(cWarn, 20), size = size.tiny)
 plotshape(touchedS ? high : na, "Pullback touch (short)", shape.circle,
-          location.absolute, color.new(cWarn, 20), size = size.tiny)
+        location.absolute, color.new(cWarn, 20), size = size.tiny)
 
 plotshape(triggerL ? low : na, "BUY trigger", shape.triangleup,
-          location.belowbar, cGood, size = size.small,
-          text = "BUY", textcolor = cGood)
+        location.belowbar, cGood, size = size.small,
+        text = "BUY", textcolor = cGood)
 plotshape(triggerS ? high : na, "SELL trigger", shape.triangledown,
-          location.abovebar, cBad, size = size.small,
-          text = "SELL", textcolor = cBad)
+        location.abovebar, cBad, size = size.small,
+        text = "SELL", textcolor = cBad)
 
 // Breakouts get their own marks so the two setups are never confused on the
 // chart or in the journal.
 plotshape(brkLong ? low : na, "BREAKOUT", shape.labelup,
-          location.belowbar, cGood, size = size.small,
-          text = "BRK↑", textcolor = #FFFFFF)
+        location.belowbar, cGood, size = size.small,
+        text = "BRK↑", textcolor = #FFFFFF)
 plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
-          location.abovebar, cBad, size = size.small,
-          text = "BRK↓", textcolor = #FFFFFF)
+        location.abovebar, cBad, size = size.small,
+        text = "BRK↓", textcolor = #FFFFFF)
 
 plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
-          location.belowbar, cGood, size = size.normal,
-          text = "VCP", textcolor = #FFFFFF)
+        location.belowbar, cGood, size = size.normal,
+        text = "VCP", textcolor = #FFFFFF)
 
 // Retest marks — the highest-quality of the three, so they get diamonds.
 plotshape(rtLong ? low : na, "RETEST long", shape.diamond,
-          location.belowbar, cGood, size = size.small,
-          text = "RT↑", textcolor = cGood)
+        location.belowbar, cGood, size = size.small,
+        text = "RT↑", textcolor = cGood)
 plotshape(rtShort ? high : na, "RETEST short", shape.diamond,
-          location.abovebar, cBad, size = size.small,
-          text = "RT↓", textcolor = cBad)
+        location.abovebar, cBad, size = size.small,
+        text = "RT↓", textcolor = cBad)
 
 // Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
 bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
@@ -490,8 +490,8 @@ tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
 var table cons = table.new(tPos, 2, 19, border_width = 0,
-                           frame_width = 1, frame_color = color.new(cDim, 60),
-                           bgcolor = color.new(cBg, tblOpac))
+                        frame_width = 1, frame_color = color.new(cDim, 60),
+                        bgcolor = color.new(cBg, tblOpac))
 
 if barstate.islast
     sizeOK  = posValue >= minPos
@@ -499,19 +499,19 @@ if barstate.islast
     stopAtr = validRisk ? riskPerShare / atr : na
 
     stateTxt = vcpBrk   ? "▲ VCP BREAK"
-             : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
-             : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
-             : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
-             : vcpReady ? "◆ VCP READY"
-             : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
-             : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+            : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+            : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+            : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+            : vcpReady ? "◆ VCP READY"
+            : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
+            : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-             : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
+            : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
-               bgcolor = cAccent, text_size = txtSz)
+            bgcolor = cAccent, text_size = txtSz)
     table.cell(cons, 1, 0, stateTxt, text_color = #FFFFFF,
-               text_size = txtSz, bgcolor = stateBg)
+            text_size = txtSz, bgcolor = stateBg)
 
     // Condition labels flip with direction, so the row always describes the
     // side actually being evaluated rather than a fixed long bias.
@@ -521,13 +521,13 @@ if barstate.islast
     table.cell(cons, 1, 2, tick(armed or trigger), text_color = okCol(armed or trigger), text_size = txtSz)
     table.cell(cons, 0, 3, (isShort ? "Below " : "Above ") + str.tostring(trendLen) + " EMA", text_color = cDim, text_size = txtSz)
     table.cell(cons, 1, 3, tick(isShort ? close < emaTrend : close > emaTrend),
-               text_color = okCol(isShort ? close < emaTrend : close > emaTrend), text_size = txtSz)
+            text_color = okCol(isShort ? close < emaTrend : close > emaTrend), text_size = txtSz)
 
     // Bar status — makes the live/closed distinction explicit rather than
     // leaving the user to wonder why a setup has not fired yet.
     table.cell(cons, 0, 4, "Bar", text_color = cDim, text_size = txtSz)
     table.cell(cons, 1, 4, barstate.isrealtime ? (confirmBar ? "LIVE · waits close" : "LIVE · may repaint") : "closed",
-               text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
+            text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
 
     table.cell(cons, 0, 5, "LEVELS · lag " + str.tostring(pvtLen), text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 5, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
@@ -540,13 +540,13 @@ if barstate.islast
     table.cell(cons, 1, 8, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 0, 9, "RSI " + str.tostring(rsiLen), text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 9, str.tostring(rsi, "#.0"), text_size = txtSz,
-               text_color = rsi > 70 ? cBad : rsi < 30 ? cGood : cTxt)
+            text_color = rsi > 70 ? cBad : rsi < 30 ? cGood : cTxt)
     table.cell(cons, 0, 10, "Rel volume", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 10, relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x", text_size = txtSz,
-               text_color = relVol < 0.01 ? cDim : relVol >= 1.5 ? cGood : cTxt)
+            text_color = relVol < 0.01 ? cDim : relVol >= 1.5 ? cGood : cTxt)
     table.cell(cons, 0, 11, "ADX", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 11, str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop"),
-               text_size = txtSz, text_color = adx >= 25 ? cGood : cWarn)
+            text_size = txtSz, text_color = adx >= 25 ? cGood : cWarn)
     table.cell(cons, 0, 12, "ATR / %", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 12, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.1") + "%", text_color = cTxt, text_size = txtSz)
 
@@ -554,29 +554,29 @@ if barstate.islast
     // actually matters — share count is not comparable across price levels.
     table.cell(cons, 0, 13, "Turnover Cr", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 13, str.tostring(turnoverCr, "#.2") + " / avg " + str.tostring(avgTurnCr, "#.2"),
-               text_color = turnoverCr >= minTurnCr ? cTxt : cWarn, text_size = txtSz)
+            text_color = turnoverCr >= minTurnCr ? cTxt : cWarn, text_size = txtSz)
     table.cell(cons, 0, 14, "P/E (TTM)", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 14, na(peRatio) ? "n/a" : str.tostring(peRatio, "#.1"),
-               text_color = na(peRatio) ? cDim : (peMax > 0 and peRatio > peMax ? cBad : cTxt),
-               text_size = txtSz)
+            text_color = na(peRatio) ? cDim : (peMax > 0 and peRatio > peMax ? cBad : cTxt),
+            text_size = txtSz)
 
     table.cell(cons, 0, 15, "VCP", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 15, not showVCP ? "off" : vcpBrk ? "BREAKOUT" : vcpReady ? "READY " + str.tostring(vLastDepth, "#.1") + "%" : vTightening ? "basing " + str.tostring(array.size(vDepths)) + "c" : "no base",
-               text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
+            text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
 
     table.cell(cons, 0, 16, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 16, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 0, 17, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 17, str.tostring(stopLevel, format.mintick) + " / " +
-               (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
-               (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
-               text_color = cTxt, text_size = txtSz)
+            (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
+            (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
+            text_color = cTxt, text_size = txtSz)
     table.cell(cons, 0, 18, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 18,
-               lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
-                         : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
-               text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
-               text_size = txtSz)
+            lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
+                        : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
+            text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
+            text_size = txtSz)
 
 alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back ABOVE the pullback EMA")
 alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
