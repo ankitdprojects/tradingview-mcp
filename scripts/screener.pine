@@ -2,7 +2,7 @@
 // Screener v2 — rules.md setup + S/R + full context, ONE slot.
 // NOTE: the ARMED/TRIGGER logic is UNCHANGED from v1. Everything added here is
 // display-only context, so the 15-trade validation sample stays clean.
-indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 100)
+indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 100, max_boxes_count = 30)
 
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
@@ -99,6 +99,20 @@ vcpNear   = input.float(3.0, "Pivot proximity %", minval = 0.5, maxval = 15, ste
 vcpBrkVol = input.float(1.5, "Breakout volume multiple", minval = 0, step = 0.1, group = grpVC,
     tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
             "a low-volume breakout from a VCP as a failure signal.")
+
+grpZ     = "Demand / Supply zones"
+showZone = input.bool(true, "Show zones", group = grpZ)
+zoneLen  = input.int(20, "Zone pivot lookback", minval = 3, group = grpZ,
+     tooltip = "Larger than the S/R pivot lookback — zones mark MAJOR turning " +
+               "points, not every minor swing. 20 on a 30m chart is roughly " +
+               "1.5 sessions either side.")
+zoneAtr  = input.float(2.0, "Min move away (ATR)", minval = 0, step = 0.5, group = grpZ,
+     tooltip = "A zone only qualifies if price left it decisively. This is what " +
+               "makes it 'major' — price merely drifting off a low is not demand.")
+maxZone  = input.int(3, "Max zones per side", minval = 1, maxval = 8, group = grpZ)
+zoneDmd  = input.color(#26D0A0, "Demand zone",  group = grpZ)
+zoneSup  = input.color(#FF5C6C, "Supply zone",  group = grpZ)
+zoneTr   = input.int(85, "Zone transparency", minval = 50, maxval = 97, group = grpZ)
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
@@ -236,6 +250,48 @@ doPull = setupType == "Pullback" or setupType == "All"
 doBrk  = setupType == "Breakout" or setupType == "All"
 doRT   = setupType == "Breakout retest" or setupType == "All"
 doVCP  = setupType == "VCP" or setupType == "All"
+
+// ── DEMAND / SUPPLY ZONES ─────────────────────────────────────────────────
+// Drawn as flat-topped, flat-bottomed boxes rather than single lines. A zone
+// is an AREA where price reversed, so a box is the honest representation —
+// a line implies a precision that does not exist.
+//
+// Zone edges: the wick extreme is the outer edge, the candle BODY extreme is
+// the inner edge. Bodies show where price actually traded and settled; wicks
+// show where it was rejected. Both matter, hence a band rather than a level.
+zPh = ta.pivothigh(high, zoneLen, zoneLen)
+zPl = ta.pivotlow(low,  zoneLen, zoneLen)
+
+var array<box> dmdBox = array.new<box>()
+var array<box> supBox = array.new<box>()
+
+// "Major" test: price must have travelled at least zoneAtr x ATR away from
+// the pivot by the time it confirms. Price drifting sideways off a low is
+// not demand — it is just a low.
+moveFromLow  = not na(zPl) ? (close - zPl) / math.max(atr, syminfo.mintick) : na
+moveFromHigh = not na(zPh) ? (zPh - close) / math.max(atr, syminfo.mintick) : na
+
+if showZone and not na(zPl) and moveFromLow >= zoneAtr
+    zLo = zPl                                        // wick low  — outer edge
+    zHi = math.max(open[zoneLen], close[zoneLen])    // body top  — inner edge
+    if zHi > zLo
+        b = box.new(bar_index - zoneLen, zHi, bar_index, zLo,
+                    border_color = color.new(zoneDmd, 40), border_width = 1,
+                    bgcolor = color.new(zoneDmd, zoneTr), extend = extend.right)
+        array.push(dmdBox, b)
+        if array.size(dmdBox) > maxZone
+            box.delete(array.shift(dmdBox))
+
+if showZone and not na(zPh) and moveFromHigh >= zoneAtr
+    zHi2 = zPh                                       // wick high — outer edge
+    zLo2 = math.min(open[zoneLen], close[zoneLen])   // body low  — inner edge
+    if zHi2 > zLo2
+        b = box.new(bar_index - zoneLen, zHi2, bar_index, zLo2,
+                    border_color = color.new(zoneSup, 40), border_width = 1,
+                    bgcolor = color.new(zoneSup, zoneTr), extend = extend.right)
+        array.push(supBox, b)
+        if array.size(supBox) > maxZone
+            box.delete(array.shift(supBox))
 
 // ── VCP · Volatility Contraction Pattern ──────────────────────────────────
 // Minervini's base: successive pullbacks get SHALLOWER while volume DRIES UP,
