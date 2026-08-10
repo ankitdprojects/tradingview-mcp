@@ -71,6 +71,9 @@ grpSR    = "Support / Resistance"
 showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
 pvtLen   = input.int(10, "Pivot lookback",     minval = 2, group = grpSR)
 maxSR    = input.int(4,  "Max levels per side", minval = 1, maxval = 10, group = grpSR)
+srColor  = input.color(#2962FF, "S/R line colour", group = grpSR)
+srWidth  = input.int(1, "S/R line width", minval = 1, maxval = 4, group = grpSR)
+srTransp = input.int(30, "S/R transparency", minval = 0, maxval = 90, group = grpSR)
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
@@ -165,7 +168,7 @@ var array<float> supVal  = array.new<float>()
 
 if showSR and not na(ph)
     ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
-                  color = color.new(cBad, 40), width = 1, style = line.style_dashed)
+                  color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
     array.push(resLine, ln)
     array.push(resVal, ph)
     if array.size(resLine) > maxSR
@@ -174,7 +177,7 @@ if showSR and not na(ph)
 
 if showSR and not na(pl)
     ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
-                  color = color.new(cGood, 40), width = 1, style = line.style_dashed)
+                  color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
     array.push(supLine, ln)
     array.push(supVal, pl)
     if array.size(supLine) > maxSR
