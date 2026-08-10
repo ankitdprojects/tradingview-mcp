@@ -28,7 +28,7 @@ trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : pres
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpST     = "Setup type"
-setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Both"], group = grpST,
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "All"], group = grpST,
      tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
                "rally in a downtrend).\n\nBreakout: buy a close through the " +
                "nearest confirmed pivot resistance (or sell a close below " +
@@ -37,6 +37,9 @@ setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout",
 brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1, group = grpST,
      tooltip = "A breakout on below-average volume is the classic false break. " +
                "0 disables the filter. Ignored on feeds with no real volume.")
+rtWindow  = input.int(12, "Retest: bars allowed after the break", minval = 1, group = grpST,
+     tooltip = "How long a broken level stays 'live' as a retest candidate. " +
+               "On 30m equity, 12 bars is about one session.")
 
 grpD2      = "Direction"
 confirmBar = input.bool(true, "Signal only on CLOSED bars (no repaint)", group = grpD2,
@@ -197,8 +200,9 @@ for i = 0 to math.max(array.size(supVal) - 1, 0)
 // A breakout is a close THROUGH the nearest confirmed pivot level. Those
 // levels lag by pvtLen bars, which is fine here: the level was established
 // long before the break, so no future information is used.
-doPull = setupType == "Pullback" or setupType == "Both"
-doBrk  = setupType == "Breakout" or setupType == "Both"
+doPull = setupType == "Pullback" or setupType == "All"
+doBrk  = setupType == "Breakout" or setupType == "All"
+doRT   = setupType == "Breakout retest" or setupType == "All"
 
 // Volume filter. Feeds without real volume report relVol ~0; treat those as
 // "no data" and pass, rather than silently blocking every signal.
@@ -214,6 +218,70 @@ brkShort = doBrk and allowS and barOK and not na(supPrev) and close < supPrev an
 // has failed by definition.
 brkStopL = resPrev
 brkStopS = supPrev
+
+// ── BREAKOUT RETEST ───────────────────────────────────────────────────────
+// The sequence: price breaks a level, comes BACK to it, holds, then continues.
+// Old resistance becoming support is the whole idea. Higher quality than a
+// raw breakout because the level has been tested twice, and the stop is tight
+// (just under the level) rather than back at a swing low.
+//
+// Note: the breakout leg must clear the volume filter, but the retest itself
+// usually comes on LOWER volume — that is healthy. Only the continuation
+// matters for confirmation.
+var float rtLevelL = na      // level broken to the upside, now support
+var int   rtBarsL  = na      // bars since that break
+var bool  rtTouchL = false   // has price come back to touch it?
+
+if brkLong
+    rtLevelL := resPrev
+    rtBarsL  := 0
+    rtTouchL := false
+else if not na(rtBarsL)
+    rtBarsL += 1
+
+// Expired, or the level failed outright → drop the candidate.
+if not na(rtBarsL) and (rtBarsL > rtWindow or (not na(rtLevelL) and close < rtLevelL and rtTouchL))
+    rtLevelL := na
+    rtBarsL  := na
+    rtTouchL := false
+
+// Price has come back down to the level.
+if not na(rtLevelL) and low <= rtLevelL and close >= rtLevelL
+    rtTouchL := true
+
+rtLong = doRT and allowL and barOK and rtTouchL and not na(rtLevelL)
+     and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
+
+// Mirror for the short side: break down, rally back to the level, fail.
+var float rtLevelS = na
+var int   rtBarsS  = na
+var bool  rtTouchS = false
+
+if brkShort
+    rtLevelS := supPrev
+    rtBarsS  := 0
+    rtTouchS := false
+else if not na(rtBarsS)
+    rtBarsS += 1
+
+if not na(rtBarsS) and (rtBarsS > rtWindow or (not na(rtLevelS) and close > rtLevelS and rtTouchS))
+    rtLevelS := na
+    rtBarsS  := na
+    rtTouchS := false
+
+if not na(rtLevelS) and high >= rtLevelS and close <= rtLevelS
+    rtTouchS := true
+
+rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
+      and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
+
+// Retest stop: just beyond the level being defended.
+rtStopL = rtLevelL
+rtStopS = rtLevelS
+
+// Armed states — waiting at the level for the continuation bar.
+rtArmedL = doRT and rtTouchL and not na(rtLevelL) and not rtLong
+rtArmedS = doRT and rtTouchS and not na(rtLevelS) and not rtShort
 
 // ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
 contextL = close > emaSlow
@@ -254,8 +322,8 @@ isShort = contextS
 // Combined signals. A breakout and a pullback can in principle fire on the
 // same bar; the breakout wins for stop placement because its level is the
 // tighter, more specific invalidation.
-anyLong  = triggerL or brkLong
-anyShort = triggerS or brkShort
+anyLong  = triggerL or brkLong or rtLong
+anyShort = triggerS or brkShort or rtShort
 trigger  = anyLong or anyShort
 
 // ── Sizing ────────────────────────────────────────────────────────────────
@@ -268,10 +336,12 @@ swingHigh    = ta.highest(high, swingBack)
 // Stop sits beyond the pullback extreme: below the swing low for a long,
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
-stopLevel    = brkLong  and not na(brkStopL) ? brkStopL
+stopLevel    = rtLong   and not na(rtStopL)  ? rtStopL
+             : rtShort  and not na(rtStopS)  ? rtStopS
+             : brkLong  and not na(brkStopL) ? brkStopL
              : brkShort and not na(brkStopS) ? brkStopS
              : isShort ? swingHigh : swingLow
-goingShort   = brkShort or (isShort and not brkLong)
+goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
 
@@ -309,6 +379,14 @@ plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
           location.abovebar, cBad, size = size.small,
           text = "BRK↓", textcolor = #FFFFFF)
 
+// Retest marks — the highest-quality of the three, so they get diamonds.
+plotshape(rtLong ? low : na, "RETEST long", shape.diamond,
+          location.belowbar, cGood, size = size.small,
+          text = "RT↑", textcolor = cGood)
+plotshape(rtShort ? high : na, "RETEST short", shape.diamond,
+          location.abovebar, cBad, size = size.small,
+          text = "RT↓", textcolor = cBad)
+
 // Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
 bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
         title = "Armed tint")
@@ -326,11 +404,13 @@ if barstate.islast
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+    stateTxt = rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+             : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+             : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-             : armed   ? cWarn : color.new(cDim, 55)
+             : armed or rtArmedL or rtArmedS ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
                bgcolor = cAccent, text_size = txtSz)
@@ -402,4 +482,6 @@ alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back AB
 alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
 alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
 alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
+alertcondition(rtLong,   "RETEST long",   "Breakout retest held - old resistance now support")
+alertcondition(rtShort,  "RETEST short",  "Breakdown retest failed - old support now resistance")
 alertcondition(trigger,  "Any trigger",   "Any setup fired (pullback or breakout, long or short)")
