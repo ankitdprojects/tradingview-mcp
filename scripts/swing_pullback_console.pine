@@ -75,6 +75,17 @@ atrLen   = input.int(14, "ATR length",  minval = 1, group = grpC)
 volLen   = input.int(20, "Rel-volume baseline", minval = 1, group = grpC)
 adxLen   = input.int(14, "ADX length",  minval = 1, group = grpC)
 
+grpF     = "Fundamentals & liquidity"
+showFund = input.bool(true, "Show P/E and turnover", group = grpF)
+peMax    = input.float(0, "Flag P/E above (0 = off)", minval = 0, group = grpF,
+     tooltip = "Colours the P/E cell red above this value. Purely a flag - it " +
+               "does not block a signal. P/E is meaningless for futures, " +
+               "commodities and indices, and for loss-making companies.")
+minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
+     tooltip = "Turnover = volume x price, the honest liquidity measure. Share " +
+               "count alone is misleading: 10,000 shares of a Rs100 stock is " +
+               "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
+
 grpV     = "Appearance"
 theme    = input.string("Dark", "Theme", options = ["Dark", "Light"], group = grpV)
 txtSzIn  = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpV)
@@ -108,6 +119,20 @@ rsi      = ta.rsi(close, rsiLen)
 relVol   = volume / math.max(ta.sma(volume, volLen), 1)
 
 [diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+
+// ── Fundamentals & liquidity ──────────────────────────────────────────────
+// ignore_invalid_symbol = true so futures, commodities and indices return na
+// instead of erroring. A missing P/E is correct for those, not a fault.
+epsTTM = showFund ? request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "TTM",
+                                     ignore_invalid_symbol = true) : na
+peRatio = not na(epsTTM) and epsTTM > 0 ? close / epsTTM : na
+
+// Turnover in rupees, then crore. Volume in shares is a poor liquidity proxy
+// across stocks at very different prices.
+turnover   = volume * close
+turnoverCr = turnover / 10000000
+// 20-bar average turnover gives context for whether today is unusually active.
+avgTurnCr  = ta.sma(turnover, volLen) / 10000000
 
 pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = 2)
 pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = 2)
@@ -292,7 +317,7 @@ bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS
 tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
-var table cons = table.new(tPos, 2, 16, border_width = 0,
+var table cons = table.new(tPos, 2, 18, border_width = 0,
                            frame_width = 1, frame_color = color.new(cDim, 60),
                            bgcolor = color.new(cBg, tblOpac))
 
@@ -349,15 +374,25 @@ if barstate.islast
     table.cell(cons, 0, 12, "ATR / %", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 12, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.1") + "%", text_color = cTxt, text_size = txtSz)
 
-    table.cell(cons, 0, 13, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 13, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 14, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 14, str.tostring(stopLevel, format.mintick) + " / " +
+    // Volume in shares AND rupees. Turnover is the liquidity number that
+    // actually matters — share count is not comparable across price levels.
+    table.cell(cons, 0, 13, "Turnover Cr", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 13, str.tostring(turnoverCr, "#.2") + " / avg " + str.tostring(avgTurnCr, "#.2"),
+               text_color = turnoverCr >= minTurnCr ? cTxt : cWarn, text_size = txtSz)
+    table.cell(cons, 0, 14, "P/E (TTM)", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 14, na(peRatio) ? "n/a" : str.tostring(peRatio, "#.1"),
+               text_color = na(peRatio) ? cDim : (peMax > 0 and peRatio > peMax ? cBad : cTxt),
+               text_size = txtSz)
+
+    table.cell(cons, 0, 15, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 15, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 16, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 16, str.tostring(stopLevel, format.mintick) + " / " +
                (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
                (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
                text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 0, 15, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 15,
+    table.cell(cons, 0, 17, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 17,
                lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
                          : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
                text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),

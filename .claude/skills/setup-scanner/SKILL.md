@@ -44,9 +44,36 @@ Rank only symbols showing `TRIGGER` or `ARMED`. Within those, order by quality:
 | State | TRIGGER | ARMED (not yet a trade) |
 | ADX | ≥ 25 trend | < 25 chop |
 | Relative volume | ≥ 1.0x | < 0.3x — book too thin |
+| **Turnover** | **≥ ₹5 crore** | **< ₹5 crore — cannot fill cleanly** |
 | Stop distance | 1-2 ATR | < 1 ATR (noise) or > 3 ATR (too wide) |
 | Risk fit | ≤ per-trade limit | 1 lot exceeds the limit |
 | Room to target | 2R clear of the next S/R | firing straight into S/R |
+| P/E | context only — see below | — |
+
+### Reading the three the user asked for
+
+**Setup state** — the only field that decides whether there is a trade at all.
+TRIGGER is actionable; ARMED is not.
+
+**Turnover (₹ crore), not share count.** The console reports
+`volume x price` as turnover plus its 20-bar average. Share count alone is
+misleading: 10,000 shares of a ₹100 stock is ₹10 lakh, of a ₹3,000 stock is
+₹3 crore. Turnover is what determines whether a position can be entered and
+exited without moving the price. Report current AND average — a stock at 3x
+its usual turnover is behaving differently today.
+
+**P/E is context, never a filter.** State it, do not rank on it. Reasons:
+- It is a **valuation** measure on a fundamental timescale. It says nothing
+  about whether a 30m pullback will work, and it is meaningless over a 1-3 day
+  hold.
+- It reads `n/a` for futures, commodities and indices — correct, not a fault.
+- It is `n/a` for loss-making companies (negative EPS), which is not the same
+  as "cheap".
+- A low P/E is often low for a reason.
+
+If the user wants it as a filter, say plainly that it belongs to a different
+style of trading (value investing over months to years) than the setup being
+scanned, then apply it if they still want it.
 
 ## Output
 
@@ -54,7 +81,7 @@ Rank only symbols showing `TRIGGER` or `ARMED`. Within those, order by quality:
 # Setup Scan — <mode> · <timeframe> · <date>
 Scanned: __ symbols   Armed: __   Triggered: __
 
-| Symbol | State | ADX | RelVol | Stop | Risk | Size | Quality |
+| Symbol | State | ADX | RelVol | Turnover Cr | P/E | Stop | Risk | Size |
 
 Triggered now:  <symbol — entry, stop, target, risk>
 Armed, waiting: <symbol — what still has to happen>
