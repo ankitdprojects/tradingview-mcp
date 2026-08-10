@@ -71,9 +71,13 @@ grpSR    = "Support / Resistance"
 showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
 pvtLen   = input.int(10, "Pivot lookback",     minval = 2, group = grpSR)
 maxSR    = input.int(4,  "Max levels per side", minval = 1, maxval = 10, group = grpSR)
-srColor  = input.color(#2962FF, "S/R line colour", group = grpSR)
-srWidth  = input.int(1, "S/R line width", minval = 1, maxval = 4, group = grpSR)
-srTransp = input.int(30, "S/R transparency", minval = 0, maxval = 90, group = grpSR)
+srColor  = input.color(#4FC3F7, "S/R line colour", group = grpSR,
+     tooltip = "Light blue by default — reads clearly on a dark chart. " +
+               "A mid or dark blue disappears against the background.")
+srWidth  = input.int(2, "S/R line width", minval = 1, maxval = 4, group = grpSR)
+srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grpSR,
+     tooltip = "0 = fully solid. Raise only if the lines start competing with " +
+               "the candles for attention.")
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
