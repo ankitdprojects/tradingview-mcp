@@ -28,7 +28,7 @@ trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : pres
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpST     = "Setup type"
-setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "All"], group = grpST,
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
      tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
                "rally in a downtrend).\n\nBreakout: buy a close through the " +
                "nearest confirmed pivot resistance (or sell a close below " +
@@ -78,6 +78,27 @@ srWidth  = input.int(2, "S/R line width", minval = 1, maxval = 4, group = grpSR)
 srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grpSR,
      tooltip = "0 = fully solid. Raise only if the lines start competing with " +
                "the candles for attention.")
+
+grpVC     = "VCP (Volatility Contraction)"
+showVCP   = input.bool(true, "Detect VCP", group = grpVC)
+vcpPvt    = input.int(5, "Swing sensitivity", minval = 2, group = grpVC,
+     tooltip = "Pivot lookback for the swings INSIDE the base. Smaller than the " +
+               "S/R pivot - contractions are minor swings by definition.")
+vcpMinC   = input.int(3, "Min contractions", minval = 2, maxval = 5, group = grpVC,
+     tooltip = "Minervini's classic base shows 2-4 contractions, each tighter " +
+               "than the last. 3 is the usual minimum for a valid VCP.")
+vcpTight  = input.float(0.75, "Each contraction < this x previous", minval = 0.3, maxval = 0.95, step = 0.05, group = grpVC,
+     tooltip = "0.75 means each pullback must be at least 25% shallower than " +
+               "the one before. Lower = stricter tightening required.")
+vcpVolDry = input.float(0.85, "Base volume vs longer average", minval = 0.3, maxval = 1.2, step = 0.05, group = grpVC,
+     tooltip = "Volume must DRY UP through the base. 0.85 = recent volume below " +
+               "85% of the longer average. This is half the pattern - a base " +
+               "without volume contraction is not a VCP.")
+vcpNear   = input.float(3.0, "Pivot proximity %", minval = 0.5, maxval = 15, step = 0.5, group = grpVC,
+     tooltip = "How close price must be to the base high to count as READY.")
+vcpBrkVol = input.float(1.5, "Breakout volume multiple", minval = 0, step = 0.1, group = grpVC,
+     tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
+               "a low-volume breakout from a VCP as a failure signal.")
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
@@ -209,13 +230,68 @@ for i = 0 to math.max(array.size(supVal) - 1, 0)
         if v < close and (na(nearestSup) or v > nearestSup)
             nearestSup := v
 
+// Which setups are active. Defined here because the VCP block below needs
+// doVCP, and Pine requires define-before-use.
+doPull = setupType == "Pullback" or setupType == "All"
+doBrk  = setupType == "Breakout" or setupType == "All"
+doRT   = setupType == "Breakout retest" or setupType == "All"
+doVCP  = setupType == "VCP" or setupType == "All"
+
+// ── VCP · Volatility Contraction Pattern ──────────────────────────────────
+// Minervini's base: successive pullbacks get SHALLOWER while volume DRIES UP,
+// then price breaks out of the tightest contraction on expanding volume.
+//
+// Measured, not eyeballed: each contraction is (swing high - next swing low)
+// / swing high, and each must be materially smaller than the one before.
+vPh = ta.pivothigh(high, vcpPvt, vcpPvt)
+vPl = ta.pivotlow(low,  vcpPvt, vcpPvt)
+
+var float vLastHi  = na               // most recent swing high in the base
+var array<float> vDepths = array.new_float()
+
+if showVCP and not na(vPh)
+    vLastHi := vPh
+
+// A contraction completes when a swing low confirms below the prior high.
+if showVCP and not na(vPl) and not na(vLastHi) and vLastHi > vPl
+    array.push(vDepths, (vLastHi - vPl) / vLastHi)
+    if array.size(vDepths) > 5
+        array.shift(vDepths)
+
+// Are the last vcpMinC contractions each tighter than the previous?
+vTightening = false
+if showVCP and array.size(vDepths) >= vcpMinC
+    ok = true
+    for i = array.size(vDepths) - vcpMinC + 1 to array.size(vDepths) - 1
+        if array.get(vDepths, i) > array.get(vDepths, i - 1) * vcpTight
+            ok := false
+    vTightening := ok
+
+// Volume must dry up through the base — half the pattern, and the half most
+// often ignored. A tightening range on RISING volume is distribution.
+vVolDry = ta.sma(volume, 10) < ta.sma(volume, 50) * vcpVolDry
+
+// Depth of the final, tightest contraction — reported so the base can be judged.
+vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 1) * 100 : na
+
+// READY: base is formed, volume dry, price coiled just under the pivot.
+vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
+       and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
+
+// BREAKOUT: clears the base high on expanding volume.
+vcpBrk = showVCP and doVCP and allowL and barOK and vTightening and not na(vLastHi)
+     and close > vLastHi and close[1] <= vLastHi
+     and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
+
+// Stop sits below the low of the final contraction — the tightest one, which
+// is what makes a VCP entry low-risk relative to the base it came from.
+vcpStop = not na(vLastHi) and array.size(vDepths) > 0
+        ? vLastHi * (1 - array.get(vDepths, array.size(vDepths) - 1)) : na
+
 // ── BREAKOUT / BREAKDOWN ──────────────────────────────────────────────────
 // A breakout is a close THROUGH the nearest confirmed pivot level. Those
 // levels lag by pvtLen bars, which is fine here: the level was established
 // long before the break, so no future information is used.
-doPull = setupType == "Pullback" or setupType == "All"
-doBrk  = setupType == "Breakout" or setupType == "All"
-doRT   = setupType == "Breakout retest" or setupType == "All"
 
 // Volume filter. Feeds without real volume report relVol ~0; treat those as
 // "no data" and pass, rather than silently blocking every signal.
@@ -335,7 +411,7 @@ isShort = contextS
 // Combined signals. A breakout and a pullback can in principle fire on the
 // same bar; the breakout wins for stop placement because its level is the
 // tighter, more specific invalidation.
-anyLong  = triggerL or brkLong or rtLong
+anyLong  = triggerL or brkLong or rtLong or vcpBrk
 anyShort = triggerS or brkShort or rtShort
 trigger  = anyLong or anyShort
 
@@ -349,12 +425,13 @@ swingHigh    = ta.highest(high, swingBack)
 // Stop sits beyond the pullback extreme: below the swing low for a long,
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
-stopLevel    = rtLong   and not na(rtStopL)  ? rtStopL
+stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
+             : rtLong   and not na(rtStopL)  ? rtStopL
              : rtShort  and not na(rtStopS)  ? rtStopS
              : brkLong  and not na(brkStopL) ? brkStopL
              : brkShort and not na(brkStopS) ? brkStopS
              : isShort ? swingHigh : swingLow
-goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong)
+goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
 
@@ -392,6 +469,10 @@ plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
           location.abovebar, cBad, size = size.small,
           text = "BRK↓", textcolor = #FFFFFF)
 
+plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
+          location.belowbar, cGood, size = size.normal,
+          text = "VCP", textcolor = #FFFFFF)
+
 // Retest marks — the highest-quality of the three, so they get diamonds.
 plotshape(rtLong ? low : na, "RETEST long", shape.diamond,
           location.belowbar, cGood, size = size.small,
@@ -408,7 +489,7 @@ bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS
 tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
-var table cons = table.new(tPos, 2, 18, border_width = 0,
+var table cons = table.new(tPos, 2, 19, border_width = 0,
                            frame_width = 1, frame_color = color.new(cDim, 60),
                            bgcolor = color.new(cBg, tblOpac))
 
@@ -417,13 +498,15 @@ if barstate.islast
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+    stateTxt = vcpBrk   ? "▲ VCP BREAK"
+             : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
              : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+             : vcpReady ? "◆ VCP READY"
              : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-             : armed or rtArmedL or rtArmedS ? cWarn : color.new(cDim, 55)
+             : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
                bgcolor = cAccent, text_size = txtSz)
@@ -477,15 +560,19 @@ if barstate.islast
                text_color = na(peRatio) ? cDim : (peMax > 0 and peRatio > peMax ? cBad : cTxt),
                text_size = txtSz)
 
-    table.cell(cons, 0, 15, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 15, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 16, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 16, str.tostring(stopLevel, format.mintick) + " / " +
+    table.cell(cons, 0, 15, "VCP", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 15, not showVCP ? "off" : vcpBrk ? "BREAKOUT" : vcpReady ? "READY " + str.tostring(vLastDepth, "#.1") + "%" : vTightening ? "basing " + str.tostring(array.size(vDepths)) + "c" : "no base",
+               text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
+
+    table.cell(cons, 0, 16, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 16, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 17, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 17, str.tostring(stopLevel, format.mintick) + " / " +
                (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
                (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
                text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 0, 17, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 17,
+    table.cell(cons, 0, 18, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 18,
                lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
                          : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
                text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
@@ -495,6 +582,7 @@ alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back AB
 alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
 alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
 alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
+alertcondition(vcpBrk,   "VCP breakout",  "VCP base cleared on expanding volume")
 alertcondition(rtLong,   "RETEST long",   "Breakout retest held - old resistance now support")
 alertcondition(rtShort,  "RETEST short",  "Breakdown retest failed - old support now resistance")
 alertcondition(trigger,  "Any trigger",   "Any setup fired (pullback or breakout, long or short)")
