@@ -19,7 +19,7 @@ them with the same arithmetic it applies to live trades.
 
 - TradingView Desktop with CDP (`tv_health_check`, else `tv_launch`)
 - **Logged in.** Apply the stale-data guard from `india-sector-rotation/SKILL.md`
-- `Swing Pullback Console` on the chart, preset matching the mode being tested
+- `Screener` on the chart, preset matching the mode being tested
 
 ## Method
 
@@ -33,7 +33,7 @@ them with the same arithmetic it applies to live trades.
    thumb: 3 months of daily bars, or 2-3 weeks of 15m bars.
 
 4. Step forward with `replay_step`. After each step, read the console via
-   `data_get_pine_tables` with `study_filter: "Swing Pullback"`.
+   `data_get_pine_tables` with `study_filter: "Screener"`.
 
 5. **On each `TRIGGER`**, record: date, direction, entry (the close), stop
    (`Stop / risk-lot`), risk per unit, and the 2R target. Then keep stepping

@@ -15,7 +15,7 @@ that historically wins far less than planned setups.
 ## Requirements
 
 - TradingView with CDP, logged in
-- For indicator alerts, `Swing Pullback Console` must be on the chart
+- For indicator alerts, `Screener` must be on the chart
 
 ## What to alert on
 
@@ -42,7 +42,7 @@ rather than creating an alert that will produce false notifications.
 ## Method
 
 **Indicator alerts** — open the alert dialog on the chart, choose the
-`Swing Pullback Console` condition, set frequency to Once Per Bar Close, and
+`Screener` condition, set frequency to Once Per Bar Close, and
 name it `<symbol> <mode> <BUY|SELL>` so the notification is self-explanatory.
 
 **Price alerts** — `alert_create` with the level, condition (`crossing`,
@@ -77,7 +77,7 @@ Suggested cleanup: <stale / expired / duplicate alerts, with the reason>
 - Always confirm the frequency is Once Per Bar Close, and say so explicitly in
   the output. This is the single most common way alerts go wrong.
 - Name alerts so the notification is actionable without opening the chart.
-  `CRUDEOILM 15m BUY` beats `Alert on Swing Pullback Console`.
+  `CRUDEOILM 15m BUY` beats `Alert on Screener`.
 - An alert firing is **not** an instruction to trade. It means look at the
   chart and check the setup against `rules.md` — including the daily loss
   limit and trade count, which the alert knows nothing about.

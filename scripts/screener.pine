@@ -1,8 +1,8 @@
 //@version=6
-// Swing Pullback Console v2 — rules.md setup + S/R + full context, ONE slot.
+// Screener v2 — rules.md setup + S/R + full context, ONE slot.
 // NOTE: the ARMED/TRIGGER logic is UNCHANGED from v1. Everything added here is
 // display-only context, so the 15-trade validation sample stays clean.
-indicator("Swing Pullback Console", overlay = true, max_lines_count = 60, max_labels_count = 100)
+indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 100)
 
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
@@ -332,7 +332,7 @@ if barstate.islast
     stateBg  = anyLong ? cGood : anyShort ? cBad
              : armed   ? cWarn : color.new(cDim, 55)
 
-    table.cell(cons, 0, 0, " PULLBACK CONSOLE ", text_color = #FFFFFF,
+    table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
                bgcolor = cAccent, text_size = txtSz)
     table.cell(cons, 1, 0, stateTxt, text_color = #FFFFFF,
                text_size = txtSz, bgcolor = stateBg)

@@ -7,13 +7,13 @@ description: Scan a watchlist or the MCX board for symbols where the rules.md se
 
 ## Overview
 
-Reads the `Swing Pullback Console` state across many symbols and reports which
+Reads the `Screener` state across many symbols and reports which
 have a live setup. Replaces flipping symbols by hand.
 
 ## Requirements
 
 - TradingView with CDP, logged in
-- `Swing Pullback Console` on the chart
+- `Screener` on the chart
 - Apply the stale-data guard from `india-sector-rotation/SKILL.md` — this skill
   switches symbols repeatedly and is therefore highly exposed to it
 
@@ -27,7 +27,7 @@ have a live setup. Replaces flipping symbols by hand.
    say so rather than scanning with the wrong parameters.
 
 3. For each symbol: `chart_set_symbol`, then `data_get_pine_tables` with
-   `study_filter: "Swing Pullback"`.
+   `study_filter: "Screener"`.
    - **Commodities:** reset the lot size for each symbol before reading the
      sizing rows (see `india-commodity`). Otherwise every risk figure is wrong.
    - Verify the data actually changed between symbols. Identical OHLC across
