@@ -247,14 +247,20 @@ vPh = ta.pivothigh(high, vcpPvt, vcpPvt)
 vPl = ta.pivotlow(low,  vcpPvt, vcpPvt)
 
 var float vLastHi  = na               // most recent swing high in the base
+var bool  vHiFresh = false            // has a NEW high formed since the last depth?
 var array<float> vDepths = array.new_float()
 
 if showVCP and not na(vPh)
-    vLastHi := vPh
+    vLastHi  := vPh
+    vHiFresh := true
 
 // A contraction completes when a swing low confirms below the prior high.
-if showVCP and not na(vPl) and not na(vLastHi) and vLastHi > vPl
+// vHiFresh is required: without it, two consecutive pivot lows would both
+// measure against the SAME high and record two contractions where there was
+// only one — corrupting the very sequence the tightening test relies on.
+if showVCP and not na(vPl) and not na(vLastHi) and vHiFresh and vLastHi > vPl
     array.push(vDepths, (vLastHi - vPl) / vLastHi)
+    vHiFresh := false
     if array.size(vDepths) > 5
         array.shift(vDepths)
 
@@ -273,6 +279,17 @@ vVolDry = ta.sma(volume, 10) < ta.sma(volume, 50) * vcpVolDry
 
 // Depth of the final, tightest contraction — reported so the base can be judged.
 vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 1) * 100 : na
+
+// Human-readable contraction sequence, e.g. "18/11/6" — makes it possible to
+// see WHY a base did or did not qualify instead of just "no base".
+vSeq = ""
+if array.size(vDepths) > 0
+    for i = 0 to array.size(vDepths) - 1
+        vSeq := vSeq + str.tostring(array.get(vDepths, i) * 100, "#.0") +
+                (i < array.size(vDepths) - 1 ? "/" : "")
+
+// Distance to the base high, so "why not READY" is visible.
+vDistPct = not na(vLastHi) ? (vLastHi - close) / vLastHi * 100 : na
 
 // READY: base is formed, volume dry, price coiled just under the pivot.
 vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
@@ -561,8 +578,14 @@ if barstate.islast
             text_size = txtSz)
 
     table.cell(cons, 0, 15, "VCP", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 15, not showVCP ? "off" : vcpBrk ? "BREAKOUT" : vcpReady ? "READY " + str.tostring(vLastDepth, "#.1") + "%" : vTightening ? "basing " + str.tostring(array.size(vDepths)) + "c" : "no base",
-            text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
+    table.cell(cons, 1, 15,
+       not showVCP ? "off"
+       : vcpBrk    ? "BREAKOUT"
+       : vcpReady  ? "READY " + vSeq + "%"
+       : vTightening ? "coiled " + vSeq + " · " + str.tostring(vDistPct, "#.1") + "% off"
+       : array.size(vDepths) > 0 ? "base " + vSeq + (vVolDry ? "" : " volUP")
+       : "no swings",
+       text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
 
     table.cell(cons, 0, 16, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 16, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
