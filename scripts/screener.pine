@@ -276,17 +276,17 @@ vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 
 
 // READY: base is formed, volume dry, price coiled just under the pivot.
 vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
-    and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
+      and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
 
 // BREAKOUT: clears the base high on expanding volume.
 vcpBrk = showVCP and doVCP and allowL and barOK and vTightening and not na(vLastHi)
-    and close > vLastHi and close[1] <= vLastHi
-    and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
+      and close > vLastHi and close[1] <= vLastHi
+      and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
 
 // Stop sits below the low of the final contraction — the tightest one, which
 // is what makes a VCP entry low-risk relative to the base it came from.
 vcpStop = not na(vLastHi) and array.size(vDepths) > 0
-        ? vLastHi * (1 - array.get(vDepths, array.size(vDepths) - 1)) : na
+          ? vLastHi * (1 - array.get(vDepths, array.size(vDepths) - 1)) : na
 
 // ── BREAKOUT / BREAKDOWN ──────────────────────────────────────────────────
 // A breakout is a close THROUGH the nearest confirmed pivot level. Those
@@ -339,7 +339,7 @@ if not na(rtLevelL) and low <= rtLevelL and close >= rtLevelL
     rtTouchL := true
 
 rtLong = doRT and allowL and barOK and rtTouchL and not na(rtLevelL)
-    and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
+      and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
 
 // Mirror for the short side: break down, rally back to the level, fail.
 var float rtLevelS = na
@@ -362,7 +362,7 @@ if not na(rtLevelS) and high >= rtLevelS and close <= rtLevelS
     rtTouchS := true
 
 rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
-    and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
+      and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
 
 // Retest stop: just beyond the level being defended.
 rtStopL = rtLevelL
@@ -426,11 +426,11 @@ swingHigh    = ta.highest(high, swingBack)
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
 stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
-            : rtLong   and not na(rtStopL)  ? rtStopL
-            : rtShort  and not na(rtStopS)  ? rtStopS
-            : brkLong  and not na(brkStopL) ? brkStopL
-            : brkShort and not na(brkStopS) ? brkStopS
-            : isShort ? swingHigh : swingLow
+              : rtLong   and not na(rtStopL)  ? rtStopL
+              : rtShort  and not na(rtStopS)  ? rtStopS
+              : brkLong  and not na(brkStopL) ? brkStopL
+              : brkShort and not na(brkStopS) ? brkStopS
+              : isShort ? swingHigh : swingLow
 goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
@@ -499,14 +499,14 @@ if barstate.islast
     stopAtr = validRisk ? riskPerShare / atr : na
 
     stateTxt = vcpBrk   ? "▲ VCP BREAK"
-            : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
-            : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
-            : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
-            : vcpReady ? "◆ VCP READY"
-            : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
-            : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+              : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+              : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+              : vcpReady ? "◆ VCP READY"
+              : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
+              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-            : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
+              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
             bgcolor = cAccent, text_size = txtSz)
@@ -574,7 +574,7 @@ if barstate.islast
     table.cell(cons, 0, 18, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 18,
             lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
-                        : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
+                          : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
             text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
             text_size = txtSz)
 
