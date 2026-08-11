@@ -681,7 +681,7 @@ if barstate.islast
               : vcpReady ? "◆ VCP READY"
               : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
               : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
-      stateBg  = anyLong ? cGood : anyShort ? cBad
+    stateBg  = anyLong ? cGood : anyShort ? cBad
               : armed or rtArmedL or rtArmedS or vcpReady or cbConsol ? cWarn : cbArmed ? color.new(cAccent, 40) : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,

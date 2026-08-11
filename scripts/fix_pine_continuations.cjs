@@ -6,15 +6,19 @@ const fs = require('fs');
 const f = process.argv[2];
 const lines = fs.readFileSync(f, 'utf8').split('\n');
 
-// remove string literals and comments so brackets/operators inside them
-// do not confuse the depth count
+// Replace string literals with a single placeholder token and drop comments,
+// so brackets and operators inside them do not confuse the depth count.
+//
+// The placeholder must be a NON-operator character, not a space: blanking
+// `: "— WAIT"` to `: ` makes a completed ternary look like a dangling `:`,
+// which is exactly the false positive that broke stateBg.
 function strip(l) {
   let out = '', inStr = false;
   for (let i = 0; i < l.length; i++) {
     const c = l[i];
-    if (c === '"') { inStr = !inStr; out += ' '; continue; }
+    if (c === '"') { if (!inStr) out += 'S'; inStr = !inStr; continue; }
     if (!inStr && c === '/' && l[i + 1] === '/') break;
-    out += inStr ? ' ' : c;
+    if (!inStr) out += c;
   }
   return out;
 }
