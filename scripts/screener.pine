@@ -6,8 +6,8 @@ indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 1
 
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
-preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
-    options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
+preset = input.string("Consolidation (10/20/50)", "Speed preset", group = grpS,
+    options = ["Consolidation (10/20/50)", "Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
     tooltip = "Fast is the quickest preset here by design - nothing shorter " +
             "is offered. On a 25,000 position, delivery round-trip costs " +
             "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
@@ -22,13 +22,13 @@ cSwing  = input.int(10,  "Custom: Swing-low lookback", minval = 2, group = grpS)
 
 // Preset table. Swing-low lookback scales with speed so the stop stays
 // proportional to the pullback the preset is designed to catch.
-fastLen   = preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
-slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
-trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
-swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
+fastLen   = preset == "Consolidation (10/20/50)" ? 10 : preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
+slowLen   = preset == "Consolidation (10/20/50)" ? 20 : preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
+trendLen  = preset == "Consolidation (10/20/50)" ? 50 : preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
+swingBack = preset == "Consolidation (10/20/50)" ? 22 : preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpST     = "Setup type"
-setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
+setupType = input.string("50EMA Consolidation", "Setup", options = ["50EMA Consolidation", "Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
     tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
             "rally in a downtrend).\n\nBreakout: buy a close through the " +
             "nearest confirmed pivot resistance (or sell a close below " +
@@ -78,6 +78,22 @@ srWidth  = input.int(2, "S/R line width", minval = 1, maxval = 4, group = grpSR)
 srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grpSR,
     tooltip = "0 = fully solid. Raise only if the lines start competing with " +
             "the candles for attention.")
+
+grpCB      = "50 EMA Consolidation Breakout"
+consolBars = input.int(6, "Consolidation: min bars", minval = 3, group = grpCB,
+     tooltip = "How many bars must sit inside a tight range to count as a " +
+               "consolidation. 6 bars on 30m is about half a session.")
+consolPct  = input.float(2.5, "Consolidation: max range %", minval = 0.5, step = 0.25, group = grpCB,
+     tooltip = "The whole consolidation must fit inside this % of price. " +
+               "Tighter = fewer, cleaner bases.")
+nearPct    = input.float(3.0, "Max distance above 50 EMA %", minval = 0.5, step = 0.5, group = grpCB,
+     tooltip = "Price must consolidate NEAR the 50 EMA, not far above it. " +
+               "A base 8% above the EMA is not the same setup.")
+roomR      = input.float(2.0, "Min room to resistance (R)", minval = 0, step = 0.5, group = grpCB,
+     tooltip = "Distance to the nearest supply zone must be at least this many " +
+               "multiples of the risk. Stops you entering straight into resistance.")
+consVolMin = input.float(1.2, "Breakout volume multiple", minval = 0, step = 0.1, group = grpCB)
+trailEma   = input.bool(true, "Trail stop under the 10 EMA once in profit", group = grpCB)
 
 grpVC     = "VCP (Volatility Contraction)"
 showVCP   = input.bool(true, "Detect VCP", group = grpVC)
@@ -132,9 +148,9 @@ minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
             "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
 
 grpV     = "Appearance"
-emaFastCol = input.color(#FF4081, "Pullback EMA colour", group = grpV)
-emaSlowCol = input.color(#FFC107, "Context EMA colour",  group = grpV)
-emaTrndCol = input.color(#90A4AE, "Regime EMA colour",   group = grpV)
+emaFastCol = input.color(#FF80AB, "Fast EMA (10) - light pink", group = grpV)
+emaSlowCol = input.color(#FF9100, "Mid EMA (20) - orange",  group = grpV)
+emaTrndCol = input.color(#FF8A80, "Trend EMA (50) - light red",   group = grpV)
 emaWidth   = input.int(2, "EMA line width", minval = 1, maxval = 4, group = grpV)
 theme    = input.string("Dark", "Theme", options = ["Dark", "Light"], group = grpV)
 txtSzIn  = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpV)
@@ -250,6 +266,7 @@ doPull = setupType == "Pullback" or setupType == "All"
 doBrk  = setupType == "Breakout" or setupType == "All"
 doRT   = setupType == "Breakout retest" or setupType == "All"
 doVCP  = setupType == "VCP" or setupType == "All"
+doCons = setupType == "50EMA Consolidation" or setupType == "All"
 
 // ── DEMAND / SUPPLY ZONES ─────────────────────────────────────────────────
 // Drawn as flat-topped, flat-bottomed boxes rather than single lines. A zone
@@ -292,6 +309,84 @@ if showZone and not na(zPh) and moveFromHigh >= zoneAtr
         array.push(supBox, b)
         if array.size(supBox) > maxZone
             box.delete(array.shift(supBox))
+
+// ── 50 EMA CONSOLIDATION BREAKOUT ─────────────────────────────────────────
+// Sequence: price crosses ABOVE the 50 EMA -> consolidates near/above it ->
+// breaks out of that FIRST consolidation range.
+//
+// "First" is enforced with a latch. Later bases after the same cross are a
+// different, later-stage trade with worse risk, so they are not signalled.
+crossUp50 = ta.crossover(close, emaTrend)
+
+var bool  cbArmed   = false   // waiting for / holding a consolidation
+var bool  cbTaken   = false   // first consolidation already broken out
+var float cbHi      = na      // consolidation range high
+var float cbLo      = na      // consolidation range low
+var int   cbBars    = 0       // bars spent consolidating
+
+if crossUp50
+    cbArmed := true
+    cbTaken := false
+    cbHi    := na
+    cbLo    := na
+    cbBars  := 0
+
+// Losing the 50 EMA invalidates the whole sequence — the premise was that
+// price reclaimed it.
+if close < emaTrend
+    cbArmed := false
+    cbHi    := na
+    cbLo    := na
+    cbBars  := 0
+
+cbRangeHi  = ta.highest(high, consolBars)
+cbRangeLo  = ta.lowest(low,  consolBars)
+cbRangePct = (cbRangeHi - cbRangeLo) / close * 100
+cbAbove50  = close > emaTrend
+cbNear50   = (close - emaTrend) / emaTrend * 100 <= nearPct
+cbTight    = cbRangePct <= consolPct
+
+// A consolidation is live while price is coiled, above and near the 50 EMA.
+cbConsol = cbArmed and not cbTaken and cbAbove50 and cbNear50 and cbTight
+if cbConsol
+    cbHi   := cbRangeHi
+    cbLo   := cbRangeLo
+    cbBars += 1
+else if not cbArmed
+    cbBars := 0
+
+// ── Volume confirmation (the spec's three tests) ──────────────────────────
+// 1. Volume expands when price rises
+cbVolUpDay = close > close[1] and volume > volume[1]
+// 2. Volume contracts through the consolidation — dry base, not distribution
+cbVolDry   = ta.sma(volume, consolBars) < ta.sma(volume, volLen)
+// 3. Breakout comes on expanding volume
+cbVolBrk   = consVolMin <= 0 or relVol < 0.01 or relVol >= consVolMin
+
+// ── Supply-zone check ─────────────────────────────────────────────────────
+// Risk is measured to the consolidation low; room is measured to the nearest
+// resistance. Entering with less than roomR of headroom means the trade has
+// nowhere to go before it meets sellers.
+cbRisk  = not na(cbLo) ? close - cbLo : na
+cbRoom  = na(nearestRes) ? na : nearestRes - close
+cbRoomOK = na(nearestRes) or na(cbRisk) or cbRisk <= 0 or cbRoom >= roomR * cbRisk
+
+// ── Trigger ───────────────────────────────────────────────────────────────
+cbBrk = doCons and allowL and barOK and cbArmed and not cbTaken
+      and not na(cbHi) and cbBars >= consolBars
+      and close > cbHi and close[1] <= cbHi
+      and cbVolBrk and cbRoomOK
+
+if cbBrk
+    cbTaken := true
+    cbArmed := false
+
+// Stop sits under the consolidation low — the range that just held.
+cbStop = cbLo
+
+// Trailing stop: once price has advanced, ride the 10 EMA. Reported, not
+// enforced — the exit is the trader's, but the level is computed.
+cbTrail = trailEma and not na(cbHi) and close > cbHi ? emaFast : na
 
 // ── VCP · Volatility Contraction Pattern ──────────────────────────────────
 // Minervini's base: successive pullbacks get SHALLOWER while volume DRIES UP,
@@ -484,7 +579,7 @@ isShort = contextS
 // Combined signals. A breakout and a pullback can in principle fire on the
 // same bar; the breakout wins for stop placement because its level is the
 // tighter, more specific invalidation.
-anyLong  = triggerL or brkLong or rtLong or vcpBrk
+anyLong  = triggerL or brkLong or rtLong or vcpBrk or cbBrk
 anyShort = triggerS or brkShort or rtShort
 trigger  = anyLong or anyShort
 
@@ -498,13 +593,14 @@ swingHigh    = ta.highest(high, swingBack)
 // Stop sits beyond the pullback extreme: below the swing low for a long,
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
-stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
+stopLevel    = cbBrk   and not na(cbStop)   ? cbStop
+             : vcpBrk  and not na(vcpStop)  ? vcpStop
               : rtLong   and not na(rtStopL)  ? rtStopL
               : rtShort  and not na(rtStopS)  ? rtStopS
               : brkLong  and not na(brkStopL) ? brkStopL
               : brkShort and not na(brkStopS) ? brkStopS
               : isShort ? swingHigh : swingLow
-goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
+goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk and not cbBrk)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
 
@@ -542,6 +638,10 @@ plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
         location.abovebar, cBad, size = size.small,
         text = "BRK↓", textcolor = #FFFFFF)
 
+plotshape(cbBrk ? low : na, "Consolidation breakout", shape.labelup,
+          location.belowbar, cGood, size = size.normal,
+          text = "BUY", textcolor = #FFFFFF)
+
 plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
         location.belowbar, cGood, size = size.normal,
         text = "VCP", textcolor = #FFFFFF)
@@ -562,7 +662,7 @@ bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS
 tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
-var table cons = table.new(tPos, 2, 19, border_width = 0,
+var table cons = table.new(tPos, 2, 26, border_width = 0,
                         frame_width = 1, frame_color = color.new(cDim, 60),
                         bgcolor = color.new(cBg, tblOpac))
 
@@ -571,15 +671,18 @@ if barstate.islast
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = vcpBrk   ? "▲ VCP BREAK"
+    stateTxt = cbBrk    ? "▲ CONSOL BREAK"
+              : vcpBrk   ? "▲ VCP BREAK"
               : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
               : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
               : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+              : cbConsol ? "◆ CONSOLIDATING " + str.tostring(cbBars) + "b"
+              : cbArmed  ? "◇ above 50 EMA"
               : vcpReady ? "◆ VCP READY"
               : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
               : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
+              : armed or rtArmedL or rtArmedS or vcpReady or cbConsol ? cWarn : cbArmed ? color.new(cAccent, 40) : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
             bgcolor = cAccent, text_size = txtSz)
@@ -601,6 +704,23 @@ if barstate.islast
     table.cell(cons, 0, 4, "Bar", text_color = cDim, text_size = txtSz)
     table.cell(cons, 1, 4, barstate.isrealtime ? (confirmBar ? "LIVE · waits close" : "LIVE · may repaint") : "closed",
             text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
+
+    // Execution checklist — the six pre-trade checks from the strategy spec.
+    table.cell(cons, 0, 19, "CHECKLIST", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 19, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 20, "Above 50 EMA", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 20, tick(cbAbove50), text_color = okCol(cbAbove50), text_size = txtSz)
+    table.cell(cons, 0, 21, "Consolidation", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 21, not na(cbHi) ? tick(true) + " " + str.tostring(cbBars) + "b " + str.tostring(cbRangePct, "#.1") + "%" : tick(false), text_color = okCol(not na(cbHi)), text_size = txtSz)
+    table.cell(cons, 0, 22, "Breakout", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 22, na(cbHi) ? "-" : cbBrk ? "YES" : "needs > " + str.tostring(cbHi, format.mintick), text_color = cbBrk ? cGood : cDim, text_size = txtSz)
+    table.cell(cons, 0, 23, "Volume", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 23, (cbVolDry ? "dry" : "wet") + " / " + (cbVolBrk ? "brk ok" : "brk low"), text_color = cbVolDry and cbVolBrk ? cGood : cWarn, text_size = txtSz)
+    table.cell(cons, 0, 24, "Room to supply", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 24, na(cbRoom) or na(cbRisk) or cbRisk <= 0 ? "n/a" : str.tostring(cbRoom / cbRisk, "#.1") + "R", text_color = cbRoomOK ? cGood : cBad, text_size = txtSz)
+    table.cell(cons, 0, 25, "Stop / trail", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 25, (na(cbStop) ? "-" : str.tostring(cbStop, format.mintick)) + (na(cbTrail) ? "" : " / " + str.tostring(cbTrail, format.mintick)), text_color = na(cbStop) ? cDim : cTxt, text_size = txtSz)
+
 
     table.cell(cons, 0, 5, "LEVELS · lag " + str.tostring(pvtLen), text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 5, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
@@ -661,6 +781,7 @@ alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back AB
 alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
 alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
 alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
+alertcondition(cbBrk,    "CONSOL breakout", "50 EMA consolidation broken on volume - entry")
 alertcondition(vcpBrk,   "VCP breakout",  "VCP base cleared on expanding volume")
 alertcondition(rtLong,   "RETEST long",   "Breakout retest held - old resistance now support")
 alertcondition(rtShort,  "RETEST short",  "Breakdown retest failed - old support now resistance")
