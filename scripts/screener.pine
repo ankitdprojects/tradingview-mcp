@@ -437,7 +437,7 @@ vSeq = ""
 if array.size(vDepths) > 0
     for i = 0 to array.size(vDepths) - 1
         vSeq := vSeq + str.tostring(array.get(vDepths, i) * 100, "#.0") +
-                (i < array.size(vDepths) - 1 ? "/" : "")
+                  (i < array.size(vDepths) - 1 ? "/" : "")
 
 // Distance to the base high, so "why not READY" is visible.
 vDistPct = not na(vLastHi) ? (vLastHi - close) / vLastHi * 100 : na
@@ -681,7 +681,7 @@ if barstate.islast
               : vcpReady ? "◆ VCP READY"
               : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
               : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
-    stateBg  = anyLong ? cGood : anyShort ? cBad
+      stateBg  = anyLong ? cGood : anyShort ? cBad
               : armed or rtArmedL or rtArmedS or vcpReady or cbConsol ? cWarn : cbArmed ? color.new(cAccent, 40) : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
