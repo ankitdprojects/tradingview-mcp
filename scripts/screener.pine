@@ -2,7 +2,10 @@
 // Screener v2 — rules.md setup + S/R + full context, ONE slot.
 // NOTE: the ARMED/TRIGGER logic is UNCHANGED from v1. Everything added here is
 // display-only context, so the 15-trade validation sample stays clean.
-indicator("Screener", overlay = true, max_lines_count = 60, max_labels_count = 100, max_boxes_count = 30)
+// overlay = false so the script owns the pane below the chart, where the RSI
+// plots live. Every pre-existing visual carries force_overlay = true, which
+// pins it to the main price pane — chart appearance is unchanged.
+indicator("Screener", overlay = false, max_lines_count = 60, max_labels_count = 100, max_boxes_count = 30)
 
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
@@ -132,6 +135,7 @@ zoneTr   = input.int(85, "Zone transparency", minval = 50, maxval = 97, group = 
 
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
+rsiMaLen = input.int(14, "RSI MA length", minval = 1, group = grpC)
 atrLen   = input.int(14, "ATR length",  minval = 1, group = grpC)
 volLen   = input.int(20, "Rel-volume baseline", minval = 1, group = grpC)
 adxLen   = input.int(14, "ADX length",  minval = 1, group = grpC)
@@ -183,6 +187,7 @@ emaSlow  = ta.ema(close, slowLen)
 emaTrend = ta.ema(close, trendLen)
 atr      = ta.atr(atrLen)
 rsi      = ta.rsi(close, rsiLen)
+rsiMa    = ta.sma(rsi, rsiMaLen)
 relVol   = volume / math.max(ta.sma(volume, volLen), 1)
 
 [diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
@@ -190,8 +195,13 @@ relVol   = volume / math.max(ta.sma(volume, volLen), 1)
 // ── Fundamentals & liquidity ──────────────────────────────────────────────
 // ignore_invalid_symbol = true so futures, commodities and indices return na
 // instead of erroring. A missing P/E is correct for those, not a fault.
-epsTTM = showFund ? request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "TTM",
-                                    ignore_invalid_symbol = true) : na
+// Inside an `if` block (not a ternary) so v6 dynamic requests skip the
+// fundamentals fetch entirely when the toggle is off. A ternary evaluates
+// both branches, so the request would still be made every load.
+float epsTTM = na
+if showFund
+    epsTTM := request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "TTM",
+                                ignore_invalid_symbol = true)
 peRatio = not na(epsTTM) and epsTTM > 0 ? close / epsTTM : na
 
 // Turnover in rupees, then crore. Volume in shares is a poor liquidity proxy
@@ -201,13 +211,21 @@ turnoverCr = turnover / 10000000
 // 20-bar average turnover gives context for whether today is unusually active.
 avgTurnCr  = ta.sma(turnover, volLen) / 10000000
 
-pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = emaWidth)
-pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = emaWidth)
-plot(emaTrend,      "Regime EMA",   color = cTrndEma, linewidth = 1)
+pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = emaWidth, force_overlay = true)
+pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = emaWidth, force_overlay = true)
+plot(emaTrend,      "Regime EMA",   color = cTrndEma, linewidth = 1, force_overlay = true)
 
 // Soft ribbon between the two active EMAs — green when the trend context
 // holds, red when it does not. Readable at a glance without reading numbers.
 fill(pF, pS, color = color.new(emaFast > emaSlow ? cGood : cBad, 88), title = "EMA ribbon")
+
+// ── RSI pane — the script's own pane, standard TradingView RSI look ───────
+plot(rsi,   "RSI",          color = #7E57C2, linewidth = 1)
+plot(rsiMa, "RSI-based MA", color = color.yellow, linewidth = 1)
+rsiUp = hline(70, "RSI Upper Band", color = #787B86)
+hline(50, "RSI Middle Band", color = color.new(#787B86, 50))
+rsiDn = hline(30, "RSI Lower Band", color = #787B86)
+fill(rsiUp, rsiDn, color = color.rgb(126, 87, 194, 90), title = "RSI Background Fill")
 
 // ── Setup state machine — UNCHANGED from v1 ───────────────────────────────
 allowL = dirMode != "Short only"
@@ -229,7 +247,8 @@ var array<float> supVal  = array.new<float>()
 
 if showSR and not na(ph)
     ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
-                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid,
+                force_overlay = true)
     array.push(resLine, ln)
     array.push(resVal, ph)
     if array.size(resLine) > maxSR
@@ -238,7 +257,8 @@ if showSR and not na(ph)
 
 if showSR and not na(pl)
     ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
-                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid)
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid,
+                force_overlay = true)
     array.push(supLine, ln)
     array.push(supVal, pl)
     if array.size(supLine) > maxSR
@@ -294,7 +314,8 @@ if showZone and not na(zPl) and moveFromLow >= zoneAtr
     if zHi > zLo
         b = box.new(bar_index - zoneLen, zHi, bar_index, zLo,
                     border_color = color.new(zoneDmd, 40), border_width = 1,
-                    bgcolor = color.new(zoneDmd, zoneTr), extend = extend.right)
+                    bgcolor = color.new(zoneDmd, zoneTr), extend = extend.right,
+                    force_overlay = true)
         array.push(dmdBox, b)
         if array.size(dmdBox) > maxZone
             box.delete(array.shift(dmdBox))
@@ -305,7 +326,8 @@ if showZone and not na(zPh) and moveFromHigh >= zoneAtr
     if zHi2 > zLo2
         b = box.new(bar_index - zoneLen, zHi2, bar_index, zLo2,
                     border_color = color.new(zoneSup, 40), border_width = 1,
-                    bgcolor = color.new(zoneSup, zoneTr), extend = extend.right)
+                    bgcolor = color.new(zoneSup, zoneTr), extend = extend.right,
+                    force_overlay = true)
         array.push(supBox, b)
         if array.size(supBox) > maxZone
             box.delete(array.shift(supBox))
@@ -433,8 +455,10 @@ vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 
 
 // Human-readable contraction sequence, e.g. "18/11/6" — makes it possible to
 // see WHY a base did or did not qualify instead of just "no base".
+// Only the table reads this, so build it on the last bar only. Doing
+// str.tostring in a loop on every historical bar was pure wasted work.
 vSeq = ""
-if array.size(vDepths) > 0
+if barstate.islast and array.size(vDepths) > 0
     for i = 0 to array.size(vDepths) - 1
         vSeq := vSeq + str.tostring(array.get(vDepths, i) * 100, "#.0") +
                   (i < array.size(vDepths) - 1 ? "/" : "")
@@ -618,45 +642,45 @@ lotTooBig    = isLots and validRisk and units < 1
 
 // ── Marks ─────────────────────────────────────────────────────────────────
 plotshape(touchedL ? low  : na, "Pullback touch (long)",  shape.circle,
-        location.absolute, color.new(cWarn, 20), size = size.tiny)
+        location.absolute, color.new(cWarn, 20), size = size.tiny, force_overlay = true)
 plotshape(touchedS ? high : na, "Pullback touch (short)", shape.circle,
-        location.absolute, color.new(cWarn, 20), size = size.tiny)
+        location.absolute, color.new(cWarn, 20), size = size.tiny, force_overlay = true)
 
 plotshape(triggerL ? low : na, "BUY trigger", shape.triangleup,
         location.belowbar, cGood, size = size.small,
-        text = "BUY", textcolor = cGood)
+        text = "BUY", textcolor = cGood, force_overlay = true)
 plotshape(triggerS ? high : na, "SELL trigger", shape.triangledown,
         location.abovebar, cBad, size = size.small,
-        text = "SELL", textcolor = cBad)
+        text = "SELL", textcolor = cBad, force_overlay = true)
 
 // Breakouts get their own marks so the two setups are never confused on the
 // chart or in the journal.
 plotshape(brkLong ? low : na, "BREAKOUT", shape.labelup,
         location.belowbar, cGood, size = size.small,
-        text = "BRK↑", textcolor = #FFFFFF)
+        text = "BRK↑", textcolor = #FFFFFF, force_overlay = true)
 plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
         location.abovebar, cBad, size = size.small,
-        text = "BRK↓", textcolor = #FFFFFF)
+        text = "BRK↓", textcolor = #FFFFFF, force_overlay = true)
 
 plotshape(cbBrk ? low : na, "Consolidation breakout", shape.labelup,
           location.belowbar, cGood, size = size.normal,
-          text = "BUY", textcolor = #FFFFFF)
+          text = "BUY", textcolor = #FFFFFF, force_overlay = true)
 
 plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
         location.belowbar, cGood, size = size.normal,
-        text = "VCP", textcolor = #FFFFFF)
+        text = "VCP", textcolor = #FFFFFF, force_overlay = true)
 
 // Retest marks — the highest-quality of the three, so they get diamonds.
 plotshape(rtLong ? low : na, "RETEST long", shape.diamond,
         location.belowbar, cGood, size = size.small,
-        text = "RT↑", textcolor = cGood)
+        text = "RT↑", textcolor = cGood, force_overlay = true)
 plotshape(rtShort ? high : na, "RETEST short", shape.diamond,
         location.abovebar, cBad, size = size.small,
-        text = "RT↓", textcolor = cBad)
+        text = "RT↓", textcolor = cBad, force_overlay = true)
 
 // Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
 bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
-        title = "Armed tint")
+        title = "Armed tint", force_overlay = true)
 
 // ── Console ───────────────────────────────────────────────────────────────
 tick(bool ok)  => ok ? "✔" : "✘"
@@ -664,7 +688,7 @@ okCol(bool ok) => ok ? cGood : cBad
 
 var table cons = table.new(tPos, 2, 26, border_width = 0,
                         frame_width = 1, frame_color = color.new(cDim, 60),
-                        bgcolor = color.new(cBg, tblOpac))
+                        bgcolor = color.new(cBg, tblOpac), force_overlay = true)
 
 if barstate.islast
     sizeOK  = posValue >= minPos
