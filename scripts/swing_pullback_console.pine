@@ -5,12 +5,12 @@
 // overlay = false so the script owns the pane below the chart, where the RSI
 // plots live. Every pre-existing visual carries force_overlay = true, which
 // pins it to the main price pane — chart appearance is unchanged.
-indicator("Screener", overlay = false, max_lines_count = 60, max_labels_count = 100, max_boxes_count = 30)
+indicator("Screener", overlay = false, max_lines_count = 60, max_labels_count = 100)
 
 // ── Inputs    ────────────────────────────────────────────────────────────────
 grpS   = "Setup (drives TRIGGER)"
-preset = input.string("Consolidation (10/20/50)", "Speed preset", group = grpS,
-    options = ["Consolidation (10/20/50)", "Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
+preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
+    options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
     tooltip = "Fast is the quickest preset here by design - nothing shorter " +
             "is offered. On a 25,000 position, delivery round-trip costs " +
             "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
@@ -25,13 +25,13 @@ cSwing  = input.int(10,  "Custom: Swing-low lookback", minval = 2, group = grpS)
 
 // Preset table. Swing-low lookback scales with speed so the stop stays
 // proportional to the pullback the preset is designed to catch.
-fastLen   = preset == "Consolidation (10/20/50)" ? 10 : preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
-slowLen   = preset == "Consolidation (10/20/50)" ? 20 : preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
-trendLen  = preset == "Consolidation (10/20/50)" ? 50 : preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
-swingBack = preset == "Consolidation (10/20/50)" ? 22 : preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
+fastLen   = preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
+slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
+trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
+swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpST     = "Setup type"
-setupType = input.string("50EMA Consolidation", "Setup", options = ["50EMA Consolidation", "Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
     tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
             "rally in a downtrend).\n\nBreakout: buy a close through the " +
             "nearest confirmed pivot resistance (or sell a close below " +
@@ -82,22 +82,6 @@ srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grp
     tooltip = "0 = fully solid. Raise only if the lines start competing with " +
             "the candles for attention.")
 
-grpCB      = "50 EMA Consolidation Breakout"
-consolBars = input.int(6, "Consolidation: min bars", minval = 3, group = grpCB,
-     tooltip = "How many bars must sit inside a tight range to count as a " +
-               "consolidation. 6 bars on 30m is about half a session.")
-consolPct  = input.float(2.5, "Consolidation: max range %", minval = 0.5, step = 0.25, group = grpCB,
-     tooltip = "The whole consolidation must fit inside this % of price. " +
-               "Tighter = fewer, cleaner bases.")
-nearPct    = input.float(3.0, "Max distance above 50 EMA %", minval = 0.5, step = 0.5, group = grpCB,
-     tooltip = "Price must consolidate NEAR the 50 EMA, not far above it. " +
-               "A base 8% above the EMA is not the same setup.")
-roomR      = input.float(2.0, "Min room to resistance (R)", minval = 0, step = 0.5, group = grpCB,
-     tooltip = "Distance to the nearest supply zone must be at least this many " +
-               "multiples of the risk. Stops you entering straight into resistance.")
-consVolMin = input.float(1.2, "Breakout volume multiple", minval = 0, step = 0.1, group = grpCB)
-trailEma   = input.bool(true, "Trail stop under the 10 EMA once in profit", group = grpCB)
-
 grpVC     = "VCP (Volatility Contraction)"
 showVCP   = input.bool(true, "Detect VCP", group = grpVC)
 vcpPvt    = input.int(5, "Swing sensitivity", minval = 2, group = grpVC,
@@ -119,20 +103,6 @@ vcpBrkVol = input.float(1.5, "Breakout volume multiple", minval = 0, step = 0.1,
     tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
             "a low-volume breakout from a VCP as a failure signal.")
 
-grpZ     = "Demand / Supply zones"
-showZone = input.bool(true, "Show zones", group = grpZ)
-zoneLen  = input.int(20, "Zone pivot lookback", minval = 3, group = grpZ,
-     tooltip = "Larger than the S/R pivot lookback — zones mark MAJOR turning " +
-               "points, not every minor swing. 20 on a 30m chart is roughly " +
-               "1.5 sessions either side.")
-zoneAtr  = input.float(2.0, "Min move away (ATR)", minval = 0, step = 0.5, group = grpZ,
-     tooltip = "A zone only qualifies if price left it decisively. This is what " +
-               "makes it 'major' — price merely drifting off a low is not demand.")
-maxZone  = input.int(3, "Max zones per side", minval = 1, maxval = 8, group = grpZ)
-zoneDmd  = input.color(#26D0A0, "Demand zone",  group = grpZ)
-zoneSup  = input.color(#FF5C6C, "Supply zone",  group = grpZ)
-zoneTr   = input.int(85, "Zone transparency", minval = 50, maxval = 97, group = grpZ)
-
 grpC     = "Context readouts"
 rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
 rsiMaLen = input.int(14, "RSI MA length", minval = 1, group = grpC)
@@ -152,14 +122,15 @@ minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
             "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
 
 grpV     = "Appearance"
-emaFastCol = input.color(#FF80AB, "Fast EMA (10) - light pink", group = grpV)
-emaSlowCol = input.color(#FF9100, "Mid EMA (20) - orange",  group = grpV)
-emaTrndCol = input.color(#FF8A80, "Trend EMA (50) - light red",   group = grpV)
+emaFastCol = input.color(#FF4081, "Pullback EMA colour", group = grpV)
+emaSlowCol = input.color(#FFC107, "Context EMA colour",  group = grpV)
+emaTrndCol = input.color(#90A4AE, "Regime EMA colour",   group = grpV)
 emaWidth   = input.int(2, "EMA line width", minval = 1, maxval = 4, group = grpV)
 theme    = input.string("Dark", "Theme", options = ["Dark", "Light"], group = grpV)
 txtSzIn  = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpV)
 tblPos   = input.string("Top right", "Table position", options = ["Top right", "Top left", "Bottom right", "Bottom left", "Middle right"], group = grpV)
 tblOpac  = input.int(12, "Table background opacity", minval = 0, maxval = 100, group = grpV)
+showTbl  = input.bool(true, "Show console table", group = grpV)
 
 // ── Palette ───────────────────────────────────────────────────────────────
 isDark   = theme == "Dark"
@@ -284,129 +255,6 @@ doPull = setupType == "Pullback" or setupType == "All"
 doBrk  = setupType == "Breakout" or setupType == "All"
 doRT   = setupType == "Breakout retest" or setupType == "All"
 doVCP  = setupType == "VCP" or setupType == "All"
-doCons = setupType == "50EMA Consolidation" or setupType == "All"
-
-// ── DEMAND / SUPPLY ZONES ─────────────────────────────────────────────────
-// Drawn as flat-topped, flat-bottomed boxes rather than single lines. A zone
-// is an AREA where price reversed, so a box is the honest representation —
-// a line implies a precision that does not exist.
-//
-// Zone edges: the wick extreme is the outer edge, the candle BODY extreme is
-// the inner edge. Bodies show where price actually traded and settled; wicks
-// show where it was rejected. Both matter, hence a band rather than a level.
-zPh = ta.pivothigh(high, zoneLen, zoneLen)
-zPl = ta.pivotlow(low,  zoneLen, zoneLen)
-
-var array<box> dmdBox = array.new<box>()
-var array<box> supBox = array.new<box>()
-
-// "Major" test: price must have travelled at least zoneAtr x ATR away from
-// the pivot by the time it confirms. Price drifting sideways off a low is
-// not demand — it is just a low.
-moveFromLow  = not na(zPl) ? (close - zPl) / math.max(atr, syminfo.mintick) : na
-moveFromHigh = not na(zPh) ? (zPh - close) / math.max(atr, syminfo.mintick) : na
-
-if showZone and not na(zPl) and moveFromLow >= zoneAtr
-    zLo = zPl                                        // wick low  — outer edge
-    zHi = math.max(open[zoneLen], close[zoneLen])    // body top  — inner edge
-    if zHi > zLo
-        b = box.new(bar_index - zoneLen, zHi, bar_index, zLo,
-                    border_color = color.new(zoneDmd, 40), border_width = 1,
-                    bgcolor = color.new(zoneDmd, zoneTr), extend = extend.right,
-                    force_overlay = true)
-        array.push(dmdBox, b)
-        if array.size(dmdBox) > maxZone
-            box.delete(array.shift(dmdBox))
-
-if showZone and not na(zPh) and moveFromHigh >= zoneAtr
-    zHi2 = zPh                                       // wick high — outer edge
-    zLo2 = math.min(open[zoneLen], close[zoneLen])   // body low  — inner edge
-    if zHi2 > zLo2
-        b = box.new(bar_index - zoneLen, zHi2, bar_index, zLo2,
-                    border_color = color.new(zoneSup, 40), border_width = 1,
-                    bgcolor = color.new(zoneSup, zoneTr), extend = extend.right,
-                    force_overlay = true)
-        array.push(supBox, b)
-        if array.size(supBox) > maxZone
-            box.delete(array.shift(supBox))
-
-// ── 50 EMA CONSOLIDATION BREAKOUT ─────────────────────────────────────────
-// Sequence: price crosses ABOVE the 50 EMA -> consolidates near/above it ->
-// breaks out of that FIRST consolidation range.
-//
-// "First" is enforced with a latch. Later bases after the same cross are a
-// different, later-stage trade with worse risk, so they are not signalled.
-crossUp50 = ta.crossover(close, emaTrend)
-
-var bool  cbArmed   = false   // waiting for / holding a consolidation
-var bool  cbTaken   = false   // first consolidation already broken out
-var float cbHi      = na      // consolidation range high
-var float cbLo      = na      // consolidation range low
-var int   cbBars    = 0       // bars spent consolidating
-
-if crossUp50
-    cbArmed := true
-    cbTaken := false
-    cbHi    := na
-    cbLo    := na
-    cbBars  := 0
-
-// Losing the 50 EMA invalidates the whole sequence — the premise was that
-// price reclaimed it.
-if close < emaTrend
-    cbArmed := false
-    cbHi    := na
-    cbLo    := na
-    cbBars  := 0
-
-cbRangeHi  = ta.highest(high, consolBars)
-cbRangeLo  = ta.lowest(low,  consolBars)
-cbRangePct = (cbRangeHi - cbRangeLo) / close * 100
-cbAbove50  = close > emaTrend
-cbNear50   = (close - emaTrend) / emaTrend * 100 <= nearPct
-cbTight    = cbRangePct <= consolPct
-
-// A consolidation is live while price is coiled, above and near the 50 EMA.
-cbConsol = cbArmed and not cbTaken and cbAbove50 and cbNear50 and cbTight
-if cbConsol
-    cbHi   := cbRangeHi
-    cbLo   := cbRangeLo
-    cbBars += 1
-else if not cbArmed
-    cbBars := 0
-
-// ── Volume confirmation (the spec's three tests) ──────────────────────────
-// 1. Volume expands when price rises
-cbVolUpDay = close > close[1] and volume > volume[1]
-// 2. Volume contracts through the consolidation — dry base, not distribution
-cbVolDry   = ta.sma(volume, consolBars) < ta.sma(volume, volLen)
-// 3. Breakout comes on expanding volume
-cbVolBrk   = consVolMin <= 0 or relVol < 0.01 or relVol >= consVolMin
-
-// ── Supply-zone check ─────────────────────────────────────────────────────
-// Risk is measured to the consolidation low; room is measured to the nearest
-// resistance. Entering with less than roomR of headroom means the trade has
-// nowhere to go before it meets sellers.
-cbRisk  = not na(cbLo) ? close - cbLo : na
-cbRoom  = na(nearestRes) ? na : nearestRes - close
-cbRoomOK = na(nearestRes) or na(cbRisk) or cbRisk <= 0 or cbRoom >= roomR * cbRisk
-
-// ── Trigger ───────────────────────────────────────────────────────────────
-cbBrk = doCons and allowL and barOK and cbArmed and not cbTaken
-      and not na(cbHi) and cbBars >= consolBars
-      and close > cbHi and close[1] <= cbHi
-      and cbVolBrk and cbRoomOK
-
-if cbBrk
-    cbTaken := true
-    cbArmed := false
-
-// Stop sits under the consolidation low — the range that just held.
-cbStop = cbLo
-
-// Trailing stop: once price has advanced, ride the 10 EMA. Reported, not
-// enforced — the exit is the trader's, but the level is computed.
-cbTrail = trailEma and not na(cbHi) and close > cbHi ? emaFast : na
 
 // ── VCP · Volatility Contraction Pattern ──────────────────────────────────
 // Minervini's base: successive pullbacks get SHALLOWER while volume DRIES UP,
@@ -418,20 +266,14 @@ vPh = ta.pivothigh(high, vcpPvt, vcpPvt)
 vPl = ta.pivotlow(low,  vcpPvt, vcpPvt)
 
 var float vLastHi  = na               // most recent swing high in the base
-var bool  vHiFresh = false            // has a NEW high formed since the last depth?
 var array<float> vDepths = array.new_float()
 
 if showVCP and not na(vPh)
-    vLastHi  := vPh
-    vHiFresh := true
+    vLastHi := vPh
 
 // A contraction completes when a swing low confirms below the prior high.
-// vHiFresh is required: without it, two consecutive pivot lows would both
-// measure against the SAME high and record two contractions where there was
-// only one — corrupting the very sequence the tightening test relies on.
-if showVCP and not na(vPl) and not na(vLastHi) and vHiFresh and vLastHi > vPl
+if showVCP and not na(vPl) and not na(vLastHi) and vLastHi > vPl
     array.push(vDepths, (vLastHi - vPl) / vLastHi)
-    vHiFresh := false
     if array.size(vDepths) > 5
         array.shift(vDepths)
 
@@ -450,19 +292,6 @@ vVolDry = ta.sma(volume, 10) < ta.sma(volume, 50) * vcpVolDry
 
 // Depth of the final, tightest contraction — reported so the base can be judged.
 vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 1) * 100 : na
-
-// Human-readable contraction sequence, e.g. "18/11/6" — makes it possible to
-// see WHY a base did or did not qualify instead of just "no base".
-// Only the table reads this, so build it on the last bar only. Doing
-// str.tostring in a loop on every historical bar was pure wasted work.
-vSeq = ""
-if barstate.islast and array.size(vDepths) > 0
-    for i = 0 to array.size(vDepths) - 1
-        vSeq := vSeq + str.tostring(array.get(vDepths, i) * 100, "#.0") +
-                  (i < array.size(vDepths) - 1 ? "/" : "")
-
-// Distance to the base high, so "why not READY" is visible.
-vDistPct = not na(vLastHi) ? (vLastHi - close) / vLastHi * 100 : na
 
 // READY: base is formed, volume dry, price coiled just under the pivot.
 vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
@@ -601,7 +430,7 @@ isShort = contextS
 // Combined signals. A breakout and a pullback can in principle fire on the
 // same bar; the breakout wins for stop placement because its level is the
 // tighter, more specific invalidation.
-anyLong  = triggerL or brkLong or rtLong or vcpBrk or cbBrk
+anyLong  = triggerL or brkLong or rtLong or vcpBrk
 anyShort = triggerS or brkShort or rtShort
 trigger  = anyLong or anyShort
 
@@ -615,14 +444,13 @@ swingHigh    = ta.highest(high, swingBack)
 // Stop sits beyond the pullback extreme: below the swing low for a long,
 // above the swing high for a short.
 // Breakout stops sit at the broken level; pullback stops at the swing extreme.
-stopLevel    = cbBrk   and not na(cbStop)   ? cbStop
-             : vcpBrk  and not na(vcpStop)  ? vcpStop
+stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
               : rtLong   and not na(rtStopL)  ? rtStopL
               : rtShort  and not na(rtStopS)  ? rtStopS
               : brkLong  and not na(brkStopL) ? brkStopL
               : brkShort and not na(brkStopS) ? brkStopS
               : isShort ? swingHigh : swingLow
-goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk and not cbBrk)
+goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
 riskPerShare = goingShort ? stopLevel - close : close - stopLevel
 validRisk    = riskPerShare > 0
 
@@ -660,10 +488,6 @@ plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
         location.abovebar, cBad, size = size.small,
         text = "BRK↓", textcolor = #FFFFFF, force_overlay = true)
 
-plotshape(cbBrk ? low : na, "Consolidation breakout", shape.labelup,
-          location.belowbar, cGood, size = size.normal,
-          text = "BUY", textcolor = #FFFFFF, force_overlay = true)
-
 plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
         location.belowbar, cGood, size = size.normal,
         text = "VCP", textcolor = #FFFFFF, force_overlay = true)
@@ -684,27 +508,24 @@ bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS
 tick(bool ok)  => ok ? "✔" : "✘"
 okCol(bool ok) => ok ? cGood : cBad
 
-var table cons = table.new(tPos, 2, 26, border_width = 0,
+var table cons = table.new(tPos, 2, 19, border_width = 0,
                         frame_width = 1, frame_color = color.new(cDim, 60),
                         bgcolor = color.new(cBg, tblOpac), force_overlay = true)
 
-if barstate.islast
+if barstate.islast and showTbl
     sizeOK  = posValue >= minPos
     atrPct  = (atr / close) * 100
     stopAtr = validRisk ? riskPerShare / atr : na
 
-    stateTxt = cbBrk    ? "▲ CONSOL BREAK"
-              : vcpBrk   ? "▲ VCP BREAK"
+    stateTxt = vcpBrk   ? "▲ VCP BREAK"
               : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
               : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
               : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
-              : cbConsol ? "◆ CONSOLIDATING " + str.tostring(cbBars) + "b"
-              : cbArmed  ? "◇ above 50 EMA"
               : vcpReady ? "◆ VCP READY"
               : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
               : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
     stateBg  = anyLong ? cGood : anyShort ? cBad
-              : armed or rtArmedL or rtArmedS or vcpReady or cbConsol ? cWarn : cbArmed ? color.new(cAccent, 40) : color.new(cDim, 55)
+              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
 
     table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
             bgcolor = cAccent, text_size = txtSz)
@@ -726,23 +547,6 @@ if barstate.islast
     table.cell(cons, 0, 4, "Bar", text_color = cDim, text_size = txtSz)
     table.cell(cons, 1, 4, barstate.isrealtime ? (confirmBar ? "LIVE · waits close" : "LIVE · may repaint") : "closed",
             text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
-
-    // Execution checklist — the six pre-trade checks from the strategy spec.
-    table.cell(cons, 0, 19, "CHECKLIST", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 1, 19, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
-    table.cell(cons, 0, 20, "Above 50 EMA", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 20, tick(cbAbove50), text_color = okCol(cbAbove50), text_size = txtSz)
-    table.cell(cons, 0, 21, "Consolidation", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 21, not na(cbHi) ? tick(true) + " " + str.tostring(cbBars) + "b " + str.tostring(cbRangePct, "#.1") + "%" : tick(false), text_color = okCol(not na(cbHi)), text_size = txtSz)
-    table.cell(cons, 0, 22, "Breakout", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 22, na(cbHi) ? "-" : cbBrk ? "YES" : "needs > " + str.tostring(cbHi, format.mintick), text_color = cbBrk ? cGood : cDim, text_size = txtSz)
-    table.cell(cons, 0, 23, "Volume", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 23, (cbVolDry ? "dry" : "wet") + " / " + (cbVolBrk ? "brk ok" : "brk low"), text_color = cbVolDry and cbVolBrk ? cGood : cWarn, text_size = txtSz)
-    table.cell(cons, 0, 24, "Room to supply", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 24, na(cbRoom) or na(cbRisk) or cbRisk <= 0 ? "n/a" : str.tostring(cbRoom / cbRisk, "#.1") + "R", text_color = cbRoomOK ? cGood : cBad, text_size = txtSz)
-    table.cell(cons, 0, 25, "Stop / trail", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 25, (na(cbStop) ? "-" : str.tostring(cbStop, format.mintick)) + (na(cbTrail) ? "" : " / " + str.tostring(cbTrail, format.mintick)), text_color = na(cbStop) ? cDim : cTxt, text_size = txtSz)
-
 
     table.cell(cons, 0, 5, "LEVELS · lag " + str.tostring(pvtLen), text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 5, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
@@ -776,14 +580,8 @@ if barstate.islast
             text_size = txtSz)
 
     table.cell(cons, 0, 15, "VCP", text_color = cTxt, text_size = txtSz)
-    table.cell(cons, 1, 15,
-       not showVCP ? "off"
-       : vcpBrk    ? "BREAKOUT"
-       : vcpReady  ? "READY " + vSeq + "%"
-       : vTightening ? "coiled " + vSeq + " · " + str.tostring(vDistPct, "#.1") + "% off"
-       : array.size(vDepths) > 0 ? "base " + vSeq + (vVolDry ? "" : " volUP")
-       : "no swings",
-       text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
+    table.cell(cons, 1, 15, not showVCP ? "off" : vcpBrk ? "BREAKOUT" : vcpReady ? "READY " + str.tostring(vLastDepth, "#.1") + "%" : vTightening ? "basing " + str.tostring(array.size(vDepths)) + "c" : "no base",
+            text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
 
     table.cell(cons, 0, 16, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
     table.cell(cons, 1, 16, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
@@ -795,7 +593,7 @@ if barstate.islast
     table.cell(cons, 0, 18, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
     table.cell(cons, 1, 18,
             lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
-                          : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
+                        : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
             text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
             text_size = txtSz)
 
@@ -803,8 +601,51 @@ alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back AB
 alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
 alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
 alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
-alertcondition(cbBrk,    "CONSOL breakout", "50 EMA consolidation broken on volume - entry")
 alertcondition(vcpBrk,   "VCP breakout",  "VCP base cleared on expanding volume")
 alertcondition(rtLong,   "RETEST long",   "Breakout retest held - old resistance now support")
 alertcondition(rtShort,  "RETEST short",  "Breakdown retest failed - old support now resistance")
 alertcondition(trigger,  "Any trigger",   "Any setup fired (pullback or breakout, long or short)")
+
+// ── Last-bar label · ADDED (display-only; reads the same values as the console,
+//    no setup / trigger logic touched) ──────────────────────────────────────
+grpL     = "Last-bar label"
+showLbl  = input.bool(false, "Show status label on last bar", group = grpL)
+lblOff   = input.int(3, "Label offset (bars to the right)", minval = 0, maxval = 30, group = grpL)
+lblSzIn  = input.string("Small", "Label text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpL)
+lblSz    = lblSzIn == "Tiny" ? size.tiny : lblSzIn == "Small" ? size.small : lblSzIn == "Normal" ? size.normal : size.large
+
+var label lastLbl = na
+if showLbl and barstate.islast
+    lAtrPct  = (atr / close) * 100
+    lStopAtr = validRisk ? riskPerShare / atr : na
+    lSizeOK  = posValue >= minPos
+    lState   = vcpBrk   ? "▲ VCP BREAK"
+              : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+              : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+              : vcpReady ? "◆ VCP READY"
+              : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
+              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+    lBg      = anyLong ? cGood : anyShort ? cBad
+              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : cDim
+    lTxt     = lState
+      + "\nRSI " + str.tostring(rsi, "#.0")
+      + " · ADX " + str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop")
+      + " · ATR " + str.tostring(atr, format.mintick) + " (" + str.tostring(lAtrPct, "#.1") + "%)"
+      + "\nRel vol " + (relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x")
+      + " · Turnover " + str.tostring(turnoverCr, "#.2") + " Cr (avg " + str.tostring(avgTurnCr, "#.2") + ")"
+      + " · P/E " + (na(peRatio) ? "n/a" : str.tostring(peRatio, "#.1"))
+      + "\nStop " + str.tostring(stopLevel, format.mintick)
+      + " · Risk/" + (isLots ? "lot " : "sh ") + (validRisk ? str.tostring(riskPerUnit, "#") : "n/a")
+      + (na(lStopAtr) ? "" : " (" + str.tostring(lStopAtr, "#.1") + " atr)")
+      + "\nSize " + (lotTooBig ? "0 · 1 lot risks " + str.tostring(oneLotRisk, "#")
+      : str.tostring(units) + (isLots ? " lots · risk " : " sh · value ") + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or lSizeOK ? "" : " ⚠"))
+    if na(lastLbl)
+        lastLbl := label.new(bar_index + lblOff, close, lTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_left, color = color.new(lBg, 15), textcolor = #FFFFFF, size = lblSz, textalign = text.align_left)
+    else
+        label.set_xy(lastLbl, bar_index + lblOff, close)
+        label.set_text(lastLbl, lTxt)
+        label.set_color(lastLbl, color.new(lBg, 15))
+        label.set_size(lastLbl, lblSz)
+ 
+ 

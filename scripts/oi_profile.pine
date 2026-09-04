@@ -17,9 +17,9 @@ panelPos  = input.string("Bottom right", "Panel position", options = ["Bottom ri
 showVwap  = input.bool(true, "Show session VWAP")
 showLvls  = input.bool(true, "Show prev-day H/L/C + opening range")
 orMins    = input.int(15, "Opening range minutes", minval = 1)
-showSVP   = input.bool(true, "Show session volume profile")
-svpBins   = input.int(18, "Profile bins", minval = 5, maxval = 40)
-showMtf   = input.bool(true, "Show multi-timeframe trend row")
+// Removed 2026-09-04 for load time: session volume profile, multi-timeframe
+// trend row (4 request.security), futures basis (2 request.security), and
+// the per-strike OI request loop. OI comes only from the data input.
 
 // Panel bar/number helpers
 compact(float x) =>
@@ -74,35 +74,6 @@ else if bar_index - sesStart < orBars
     orH := math.max(nz(orH, high), high)
     orL := math.min(nz(orL, low), low)
 
-// ── Session volume profile accumulation ─────────────────────────────────
-var float[] svpLo  = array.new_float()
-var float[] svpHi  = array.new_float()
-var float[] svpVol = array.new_float()
-if newSes
-    array.clear(svpLo)
-    array.clear(svpHi)
-    array.clear(svpVol)
-array.push(svpLo, low)
-array.push(svpHi, high)
-array.push(svpVol, nz(volume))
-
-// ── Multi-timeframe Supertrend directions ───────────────────────────────
-[stA, d5]  = request.security(syminfo.tickerid, "5",  ta.supertrend(stMult, stLen))
-[stB, d15] = request.security(syminfo.tickerid, "15", ta.supertrend(stMult, stLen))
-[stC, d60] = request.security(syminfo.tickerid, "60", ta.supertrend(stMult, stLen))
-[stE, dD]  = request.security(syminfo.tickerid, "1D", ta.supertrend(stMult, stLen))
-// Emoji keep their own color inside a single-color table cell:
-// green circle = uptrend, red circle = downtrend.
-mtfChar(float dd) => na(dd) ? "⚪" : dd < 0 ? "🟢▲" : "🔴▼"
-
-// ── Futures basis (index roots only; MCX options already sit on futures)
-float futPx = na
-float idxPx = na
-if optRoot == "NIFTY" or optRoot == "BANKNIFTY"
-    futPx := request.security("NSE:" + optRoot + "1!", timeframe.period, close, ignore_invalid_symbol = true)
-    idxPx := request.security("NSE:" + optRoot, timeframe.period, close, ignore_invalid_symbol = true)
-basisV = futPx - idxPx
-
 // ── OI profile ──────────────────────────────────────────────────────────
 pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
 var table pan = table.new(pPos, 3, 14, border_width = 0, frame_width = 1, frame_color = color.new(#787b86, 55), bgcolor = color.new(#131722, 20))
@@ -112,7 +83,10 @@ var box[]   bxs = array.new_box()
 var line[]  lns = array.new_line()
 var label[] lbs = array.new_label()
 
-if barstate.islast
+// Redraw once per bar (first tick), not on every tick. A fresh calc from an
+// input change or a reload still draws immediately because the history pass
+// is not realtime.
+if barstate.islast and (not barstate.isrealtime or barstate.isnew)
     while array.size(bxs) > 0
         box.delete(array.pop(bxs))
     while array.size(lns) > 0
@@ -144,15 +118,6 @@ if barstate.islast
                     pcrV := valT
                 else if keyT == "mp"
                     mpV := valT
-    else
-        for i = -nEach to nEach
-            k = atm + i * stepSz
-            ks = str.tostring(math.round(k))
-            cOI = request.security("NSE:" + optRoot + expiry + "C" + ks + "_OI", "1D", close, ignore_invalid_symbol = true)
-            pOI = request.security("NSE:" + optRoot + expiry + "P" + ks + "_OI", "1D", close, ignore_invalid_symbol = true)
-            array.push(strikes, k)
-            array.push(callOIs, nz(cOI))
-            array.push(putOIs, nz(pOI))
 
     // Keep full copies for the screen-anchored panel before the scale guard
     // trims the price-pane set; the panel is immune to the chart's scale.
@@ -230,34 +195,6 @@ if barstate.islast
         array.push(lns, line.new(bar_index - 50, mpV, bar_index + 4, mpV, color = color.new(#FFD700, 45), style = line.style_dotted, extend = extend.left))
         array.push(lbs, label.new(bar_index - 30, mpV, "Max Pain " + str.tostring(mpV, "#"), style = label.style_label_down, color = color.new(#FFD700, 85), textcolor = #FFD700, size = size.small))
 
-    // ── Session volume profile: anchored at session start, POC in yellow ─
-    if showSVP and timeframe.isintraday and array.size(svpVol) > 0
-        float dHi2 = array.max(svpHi)
-        float dLo2 = array.min(svpLo)
-        if dHi2 > dLo2
-            binSz2 = (dHi2 - dLo2) / svpBins
-            vb = array.new_float(svpBins, 0.0)
-            for i2 = 0 to array.size(svpVol) - 1
-                bLo2 = array.get(svpLo, i2)
-                bHi2 = array.get(svpHi, i2)
-                bV2 = array.get(svpVol, i2)
-                span2 = math.max(bHi2 - bLo2, syminfo.mintick)
-                for b2 = 0 to svpBins - 1
-                    binLo2 = dLo2 + b2 * binSz2
-                    ov2 = math.max(0.0, math.min(bHi2, binLo2 + binSz2) - math.max(bLo2, binLo2))
-                    if ov2 > 0
-                        array.set(vb, b2, array.get(vb, b2) + bV2 * ov2 / span2)
-            mV2 = array.max(vb)
-            if mV2 > 0
-                pocB2 = array.indexof(vb, mV2)
-                sesLen = math.max(10, bar_index - sesStart)
-                for b2 = 0 to svpBins - 1
-                    w2 = math.round(0.35 * sesLen * array.get(vb, b2) / mV2)
-                    if w2 > 0
-                        binLo2 = dLo2 + b2 * binSz2
-                        // Time coordinates for the same buffer-limit reason as the OR box.
-                        array.push(bxs, box.new(sesStartT, binLo2 + binSz2, sesStartT + w2 * timeframe.in_seconds() * 1000, binLo2, xloc = xloc.bar_time, border_color = na, bgcolor = b2 == pocB2 ? color.new(#FFD700, 55) : color.new(#2962ff, 82)))
-
     // ── OI panel — screen-anchored, identical on every chart and timeframe ──
     if showPanel and array.size(pStrikes) > 0
         float pMax = 0.0
@@ -285,28 +222,22 @@ if barstate.islast
         table.cell(pan, 0, 0, optRoot + " " + expiry, text_color = #FFFFFF, text_size = size.small, bgcolor = color.new(#2962ff, 25))
         table.cell(pan, 1, 0, "CALL OI", text_color = #f23645, text_size = size.small, bgcolor = color.new(#131722, 20))
         table.cell(pan, 2, 0, "PUT OI", text_color = #26a69a, text_size = size.small, bgcolor = color.new(#131722, 20))
-        // Info rows: PCR / Max Pain / basis, then the multi-timeframe trend strip
+        // Info row: PCR / Max Pain
         float pcrShow = pcrV
         if na(pcrShow) and array.size(pCE) > 0
             scSum = array.sum(pCE)
             pcrShow := scSum > 0 ? array.sum(pPE) / scSum : na
         infoTxt = (na(pcrShow) ? "" : "PCR " + str.tostring(pcrShow, "#.##")) +
-             (na(mpV) ? "" : "  ·  MaxPain " + str.tostring(mpV, "#")) +
-             (na(basisV) ? "" : "  ·  Basis " + (basisV >= 0 ? "+" : "") + str.tostring(basisV, "#.#"))
+             (na(mpV) ? "" : "  ·  MaxPain " + str.tostring(mpV, "#"))
         table.cell(pan, 0, 1, infoTxt == "" ? " " : infoTxt, text_color = #d1d4dc, text_size = size.small, text_halign = text.align_left)
         table.cell(pan, 1, 1, " ")
         table.cell(pan, 2, 1, " ")
-        mtfTxt = showMtf ? "5m " + mtfChar(d5) + "   15m " + mtfChar(d15) + "   1h " + mtfChar(d60) + "   1D " + mtfChar(dD) : " "
-        table.cell(pan, 0, 2, mtfTxt, text_color = #d1d4dc, text_size = size.small, text_halign = text.align_left)
-        table.cell(pan, 1, 2, " ")
-        table.cell(pan, 2, 2, " ")
         if not panMerged
             table.merge_cells(pan, 0, 1, 2, 1)
-            table.merge_cells(pan, 0, 2, 2, 2)
             panMerged := true
         nRows = array.size(pStrikes)
         for i = 0 to 10
-            rowI = i + 3
+            rowI = i + 2
             if i < nRows
                 jj = nRows - 1 - i  // highest strike on top, like a broker chain
                 kk = array.get(pStrikes, jj)
