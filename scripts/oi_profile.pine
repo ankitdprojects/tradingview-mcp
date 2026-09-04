@@ -17,6 +17,9 @@ panelPos  = input.string("Bottom right", "Panel position", options = ["Bottom ri
 showVwap  = input.bool(true, "Show session VWAP")
 showLvls  = input.bool(true, "Show prev-day H/L/C + opening range")
 orMins    = input.int(15, "Opening range minutes", minval = 1)
+showOI    = input.bool(true, "Show OI (strike bars, walls, panel, max pain)",
+     tooltip = "Off: only Supertrend, VWAP, PDH/PDL/PDC and the opening range stay. " +
+               "Use this on charts whose symbol does not match the OI data root.")
 // Removed 2026-09-04 for load time: session volume profile, multi-timeframe
 // trend row (4 request.security), futures basis (2 request.security), and
 // the per-strike OI request loop. OI comes only from the data input.
@@ -57,7 +60,16 @@ vwapVal = ta.vwap(hlc3)
 plot(showVwap and timeframe.isintraday ? vwapVal : na, "VWAP", color = #2962ff, linewidth = 2)
 
 // ── Previous-day H/L/C + opening range (chart's own data) ───────────────
-[pdH, pdL, pdC] = request.security(syminfo.tickerid, "D", [high[1], low[1], close[1]], lookahead = barmerge.lookahead_on)
+// PDH/PDL/PDC are rolled from THIS chart's intraday bars, not from a daily
+// request.security. On illiquid MCX option contracts the daily feed sits on
+// a different price basis from the intraday feed (e.g. 580 vs 196), which
+// drew the levels far off screen. This also removes the last server fetch.
+var float pdH = na
+var float pdL = na
+var float pdC = na
+var float curH = na     // running high / low / last close of the live session
+var float curL = na
+var float curC = na
 
 var int   sesStart  = 0
 var int   sesStartT = 0     // session start as a timestamp, for drawing
@@ -66,13 +78,54 @@ var float orL = na
 newSes = timeframe.change("D")
 orBars = timeframe.isintraday ? math.max(1, math.ceil(orMins / timeframe.multiplier)) : 1
 if newSes
+    // Yesterday's session becomes the reference; start today's tally.
+    pdH := curH
+    pdL := curL
+    pdC := curC
+    curH := high
+    curL := low
     sesStart  := bar_index
     sesStartT := time
     orH := high
     orL := low
-else if bar_index - sesStart < orBars
+else
+    curH := math.max(nz(curH, high), high)
+    curL := math.min(nz(curL, low), low)
+curC := close
+if not newSes and bar_index - sesStart < orBars
     orH := math.max(nz(orH, high), high)
     orL := math.min(nz(orL, low), low)
+
+// ── Persistent PDH / PDL / PDC ──────────────────────────────────────────
+// Drawn ONCE at each session open and left on the chart like S/R lines.
+// They are never deleted by the per-bar redraw below. When the next session
+// opens, the previous day's lines stop extending and end at that moment, so
+// each day keeps its own three levels in place. Oldest sessions are dropped
+// after pdKeep days to stay inside max_lines_count.
+var line[]  pdLns = array.new_line()
+var label[] pdLbs = array.new_label()
+pdKeep = 5
+if showLvls and timeframe.isintraday and newSes and not na(pdH)
+    // Freeze yesterday's lines at the session boundary.
+    if array.size(pdLns) > 0
+        for i = array.size(pdLns) - 3 to array.size(pdLns) - 1
+            if i >= 0
+                line.set_extend(array.get(pdLns, i), extend.none)
+                line.set_x2(array.get(pdLns, i), time)
+    // Drop the oldest session's set once the cap is reached.
+    while array.size(pdLns) >= pdKeep * 3
+        line.delete(array.shift(pdLns))
+        label.delete(array.shift(pdLbs))
+        line.delete(array.shift(pdLns))
+        label.delete(array.shift(pdLbs))
+        line.delete(array.shift(pdLns))
+        label.delete(array.shift(pdLbs))
+    array.push(pdLns, line.new(time, pdH, time, pdH, xloc = xloc.bar_time, extend = extend.right, color = color.new(#f23645, 35), style = line.style_dashed))
+    array.push(pdLbs, label.new(time, pdH, "PDH " + str.tostring(pdH, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#f23645, 100), textcolor = #f23645, size = size.small))
+    array.push(pdLns, line.new(time, pdL, time, pdL, xloc = xloc.bar_time, extend = extend.right, color = color.new(#26a69a, 35), style = line.style_dashed))
+    array.push(pdLbs, label.new(time, pdL, "PDL " + str.tostring(pdL, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#26a69a, 100), textcolor = #26a69a, size = size.small))
+    array.push(pdLns, line.new(time, pdC, time, pdC, xloc = xloc.bar_time, extend = extend.right, color = color.new(#787b86, 40), style = line.style_dotted))
+    array.push(pdLbs, label.new(time, pdC, "PDC " + str.tostring(pdC, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#787b86, 100), textcolor = #787b86, size = size.small))
 
 // ── OI profile ──────────────────────────────────────────────────────────
 pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
@@ -101,7 +154,7 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
     float spotV = na
     float pcrV = na
     float mpV = na
-    if str.length(oiData) > 0
+    if showOI and str.length(oiData) > 0
         rows = str.split(oiData, ",")
         for r = 0 to array.size(rows) - 1
             parts = str.split(array.get(rows, r), ":")
@@ -163,7 +216,7 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
         array.push(lns, line.new(bar_index - 50, sK, x2, sK, color = color.new(#26a69a, 20), style = line.style_dashed, extend = extend.left))
         array.push(lbs, label.new(bar_index - 60, rK, "OI Resistance " + str.tostring(rK, format.mintick), style = label.style_label_down, color = color.new(#f23645, 75), textcolor = color.white, size = size.small))
         array.push(lbs, label.new(bar_index - 60, sK, "OI Support " + str.tostring(sK, format.mintick), style = label.style_label_up, color = color.new(#26a69a, 75), textcolor = color.white, size = size.small))
-    else if array.size(pStrikes) == 0 or not showPanel
+    else if showOI and (array.size(pStrikes) == 0 or not showPanel)
         // Distinguish "no data" from "data exists but this chart can't host it"
         // (an option-premium chart's scale is nowhere near the strike prices).
         // When the panel is on and has content, it already tells the story.
@@ -172,18 +225,9 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
              "OI data unavailable: " + optRoot + " " + expiry + " strikes near " + str.tostring(atm)
         array.push(lbs, label.new(bar_index, high, msgTxt, color = color.new(color.orange, 55), textcolor = color.white, style = label.style_label_down, size = size.small))
 
-    // ── Prev-day levels + opening range on the price pane ───────────────
+    // ── Opening range on the price pane (PDH/PDL/PDC are persistent, see
+    // the session block above; they are NOT part of this redraw cycle) ──
     if showLvls and timeframe.isintraday
-        px2 = bar_index + 4
-        if not na(pdH)
-            array.push(lns, line.new(bar_index - 50, pdH, px2, pdH, color = color.new(#f23645, 35), style = line.style_dashed, extend = extend.left))
-            array.push(lbs, label.new(px2, pdH, "PDH", style = label.style_label_left, color = color.new(#f23645, 100), textcolor = #f23645, size = size.small))
-        if not na(pdL)
-            array.push(lns, line.new(bar_index - 50, pdL, px2, pdL, color = color.new(#26a69a, 35), style = line.style_dashed, extend = extend.left))
-            array.push(lbs, label.new(px2, pdL, "PDL", style = label.style_label_left, color = color.new(#26a69a, 100), textcolor = #26a69a, size = size.small))
-        if not na(pdC)
-            array.push(lns, line.new(bar_index - 50, pdC, px2, pdC, color = color.new(#787b86, 40), style = line.style_dotted, extend = extend.left))
-            array.push(lbs, label.new(px2, pdC, "PDC", style = label.style_label_left, color = color.new(#787b86, 100), textcolor = #787b86, size = size.small))
         if not na(orH) and not na(orL)
             // Time coordinates: a bar_index older than the history buffer
             // (e.g. after a long session on 1m) throws "historical offset
@@ -191,12 +235,14 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
             array.push(bxs, box.new(sesStartT, orH, sesStartT + orBars * timeframe.in_seconds() * 1000, orL, xloc = xloc.bar_time, border_color = color.new(#2962ff, 40), bgcolor = color.new(#2962ff, 85)))
 
     // Max Pain line — only when it fits this chart's price scale
-    if not na(mpV) and mpV > close * 0.6 and mpV < close * 1.6
+    if showOI and not na(mpV) and mpV > close * 0.6 and mpV < close * 1.6
         array.push(lns, line.new(bar_index - 50, mpV, bar_index + 4, mpV, color = color.new(#FFD700, 45), style = line.style_dotted, extend = extend.left))
         array.push(lbs, label.new(bar_index - 30, mpV, "Max Pain " + str.tostring(mpV, "#"), style = label.style_label_down, color = color.new(#FFD700, 85), textcolor = #FFD700, size = size.small))
 
     // ── OI panel — screen-anchored, identical on every chart and timeframe ──
-    if showPanel and array.size(pStrikes) > 0
+    if not showOI
+        table.clear(pan, 0, 0, 2, 13)
+    if showOI and showPanel and array.size(pStrikes) > 0
         float pMax = 0.0
         for i = 0 to array.size(pStrikes) - 1
             pMax := math.max(pMax, math.max(array.get(pCE, i), array.get(pPE, i)))
