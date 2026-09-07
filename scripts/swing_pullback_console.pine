@@ -653,5 +653,67 @@ if showLbl and barstate.islast
         label.set_text(lastLbl, lTxt)
         label.set_color(lastLbl, color.new(lBg, 15))
         label.set_size(lastLbl, lblSz)
- 
+
+// ── FAKEOUT · failed break (bull trap / bear trap) ─────────────────────────
+// Appended AFTER every other input so in_0..in_46 keep their ids.
+// A close through a pivot level that is undone within a few bars. The
+// breakout crowd is trapped on the wrong side; the reclaim bar is the
+// signal. Pure price logic, so it works on option premiums as well as the
+// underlying. Independent of the Setup selector — its own toggle.
+grpFK    = "Fakeout"
+showFake = input.bool(true, "Show fakeout signals (grey)", group = grpFK,
+    tooltip = "Grey triangle when a breakout / breakdown is reversed within " +
+            "the window. Above the bar = bull trap (bearish). Below the bar " +
+            "= bear trap (bullish).")
+fkWindow = input.int(5, "Fakeout: bars allowed to reclaim", minval = 1, maxval = 20, group = grpFK,
+    tooltip = "How quickly the level must be reclaimed. A slow drift back is " +
+            "a pullback, not a trap.")
+cFake    = #9598A1
+
+// No volume filter on the break: low-volume breaks are the classic fakes.
+fkBreakUp = barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev
+fkBreakDn = barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev
+
+// Bull trap: broke ABOVE resistance, then closes back BELOW it.
+var float fkLevelL = na
+var int   fkBarsL  = na
+if fkBreakUp
+    fkLevelL := resPrev
+    fkBarsL  := 0
+else if not na(fkBarsL)
+    fkBarsL += 1
+
+fakeShort = showFake and allowS and barOK and not na(fkLevelL) and fkBarsL >= 1
+          and fkBarsL <= fkWindow and close < fkLevelL
+
+if fakeShort or (not na(fkBarsL) and fkBarsL > fkWindow)
+    fkLevelL := na
+    fkBarsL  := na
+
+// Bear trap: broke BELOW support, then closes back ABOVE it.
+var float fkLevelS = na
+var int   fkBarsS  = na
+if fkBreakDn
+    fkLevelS := supPrev
+    fkBarsS  := 0
+else if not na(fkBarsS)
+    fkBarsS += 1
+
+fakeLong = showFake and allowL and barOK and not na(fkLevelS) and fkBarsS >= 1
+         and fkBarsS <= fkWindow and close > fkLevelS
+
+if fakeLong or (not na(fkBarsS) and fkBarsS > fkWindow)
+    fkLevelS := na
+    fkBarsS  := na
+
+plotshape(fakeShort ? high : na, "FAKEOUT (bull trap)", shape.triangledown,
+        location.abovebar, cFake, size = size.small,
+        text = "FAKEOUT", textcolor = cFake, force_overlay = true)
+plotshape(fakeLong ? low : na, "FAKEOUT (bear trap)", shape.triangleup,
+        location.belowbar, cFake, size = size.small,
+        text = "FAKEOUT", textcolor = cFake, force_overlay = true)
+
+alertcondition(fakeShort, "FAKEOUT bull trap", "Breakout above resistance failed - close back below the level")
+alertcondition(fakeLong,  "FAKEOUT bear trap", "Breakdown below support failed - close back above the level")
+
  
