@@ -213,6 +213,10 @@ var array<line>  resLine = array.new<line>()
 var array<float> resVal  = array.new<float>()
 var array<line>  supLine = array.new<line>()
 var array<float> supVal  = array.new<float>()
+// Price tags for each level; re-anchored to the latest candle every bar so the
+// levels visibly travel with price (the lines themselves already extend right).
+var array<label> resLbl  = array.new<label>()
+var array<label> supLbl  = array.new<label>()
 
 if showSR and not na(ph)
     ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
@@ -220,9 +224,13 @@ if showSR and not na(ph)
                 force_overlay = true)
     array.push(resLine, ln)
     array.push(resVal, ph)
+    array.push(resLbl, label.new(bar_index + 2, ph, "R " + str.tostring(ph, format.mintick),
+                style = label.style_label_left, color = color.new(srColor, 100),
+                textcolor = srColor, size = size.small, force_overlay = true))
     if array.size(resLine) > maxSR
         line.delete(array.shift(resLine))
         array.shift(resVal)
+        label.delete(array.shift(resLbl))
 
 if showSR and not na(pl)
     ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
@@ -230,9 +238,21 @@ if showSR and not na(pl)
                 force_overlay = true)
     array.push(supLine, ln)
     array.push(supVal, pl)
+    array.push(supLbl, label.new(bar_index + 2, pl, "S " + str.tostring(pl, format.mintick),
+                style = label.style_label_left, color = color.new(srColor, 100),
+                textcolor = srColor, size = size.small, force_overlay = true))
     if array.size(supLine) > maxSR
         line.delete(array.shift(supLine))
         array.shift(supVal)
+        label.delete(array.shift(supLbl))
+
+if showSR
+    if array.size(resLbl) > 0
+        for i = 0 to array.size(resLbl) - 1
+            label.set_x(array.get(resLbl, i), bar_index + 2)
+    if array.size(supLbl) > 0
+        for i = 0 to array.size(supLbl) - 1
+            label.set_x(array.get(supLbl, i), bar_index + 2)
 
 // nearest level above / below current price
 nearestRes = float(na)
