@@ -774,6 +774,37 @@ plotshape(fakePbS ? low : na, "FAKE PULLDOWN (failed SELL)", shape.triangleup,
         location.belowbar, cFakePb, size = size.small,
         text = "FAKE PULLDOWN", textcolor = cFakePb, force_overlay = true)
 
+// ── TARGET LINES · dotted line + "Target <price>" on every entry signal ────
+// Appended after the fake-pullback block; inputs land as in_51 / in_52 / in_53.
+// Target = entry close ± tgtR x the trade's risk (stop distance), using the
+// same stop ladder the console sizes with. Green above for longs, red below
+// for shorts. Drawn once per signal bar, kept for the last tgtKeep signals.
+grpTG   = "Targets"
+showTgt = input.bool(true, "Show target lines", group = grpTG)
+tgtR    = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5, group = grpTG)
+tgtBars = input.int(20, "Target line length (bars)", minval = 3, maxval = 200, group = grpTG)
+tgtKeep = 12
+
+var array<line>  tgtLines  = array.new<line>()
+var array<label> tgtLabels = array.new<label>()
+
+sigLong  = triggerL or rtLong or brkLong or vcpBrk
+sigShort = triggerS or rtShort or brkShort
+
+if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and not (sigLong and sigShort)
+    tgtPx  = sigLong ? close + riskPerShare * tgtR : close - riskPerShare * tgtR
+    tgtCol = sigLong ? cGood : cBad
+    ln = line.new(bar_index, tgtPx, bar_index + tgtBars, tgtPx,
+                  color = tgtCol, style = line.style_dotted, width = 1, force_overlay = true)
+    lb = label.new(bar_index + tgtBars, tgtPx, "Target " + str.tostring(tgtPx, format.mintick),
+                   style = label.style_label_left, color = color.new(tgtCol, 20),
+                   textcolor = #FFFFFF, size = size.small, force_overlay = true)
+    array.push(tgtLines, ln)
+    array.push(tgtLabels, lb)
+    if array.size(tgtLines) > tgtKeep
+        line.delete(array.shift(tgtLines))
+        label.delete(array.shift(tgtLabels))
+
 alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
 alertcondition(fakePbS, "FAKE PULLDOWN failed SELL", "Pullback SELL failed - close through the swing-high stop")
 
