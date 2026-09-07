@@ -31,7 +31,7 @@ trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : pres
 swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
 
 grpST     = "Setup type"
-setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All"], group = grpST,
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All", "Pullback + Retest"], group = grpST,
     tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
             "rally in a downtrend).\n\nBreakout: buy a close through the " +
             "nearest confirmed pivot resistance (or sell a close below " +
@@ -251,9 +251,9 @@ for i = 0 to math.max(array.size(supVal) - 1, 0)
 
 // Which setups are active. Defined here because the VCP block below needs
 // doVCP, and Pine requires define-before-use.
-doPull = setupType == "Pullback" or setupType == "All"
+doPull = setupType == "Pullback" or setupType == "All" or setupType == "Pullback + Retest"
 doBrk  = setupType == "Breakout" or setupType == "All"
-doRT   = setupType == "Breakout retest" or setupType == "All"
+doRT   = setupType == "Breakout retest" or setupType == "All" or setupType == "Pullback + Retest"
 doVCP  = setupType == "VCP" or setupType == "All"
 
 // ── VCP · Volatility Contraction Pattern ──────────────────────────────────
@@ -319,8 +319,13 @@ volOK  = brkVolMin <= 0 or relVol < 0.01 or relVol >= brkVolMin
 resPrev = nearestRes[1]
 supPrev = nearestSup[1]
 
-brkLong  = doBrk and allowL and barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev and volOK
-brkShort = doBrk and allowS and barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev and volOK
+// Raw break events feed the RETEST tracker regardless of whether breakout
+// signals themselves are enabled — otherwise "Breakout retest" alone could
+// never arm, because no break would ever be recorded.
+brkRawL  = allowL and barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev and volOK
+brkRawS  = allowS and barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev and volOK
+brkLong  = doBrk and brkRawL
+brkShort = doBrk and brkRawS
 
 // The broken level becomes the stop: a breakout that falls back through it
 // has failed by definition.
@@ -340,7 +345,7 @@ var float rtLevelL = na      // level broken to the upside, now support
 var int   rtBarsL  = na      // bars since that break
 var bool  rtTouchL = false   // has price come back to touch it?
 
-if brkLong
+if brkRawL
     rtLevelL := resPrev
     rtBarsL  := 0
     rtTouchL := false
@@ -365,7 +370,7 @@ var float rtLevelS = na
 var int   rtBarsS  = na
 var bool  rtTouchS = false
 
-if brkShort
+if brkRawS
     rtLevelS := supPrev
     rtBarsS  := 0
     rtTouchS := false
@@ -492,13 +497,14 @@ plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
         location.belowbar, cGood, size = size.normal,
         text = "VCP", textcolor = #FFFFFF, force_overlay = true)
 
-// Retest marks — the highest-quality of the three, so they get diamonds.
-plotshape(rtLong ? low : na, "RETEST long", shape.diamond,
+// Retest marks — same triangle style as the pullback BUY/SELL so they read
+// as entries. BORTST = breakout retest (long), BDRTST = breakdown retest (short).
+plotshape(rtLong ? low : na, "RETEST long", shape.triangleup,
         location.belowbar, cGood, size = size.small,
-        text = "RT↑", textcolor = cGood, force_overlay = true)
-plotshape(rtShort ? high : na, "RETEST short", shape.diamond,
+        text = "BORTST", textcolor = cGood, force_overlay = true)
+plotshape(rtShort ? high : na, "RETEST short", shape.triangledown,
         location.abovebar, cBad, size = size.small,
-        text = "RT↓", textcolor = cBad, force_overlay = true)
+        text = "BDRTST", textcolor = cBad, force_overlay = true)
 
 // Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
 bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
