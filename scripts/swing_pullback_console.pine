@@ -720,4 +720,60 @@ plotshape(fakeLong ? low - atr * 1.6 : na, "FAKEOUT (bear trap)", shape.triangle
 alertcondition(fakeShort, "FAKEOUT bull trap", "Breakout above resistance failed - close back below the level")
 alertcondition(fakeLong,  "FAKEOUT bear trap", "Breakdown below support failed - close back above the level")
 
+// ── FAKE PULLBACK · a pullback trigger whose stop is hit within a few bars ──
+// Appended after the fakeout block; inputs land as in_49 / in_50.
+// The BUY (or SELL) fired, then price closed through the swing stop the
+// script assigned to that trade. The "dip in a trend" was the trend turning.
+// Bearish after a failed BUY, bullish after a failed SELL. Pure price.
+grpFP      = "Fake pullback"
+showFakePb = input.bool(true, "Show fake pullback signals (dark grey)", group = grpFP,
+    tooltip = "Fires when a pullback BUY/SELL is followed, within the window, " +
+            "by a close through that trade's swing stop. Above the bar = " +
+            "failed BUY (bearish). Below the bar = failed SELL (bullish).")
+fpWindow   = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30, group = grpFP)
+cFakePb    = #5D606B
+
+// Failed long pullback: BUY fired, then close < the swing-low stop.
+var float fpStopL = na
+var int   fpBarsL = na
+if triggerL
+    fpStopL := swingLow
+    fpBarsL := 0
+else if not na(fpBarsL)
+    fpBarsL += 1
+
+fakePbL = showFakePb and barOK and not na(fpStopL) and fpBarsL >= 1
+          and fpBarsL <= fpWindow and close < fpStopL
+
+if fakePbL or (not na(fpBarsL) and fpBarsL > fpWindow)
+    fpStopL := na
+    fpBarsL := na
+
+// Failed short pullback: SELL fired, then close > the swing-high stop.
+var float fpStopS = na
+var int   fpBarsS = na
+if triggerS
+    fpStopS := swingHigh
+    fpBarsS := 0
+else if not na(fpBarsS)
+    fpBarsS += 1
+
+fakePbS = showFakePb and barOK and not na(fpStopS) and fpBarsS >= 1
+          and fpBarsS <= fpWindow and close > fpStopS
+
+if fakePbS or (not na(fpBarsS) and fpBarsS > fpWindow)
+    fpStopS := na
+    fpBarsS := na
+
+// Third tier (2.4 ATR) — clear of BUY/SELL, retest (0.8) and FAKEOUT (1.6).
+plotshape(fakePbL ? high + atr * 2.4 : na, "FAKE PULLBACK (failed BUY)", shape.triangledown,
+        location.absolute, cFakePb, size = size.small,
+        text = "FAKE PULLBACK", textcolor = cFakePb, force_overlay = true)
+plotshape(fakePbS ? low - atr * 2.4 : na, "FAKE PULLBACK (failed SELL)", shape.triangleup,
+        location.absolute, cFakePb, size = size.small,
+        text = "FAKE PULLBACK", textcolor = cFakePb, force_overlay = true)
+
+alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
+alertcondition(fakePbS, "FAKE PULLBACK failed SELL", "Pullback SELL failed - close through the swing-high stop")
+
  
