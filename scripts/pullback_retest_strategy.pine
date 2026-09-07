@@ -5,7 +5,7 @@
 // breakout volume >= 1.0x). Entries fill at the trigger bar close, exits are a
 // hard stop (the script's stop level) and a 2R limit target. Position size is
 // risk-based: risk_pct of equity per trade / stop distance.
-strategy("Pullback + Retest BT", overlay = true, initial_capital = 100000,
+strategy("Pullback + Retest BT", overlay = true, initial_capital = 1000000,
      default_qty_type = strategy.fixed, default_qty_value = 1,
      commission_type = strategy.commission.percent, commission_value = 0.02,
      slippage = 1, process_orders_on_close = true, calc_on_every_tick = false,
@@ -17,7 +17,9 @@ strategy("Pullback + Retest BT", overlay = true, initial_capital = 100000,
 // ── Inputs ────────────────────────────────────────────────────────────────
 mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both"])
 dirMode   = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"])
-riskCash  = input.float(1000, "Risk per trade (Rs, fixed = 1R)", minval = 1)
+riskCash  = input.float(20000, "Risk per trade (Rs, fixed = 1R)", minval = 1,
+    tooltip = "Keep this large enough that qty is several whole contracts: TradingView " +
+            "rounds futures qty to whole contracts and drops orders that round to 0.")
 rr        = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5)
 fastLen   = input.int(5,  "Pullback EMA")
 slowLen   = input.int(13, "Context EMA")
@@ -27,6 +29,11 @@ maxSR     = input.int(4,  "Max levels per side", minval = 1, maxval = 10)
 brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1)
 rtWindow  = input.int(12, "Retest: bars allowed after the break", minval = 1)
 volLen    = input.int(20, "Rel-volume baseline", minval = 1)
+minStopAtr = input.float(0.5, "Min stop distance (ATR multiple)", minval = 0, step = 0.1,
+    tooltip = "If the natural stop (swing low / retest level) is closer than this, " +
+            "the stop is pushed out to this distance. On 1m bars the natural stop can " +
+            "be 1-2 ticks away; risk-based sizing then balloons to thousands of " +
+            "contracts and costs swamp the result. 0 disables the floor.")
 
 doPull = mode == "Pullback" or mode == "Both"
 doRT   = mode == "Retest"   or mode == "Both"
@@ -136,22 +143,27 @@ if triggerS
 // ── Stops (same ladder as the Screener) ───────────────────────────────────
 swingLow  = ta.lowest(low, swingBack)
 swingHigh = ta.highest(high, swingBack)
-stopL = rtLong  ? rtLevelL : swingLow
-stopS = rtShort ? rtLevelS : swingHigh
+atr14  = ta.atr(14)
+stopL0 = rtLong  ? rtLevelL : swingLow
+stopS0 = rtShort ? rtLevelS : swingHigh
+stopL  = math.min(stopL0, close - atr14 * minStopAtr)
+stopS  = math.max(stopS0, close + atr14 * minStopAtr)
 
 // ── Orders ────────────────────────────────────────────────────────────────
 // Fixed rupee risk so every trade is exactly 1R: report P&L / riskCash = R multiples.
 goLong   =(triggerL or rtLong)  and strategy.position_size == 0 and close > stopL
 goShort  = (triggerS or rtShort) and strategy.position_size == 0 and close < stopS
 
+// qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
+// NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
 if goLong
     dist = close - stopL
-    qty  = math.max(math.floor(riskCash / dist), 1)
+    qty  = riskCash / (dist * syminfo.pointvalue)
     strategy.entry("L", strategy.long, qty = qty, comment = rtLong ? "BORTST" : "BUY")
     strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
 if goShort
     dist = stopS - close
-    qty  = math.max(math.floor(riskCash / dist), 1)
+    qty  = riskCash / (dist * syminfo.pointvalue)
     strategy.entry("S", strategy.short, qty = qty, comment = rtShort ? "BDRTST" : "SELL")
     strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
 
