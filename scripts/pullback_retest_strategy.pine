@@ -42,6 +42,12 @@ minStopAtr = input.float(0.5, "Min stop distance (ATR multiple)", minval = 0, st
             "the stop is pushed out to this distance. On 1m bars the natural stop can " +
             "be 1-2 ticks away; risk-based sizing then balloons to thousands of " +
             "contracts and costs swamp the result. 0 disables the floor.")
+sigExit   = input.bool(true, "Close position on a fake or opposite signal",
+    tooltip = "A FAKE PULLBACK / FAKE BORTST closes a long, a FAKE PULLDOWN / FAKE BDRTST " +
+            "closes a short, and an opposite-direction entry signal closes too. The " +
+            "stop and 2R target still apply. Off = hold until stop or target only.")
+flipFake  = input.bool(false, "Flip direction on a fake signal",
+    tooltip = "After closing on a fake signal, open a trade the other way on the same bar.")
 fkWindow  = input.int(5, "Fakeout: bars allowed to reclaim", minval = 1, maxval = 20)
 fpWindow  = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30)
 
@@ -175,9 +181,10 @@ if fkBreakUp
 else if not na(fkBarsL)
     fkBarsL += 1
     fkHiL   := math.max(fkHiL, high)
-fakeShort = doFk and allowS and barOK and not na(fkLevelL) and fkBarsL >= 1 and fkBarsL <= fkWindow and close < fkLevelL
-fkStopS   = fkHiL
-if fakeShort or (not na(fkBarsL) and fkBarsL > fkWindow)
+fakeShortRaw = barOK and not na(fkLevelL) and fkBarsL >= 1 and fkBarsL <= fkWindow and close < fkLevelL
+fakeShort    = doFk and allowS and fakeShortRaw
+fkStopS      = fkHiL
+if fakeShortRaw or (not na(fkBarsL) and fkBarsL > fkWindow)
     fkLevelL := na
     fkBarsL  := na
     fkHiL    := na
@@ -192,9 +199,10 @@ if fkBreakDn
 else if not na(fkBarsS)
     fkBarsS += 1
     fkLoS   := math.min(fkLoS, low)
-fakeLong = doFk and allowL and barOK and not na(fkLevelS) and fkBarsS >= 1 and fkBarsS <= fkWindow and close > fkLevelS
-fkStopL  = fkLoS
-if fakeLong or (not na(fkBarsS) and fkBarsS > fkWindow)
+fakeLongRaw = barOK and not na(fkLevelS) and fkBarsS >= 1 and fkBarsS <= fkWindow and close > fkLevelS
+fakeLong    = doFk and allowL and fakeLongRaw
+fkStopL     = fkLoS
+if fakeLongRaw or (not na(fkBarsS) and fkBarsS > fkWindow)
     fkLevelS := na
     fkBarsS  := na
     fkLoS    := na
@@ -210,9 +218,10 @@ if pullRawL
 else if not na(fpBarsL)
     fpBarsL += 1
     fpHiL   := math.max(fpHiL, high)
-fakePbShort = doFp and allowS and barOK and not na(fpStopL) and fpBarsL >= 1 and fpBarsL <= fpWindow and close < fpStopL
-fpStopSx    = fpHiL
-if fakePbShort or (not na(fpBarsL) and fpBarsL > fpWindow)
+fakePbShortRaw = barOK and not na(fpStopL) and fpBarsL >= 1 and fpBarsL <= fpWindow and close < fpStopL
+fakePbShort    = doFp and allowS and fakePbShortRaw
+fpStopSx       = fpHiL
+if fakePbShortRaw or (not na(fpBarsL) and fpBarsL > fpWindow)
     fpStopL := na
     fpBarsL := na
     fpHiL   := na
@@ -227,9 +236,10 @@ if pullRawS
 else if not na(fpBarsS)
     fpBarsS += 1
     fpLoS   := math.min(fpLoS, low)
-fakePbLong = doFp and allowL and barOK and not na(fpStopS) and fpBarsS >= 1 and fpBarsS <= fpWindow and close > fpStopS
-fpStopLx   = fpLoS
-if fakePbLong or (not na(fpBarsS) and fpBarsS > fpWindow)
+fakePbLongRaw = barOK and not na(fpStopS) and fpBarsS >= 1 and fpBarsS <= fpWindow and close > fpStopS
+fakePbLong    = doFp and allowL and fakePbLongRaw
+fpStopLx      = fpLoS
+if fakePbLongRaw or (not na(fpBarsS) and fpBarsS > fpWindow)
     fpStopS := na
     fpBarsS := na
     fpLoS   := na
@@ -237,8 +247,8 @@ if fakePbLong or (not na(fpBarsS) and fpBarsS > fpWindow)
 // ── Stops (same ladder as the Screener) ───────────────────────────────────
 atr14  = ta.atr(14)
 // Priority when several fire on one bar: retest > breakout > fakes > pullback.
-stopL0 = rtLong ? rtLevelL : brkLong ? resPrev : fakeLong ? fkStopL : fakePbLong ? fpStopLx : swingLow
-stopS0 = rtShort ? rtLevelS : brkShort ? supPrev : fakeShort ? fkStopS : fakePbShort ? fpStopSx : swingHigh
+stopL0 = rtLong ? rtLevelL : brkLong ? resPrev : (fakeLong or fakeLongRaw) ? fkStopL : (fakePbLong or fakePbLongRaw) ? fpStopLx : swingLow
+stopS0 = rtShort ? rtLevelS : brkShort ? supPrev : (fakeShort or fakeShortRaw) ? fkStopS : (fakePbShort or fakePbShortRaw) ? fpStopSx : swingHigh
 stopL  = math.min(stopL0, close - atr14 * minStopAtr)
 stopS  = math.max(stopS0, close + atr14 * minStopAtr)
 tagL   = rtLong ? "BORTST" : brkLong ? "BRK" : fakeLong ? "FAKE BDRTST" : fakePbLong ? "FAKE PULLDOWN" : "BUY"
@@ -246,10 +256,29 @@ tagS   = rtShort ? "BDRTST" : brkShort ? "BRKDN" : fakeShort ? "FAKE BORTST" : f
 
 // ── Orders ────────────────────────────────────────────────────────────────
 // Fixed rupee risk so every trade is exactly 1R: report P&L / riskCash = R multiples.
-anyL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong
-anyS = triggerS or rtShort or brkShort or fakeShort or fakePbShort
-goLong   = anyL and not anyS and strategy.position_size == 0 and close > stopL
-goShort  = anyS and not anyL and strategy.position_size == 0 and close < stopS
+// Fake signals AGAINST an open position (raw, independent of the mode flags).
+fakeVsLong  = fakePbShortRaw or fakeShortRaw     // FAKE PULLBACK / FAKE BORTST
+fakeVsShort = fakePbLongRaw  or fakeLongRaw      // FAKE PULLDOWN / FAKE BDRTST
+
+// Flip: after a fake closes the position, the same fake becomes the entry the other way.
+flipS = flipFake and fakeVsLong  and strategy.position_size > 0
+flipL = flipFake and fakeVsShort and strategy.position_size < 0
+
+anyL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong or flipL
+anyS = triggerS or rtShort or brkShort or fakeShort or fakePbShort or flipS
+
+// Signal-based exits: close on a fake against us or an opposite entry signal.
+closeL = sigExit and strategy.position_size > 0 and (fakeVsLong  or anyS)
+closeS = sigExit and strategy.position_size < 0 and (fakeVsShort or anyL)
+if closeL
+    strategy.close("L", comment = fakeVsLong ? "FAKE exit" : "flip exit")
+if closeS
+    strategy.close("S", comment = fakeVsShort ? "FAKE exit" : "flip exit")
+
+// Flat now, or flat after this bar's close order, so a new trade can start.
+flat     = strategy.position_size == 0 or closeL or closeS
+goLong   = anyL and not anyS and flat and close > stopL
+goShort  = anyS and not anyL and flat and close < stopS
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
