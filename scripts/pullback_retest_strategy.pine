@@ -15,7 +15,11 @@ strategy("Pullback + Retest BT", overlay = true, initial_capital = 20000,
 // rejected and the backtest shows zero trades.
 
 // ── Inputs ────────────────────────────────────────────────────────────────
-mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both"])
+mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both", "Breakout", "Fakeout", "FakePullback", "All"],
+    tooltip = "Pullback = BUY/SELL. Retest = BORTST/BDRTST. Both = those two. " +
+            "Breakout = BRK up/down at the break bar. Fakeout = fade a failed break " +
+            "(FAKE BORTST short / FAKE BDRTST long). FakePullback = fade a failed " +
+            "pullback (FAKE PULLBACK short / FAKE PULLDOWN long). All = everything.")
 dirMode   = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"])
 riskCash  = input.float(1000, "Risk per trade (Rs, fixed = 1R)", minval = 1,
     tooltip = "For futures keep this large enough that qty is several whole contracts: " +
@@ -38,9 +42,14 @@ minStopAtr = input.float(0.5, "Min stop distance (ATR multiple)", minval = 0, st
             "the stop is pushed out to this distance. On 1m bars the natural stop can " +
             "be 1-2 ticks away; risk-based sizing then balloons to thousands of " +
             "contracts and costs swamp the result. 0 disables the floor.")
+fkWindow  = input.int(5, "Fakeout: bars allowed to reclaim", minval = 1, maxval = 20)
+fpWindow  = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30)
 
-doPull = mode == "Pullback" or mode == "Both"
-doRT   = mode == "Retest"   or mode == "Both"
+doPull = mode == "Pullback" or mode == "Both" or mode == "All"
+doRT   = mode == "Retest"   or mode == "Both" or mode == "All"
+doBrk  = mode == "Breakout" or mode == "All"
+doFk   = mode == "Fakeout"  or mode == "All"
+doFp   = mode == "FakePullback" or mode == "All"
 allowL = dirMode != "Short only"
 allowS = dirMode != "Long only"
 barOK  = barstate.isconfirmed
@@ -49,6 +58,8 @@ barOK  = barstate.isconfirmed
 emaFast = ta.ema(close, fastLen)
 emaSlow = ta.ema(close, slowLen)
 relVol  = volume / math.max(ta.sma(volume, volLen), 1)
+swingLow  = ta.lowest(low, swingBack)
+swingHigh = ta.highest(high, swingBack)
 
 // ── Support / Resistance from pivots (same as Screener) ───────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
@@ -129,8 +140,9 @@ if allowL and touchedL and close < emaFast
     armedL := true
 if not contextL or not allowL
     armedL := false
-triggerL = doPull and armedL and close > emaFast and close[1] <= emaFast and barOK
-if triggerL
+pullRawL = armedL and close > emaFast and close[1] <= emaFast and barOK   // raw: feeds the fake-pullback tracker
+triggerL = doPull and pullRawL
+if pullRawL
     armedL := false
 
 contextS = close < emaSlow
@@ -140,23 +152,104 @@ if allowS and touchedS and close > emaFast
     armedS := true
 if not contextS or not allowS
     armedS := false
-triggerS = doPull and armedS and close < emaFast and close[1] >= emaFast and barOK
-if triggerS
+pullRawS = armedS and close < emaFast and close[1] >= emaFast and barOK
+triggerS = doPull and pullRawS
+if pullRawS
     armedS := false
 
+// ── Breakout / breakdown entries (at the break bar) ───────────────────────
+brkLong  = doBrk and brkRawL
+brkShort = doBrk and brkRawS
+
+// ── Fakeout: a break undone within fkWindow bars → fade it ─────────────────
+// No volume filter on the break (low-volume breaks are the classic fakes).
+fkBreakUp = barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev
+fkBreakDn = barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev
+var float fkLevelL = na
+var int   fkBarsL  = na
+var float fkHiL    = na          // highest high since the break = stop for the trap short
+if fkBreakUp
+    fkLevelL := resPrev
+    fkBarsL  := 0
+    fkHiL    := high
+else if not na(fkBarsL)
+    fkBarsL += 1
+    fkHiL   := math.max(fkHiL, high)
+fakeShort = doFk and allowS and barOK and not na(fkLevelL) and fkBarsL >= 1 and fkBarsL <= fkWindow and close < fkLevelL
+fkStopS   = fkHiL
+if fakeShort or (not na(fkBarsL) and fkBarsL > fkWindow)
+    fkLevelL := na
+    fkBarsL  := na
+    fkHiL    := na
+
+var float fkLevelS = na
+var int   fkBarsS  = na
+var float fkLoS    = na
+if fkBreakDn
+    fkLevelS := supPrev
+    fkBarsS  := 0
+    fkLoS    := low
+else if not na(fkBarsS)
+    fkBarsS += 1
+    fkLoS   := math.min(fkLoS, low)
+fakeLong = doFk and allowL and barOK and not na(fkLevelS) and fkBarsS >= 1 and fkBarsS <= fkWindow and close > fkLevelS
+fkStopL  = fkLoS
+if fakeLong or (not na(fkBarsS) and fkBarsS > fkWindow)
+    fkLevelS := na
+    fkBarsS  := na
+    fkLoS    := na
+
+// ── Fake pullback: a pullback trigger whose swing stop is hit → fade it ────
+var float fpStopL = na           // the failed BUY's stop
+var int   fpBarsL = na
+var float fpHiL   = na           // highest high since the BUY = stop for the fade short
+if pullRawL
+    fpStopL := swingLow
+    fpBarsL := 0
+    fpHiL   := high
+else if not na(fpBarsL)
+    fpBarsL += 1
+    fpHiL   := math.max(fpHiL, high)
+fakePbShort = doFp and allowS and barOK and not na(fpStopL) and fpBarsL >= 1 and fpBarsL <= fpWindow and close < fpStopL
+fpStopSx    = fpHiL
+if fakePbShort or (not na(fpBarsL) and fpBarsL > fpWindow)
+    fpStopL := na
+    fpBarsL := na
+    fpHiL   := na
+
+var float fpStopS = na
+var int   fpBarsS = na
+var float fpLoS   = na
+if pullRawS
+    fpStopS := swingHigh
+    fpBarsS := 0
+    fpLoS   := low
+else if not na(fpBarsS)
+    fpBarsS += 1
+    fpLoS   := math.min(fpLoS, low)
+fakePbLong = doFp and allowL and barOK and not na(fpStopS) and fpBarsS >= 1 and fpBarsS <= fpWindow and close > fpStopS
+fpStopLx   = fpLoS
+if fakePbLong or (not na(fpBarsS) and fpBarsS > fpWindow)
+    fpStopS := na
+    fpBarsS := na
+    fpLoS   := na
+
 // ── Stops (same ladder as the Screener) ───────────────────────────────────
-swingLow  = ta.lowest(low, swingBack)
-swingHigh = ta.highest(high, swingBack)
 atr14  = ta.atr(14)
-stopL0 = rtLong  ? rtLevelL : swingLow
-stopS0 = rtShort ? rtLevelS : swingHigh
+// Priority when several fire on one bar: retest > breakout > fakes > pullback.
+stopL0 = rtLong ? rtLevelL : brkLong ? resPrev : fakeLong ? fkStopL : fakePbLong ? fpStopLx : swingLow
+stopS0 = rtShort ? rtLevelS : brkShort ? supPrev : fakeShort ? fkStopS : fakePbShort ? fpStopSx : swingHigh
 stopL  = math.min(stopL0, close - atr14 * minStopAtr)
 stopS  = math.max(stopS0, close + atr14 * minStopAtr)
+tagL   = rtLong ? "BORTST" : brkLong ? "BRK" : fakeLong ? "FAKE BDRTST" : fakePbLong ? "FAKE PULLDOWN" : "BUY"
+tagS   = rtShort ? "BDRTST" : brkShort ? "BRKDN" : fakeShort ? "FAKE BORTST" : fakePbShort ? "FAKE PULLBACK" : "SELL"
 
 // ── Orders ────────────────────────────────────────────────────────────────
 // Fixed rupee risk so every trade is exactly 1R: report P&L / riskCash = R multiples.
-goLong   =(triggerL or rtLong)  and strategy.position_size == 0 and close > stopL
-goShort  = (triggerS or rtShort) and strategy.position_size == 0 and close < stopS
+anyL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong
+anyS = triggerS or rtShort or brkShort or fakeShort or fakePbShort
+goLong   = anyL and not anyS and strategy.position_size == 0 and close > stopL
+goShort  = anyS and not anyL and strategy.position_size == 0 and close < stopS
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
@@ -164,12 +257,12 @@ maxQty = leverage > 0 ? strategy.equity * leverage / (close * syminfo.pointvalue
 if goLong
     dist = close - stopL
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
-    strategy.entry("L", strategy.long, qty = qty, comment = rtLong ? "BORTST" : "BUY")
+    strategy.entry("L", strategy.long, qty = qty, comment = tagL)
     strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
 if goShort
     dist = stopS - close
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
-    strategy.entry("S", strategy.short, qty = qty, comment = rtShort ? "BDRTST" : "SELL")
+    strategy.entry("S", strategy.short, qty = qty, comment = tagS)
     strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
 
 plot(emaFast, "Pullback EMA", color = #FF4081)
