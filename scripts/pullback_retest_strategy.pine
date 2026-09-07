@@ -5,7 +5,7 @@
 // breakout volume >= 1.0x). Entries fill at the trigger bar close, exits are a
 // hard stop (the script's stop level) and a 2R limit target. Position size is
 // risk-based: risk_pct of equity per trade / stop distance.
-strategy("Pullback + Retest BT", overlay = true, initial_capital = 1000000,
+strategy("Pullback + Retest BT", overlay = true, initial_capital = 20000,
      default_qty_type = strategy.fixed, default_qty_value = 1,
      commission_type = strategy.commission.percent, commission_value = 0.02,
      slippage = 1, process_orders_on_close = true, calc_on_every_tick = false,
@@ -17,9 +17,13 @@ strategy("Pullback + Retest BT", overlay = true, initial_capital = 1000000,
 // ── Inputs ────────────────────────────────────────────────────────────────
 mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both"])
 dirMode   = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"])
-riskCash  = input.float(20000, "Risk per trade (Rs, fixed = 1R)", minval = 1,
-    tooltip = "Keep this large enough that qty is several whole contracts: TradingView " +
-            "rounds futures qty to whole contracts and drops orders that round to 0.")
+riskCash  = input.float(1000, "Risk per trade (Rs, fixed = 1R)", minval = 1,
+    tooltip = "For futures keep this large enough that qty is several whole contracts: " +
+            "TradingView rounds futures qty to whole contracts and drops orders that round to 0.")
+leverage  = input.float(5, "Max position = equity x leverage", minval = 0, step = 0.5,
+    tooltip = "Caps position value at equity x leverage (5 = typical intraday MIS on " +
+            "cash equity, 1 = delivery, 0 = no cap). Small accounts hit this cap " +
+            "before the risk-based size, which shrinks the effective R.")
 rr        = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5)
 fastLen   = input.int(5,  "Pullback EMA")
 slowLen   = input.int(13, "Context EMA")
@@ -156,14 +160,15 @@ goShort  = (triggerS or rtShort) and strategy.position_size == 0 and close < sto
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
+maxQty = leverage > 0 ? strategy.equity * leverage / (close * syminfo.pointvalue) : 1e12
 if goLong
     dist = close - stopL
-    qty  = riskCash / (dist * syminfo.pointvalue)
+    qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
     strategy.entry("L", strategy.long, qty = qty, comment = rtLong ? "BORTST" : "BUY")
     strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
 if goShort
     dist = stopS - close
-    qty  = riskCash / (dist * syminfo.pointvalue)
+    qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
     strategy.entry("S", strategy.short, qty = qty, comment = rtShort ? "BDRTST" : "SELL")
     strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
 
