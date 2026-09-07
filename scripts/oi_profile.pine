@@ -127,6 +127,14 @@ if showLvls and timeframe.isintraday and newSes and not na(pdH)
     array.push(pdLns, line.new(time, pdC, time, pdC, xloc = xloc.bar_time, extend = extend.right, color = color.new(#787b86, 40), style = line.style_dotted))
     array.push(pdLbs, label.new(time, pdC, "PDC " + str.tostring(pdC, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#787b86, 100), textcolor = #787b86, size = size.small))
 
+// The live session's three labels ride along with the latest candle (the
+// lines already extend right). Earlier sessions' labels stay where they were.
+if showLvls and timeframe.isintraday and array.size(pdLbs) >= 3
+    for i = array.size(pdLbs) - 3 to array.size(pdLbs) - 1
+        lb = array.get(pdLbs, i)
+        label.set_x(lb, time)
+        label.set_style(lb, label.style_label_left)
+
 // ── OI profile ──────────────────────────────────────────────────────────
 pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
 var table pan = table.new(pPos, 3, 14, border_width = 0, frame_width = 1, frame_color = color.new(#787b86, 55), bgcolor = color.new(#131722, 20))
