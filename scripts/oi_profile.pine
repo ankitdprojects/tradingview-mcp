@@ -120,11 +120,13 @@ if showLvls and timeframe.isintraday and newSes and not na(pdH)
         label.delete(array.shift(pdLbs))
         line.delete(array.shift(pdLns))
         label.delete(array.shift(pdLbs))
-    array.push(pdLns, line.new(time, pdH, time, pdH, xloc = xloc.bar_time, extend = extend.right, color = color.new(#f23645, 10), style = line.style_dashed, width = 2))
+    // x2 one bar ahead: a zero-length line does not render even with extend.right.
+    barMs = timeframe.in_seconds() * 1000
+    array.push(pdLns, line.new(time, pdH, time + barMs, pdH, xloc = xloc.bar_time, extend = extend.right, color = color.new(#f23645, 10), style = line.style_dashed, width = 2))
     array.push(pdLbs, label.new(time, pdH, "PDH " + str.tostring(pdH, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#f23645, 100), textcolor = #f23645, size = size.small))
-    array.push(pdLns, line.new(time, pdL, time, pdL, xloc = xloc.bar_time, extend = extend.right, color = color.new(#26a69a, 10), style = line.style_dashed, width = 2))
+    array.push(pdLns, line.new(time, pdL, time + barMs, pdL, xloc = xloc.bar_time, extend = extend.right, color = color.new(#26a69a, 10), style = line.style_dashed, width = 2))
     array.push(pdLbs, label.new(time, pdL, "PDL " + str.tostring(pdL, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#26a69a, 100), textcolor = #26a69a, size = size.small))
-    array.push(pdLns, line.new(time, pdC, time, pdC, xloc = xloc.bar_time, extend = extend.right, color = color.new(#787b86, 15), style = line.style_dotted, width = 2))
+    array.push(pdLns, line.new(time, pdC, time + barMs, pdC, xloc = xloc.bar_time, extend = extend.right, color = color.new(#787b86, 15), style = line.style_dotted, width = 2))
     array.push(pdLbs, label.new(time, pdC, "PDC " + str.tostring(pdC, format.mintick), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(#787b86, 100), textcolor = #787b86, size = size.small))
 
 // The live session's three labels ride along with the latest candle (the
