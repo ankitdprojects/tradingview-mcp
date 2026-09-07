@@ -726,12 +726,12 @@ alertcondition(fakeLong,  "FAKEOUT bear trap", "Breakdown below support failed -
 // script assigned to that trade. The "dip in a trend" was the trend turning.
 // Bearish after a failed BUY, bullish after a failed SELL. Pure price.
 grpFP      = "Fake pullback"
-showFakePb = input.bool(true, "Show fake pullback signals (dark grey)", group = grpFP,
+showFakePb = input.bool(true, "Show fake pullback signals (light grey)", group = grpFP,
     tooltip = "Fires when a pullback BUY/SELL is followed, within the window, " +
             "by a close through that trade's swing stop. Above the bar = " +
             "failed BUY (bearish). Below the bar = failed SELL (bullish).")
 fpWindow   = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30, group = grpFP)
-cFakePb    = #5D606B
+cFakePb    = #D1D4DC                          // light grey — FAKEOUT is the mid grey
 
 // Failed long pullback: BUY fired, then close < the swing-low stop.
 var float fpStopL = na
