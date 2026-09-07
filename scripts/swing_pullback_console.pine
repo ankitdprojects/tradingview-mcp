@@ -803,6 +803,11 @@ grpTG   = "Targets"
 showTgt = input.bool(true, "Show target lines", group = grpTG)
 tgtR    = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5, group = grpTG)
 tgtBars = input.int(20, "Target line length (bars) - unused since v106, kept so input ids stay stable", minval = 3, maxval = 200, group = grpTG)
+tgtMinAtr = input.float(0.5, "Min stop distance for targets (ATR x)", minval = 0, step = 0.1, group = grpTG,
+    tooltip = "On fast timeframes the swing stop can be a few ticks away, which makes " +
+            "the 2R target tiny. The risk used for the target is floored at this many " +
+            "ATR(14), so the target is at least R x that far from entry. Same floor " +
+            "the backtest strategy uses. 0 = off.")
 tgtKeep = 12
 
 // Each target is tracked while the trade is live: the line and label follow
@@ -840,7 +845,9 @@ if showTgt and array.size(tgtLines) > 0
                     label.set_color(lb, color.new(cDim, 30))
 
 if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and not (sigLong and sigShort)
-    tgtPx  = sigLong ? close + riskPerShare * tgtR : close - riskPerShare * tgtR
+    tgtRisk = math.max(riskPerShare, atr * tgtMinAtr)
+    tgtPx  = sigLong ? close + tgtRisk * tgtR : close - tgtRisk * tgtR
+    tgtStp = sigLong ? close - tgtRisk : close + tgtRisk     // floored stop, consistent with the target
     tgtCol = sigLong ? cGood : cBad
     ln = line.new(bar_index, tgtPx, bar_index + 2, tgtPx,
                   color = tgtCol, style = line.style_dotted, width = 4, force_overlay = true)   // 4 = Pine's max width
@@ -850,7 +857,7 @@ if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and 
     array.push(tgtLines, ln)
     array.push(tgtLabels, lb)
     array.push(tgtPxs, tgtPx)
-    array.push(tgtStops, stopLevel)
+    array.push(tgtStops, tgtStp)
     array.push(tgtDirs, sigLong ? 1 : -1)
     array.push(tgtLive, true)
     if array.size(tgtLines) > tgtKeep
