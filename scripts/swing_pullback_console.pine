@@ -823,7 +823,7 @@ if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and 
     tgtPx  = sigLong ? close + riskPerShare * tgtR : close - riskPerShare * tgtR
     tgtCol = sigLong ? cGood : cBad
     ln = line.new(bar_index, tgtPx, bar_index + 2, tgtPx,
-                  color = tgtCol, style = line.style_dotted, width = 2, force_overlay = true)
+                  color = tgtCol, style = line.style_dotted, width = 4, force_overlay = true)   // 4 = Pine's max width
     lb = label.new(bar_index + 2, tgtPx, "Target " + str.tostring(tgtPx, format.mintick),
                    style = label.style_label_left, color = color.new(tgtCol, 10),
                    textcolor = #FFFFFF, size = size.normal, force_overlay = true)
