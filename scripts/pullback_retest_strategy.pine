@@ -1,0 +1,159 @@
+//@version=6
+// Backtest wrapper for the Screener's pullback + breakout-retest signals.
+// Signal logic is copied verbatim from swing_pullback_console.pine v102
+// (Fast preset: EMA 5 / 13 / 50, swing lookback 3, pivots 10, retest window 12,
+// breakout volume >= 1.0x). Entries fill at the trigger bar close, exits are a
+// hard stop (the script's stop level) and a 2R limit target. Position size is
+// risk-based: risk_pct of equity per trade / stop distance.
+strategy("Pullback + Retest BT", overlay = true, initial_capital = 100000,
+     default_qty_type = strategy.fixed, default_qty_value = 1,
+     commission_type = strategy.commission.percent, commission_value = 0.02,
+     slippage = 1, process_orders_on_close = true, calc_on_every_tick = false,
+     margin_long = 0, margin_short = 0, max_lines_count = 60)
+// margin_* = 0 disables Pine v6's default 100% margin check. Without it a
+// risk-sized futures position (notional >> 1 lakh capital) is silently
+// rejected and the backtest shows zero trades.
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both"])
+dirMode   = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"])
+riskCash  = input.float(1000, "Risk per trade (Rs, fixed = 1R)", minval = 1)
+rr        = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5)
+fastLen   = input.int(5,  "Pullback EMA")
+slowLen   = input.int(13, "Context EMA")
+swingBack = input.int(3,  "Swing-low lookback", minval = 2)
+pvtLen    = input.int(10, "Pivot lookback", minval = 2)
+maxSR     = input.int(4,  "Max levels per side", minval = 1, maxval = 10)
+brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1)
+rtWindow  = input.int(12, "Retest: bars allowed after the break", minval = 1)
+volLen    = input.int(20, "Rel-volume baseline", minval = 1)
+
+doPull = mode == "Pullback" or mode == "Both"
+doRT   = mode == "Retest"   or mode == "Both"
+allowL = dirMode != "Short only"
+allowS = dirMode != "Long only"
+barOK  = barstate.isconfirmed
+
+// ── Core series ───────────────────────────────────────────────────────────
+emaFast = ta.ema(close, fastLen)
+emaSlow = ta.ema(close, slowLen)
+relVol  = volume / math.max(ta.sma(volume, volLen), 1)
+
+// ── Support / Resistance from pivots (same as Screener) ───────────────────
+ph = ta.pivothigh(high, pvtLen, pvtLen)
+pl = ta.pivotlow(low,  pvtLen, pvtLen)
+var array<float> resVal = array.new<float>()
+var array<float> supVal = array.new<float>()
+if not na(ph)
+    array.push(resVal, ph)
+    if array.size(resVal) > maxSR
+        array.shift(resVal)
+if not na(pl)
+    array.push(supVal, pl)
+    if array.size(supVal) > maxSR
+        array.shift(supVal)
+
+nearestRes = float(na)
+for i = 0 to math.max(array.size(resVal) - 1, 0)
+    if array.size(resVal) > 0
+        v = array.get(resVal, i)
+        if v > close and (na(nearestRes) or v < nearestRes)
+            nearestRes := v
+nearestSup = float(na)
+for i = 0 to math.max(array.size(supVal) - 1, 0)
+    if array.size(supVal) > 0
+        v = array.get(supVal, i)
+        if v < close and (na(nearestSup) or v > nearestSup)
+            nearestSup := v
+
+// ── Breakout events (raw, feed the retest tracker) ────────────────────────
+volOK   = brkVolMin <= 0 or relVol < 0.01 or relVol >= brkVolMin
+resPrev = nearestRes[1]
+supPrev = nearestSup[1]
+brkRawL = allowL and barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev and volOK
+brkRawS = allowS and barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev and volOK
+
+// ── Breakout retest ───────────────────────────────────────────────────────
+var float rtLevelL = na
+var int   rtBarsL  = na
+var bool  rtTouchL = false
+if brkRawL
+    rtLevelL := resPrev
+    rtBarsL  := 0
+    rtTouchL := false
+else if not na(rtBarsL)
+    rtBarsL += 1
+if not na(rtBarsL) and (rtBarsL > rtWindow or (not na(rtLevelL) and close < rtLevelL and rtTouchL))
+    rtLevelL := na
+    rtBarsL  := na
+    rtTouchL := false
+if not na(rtLevelL) and low <= rtLevelL and close >= rtLevelL
+    rtTouchL := true
+rtLong = doRT and allowL and barOK and rtTouchL and not na(rtLevelL)
+      and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
+
+var float rtLevelS = na
+var int   rtBarsS  = na
+var bool  rtTouchS = false
+if brkRawS
+    rtLevelS := supPrev
+    rtBarsS  := 0
+    rtTouchS := false
+else if not na(rtBarsS)
+    rtBarsS += 1
+if not na(rtBarsS) and (rtBarsS > rtWindow or (not na(rtLevelS) and close > rtLevelS and rtTouchS))
+    rtLevelS := na
+    rtBarsS  := na
+    rtTouchS := false
+if not na(rtLevelS) and high >= rtLevelS and close <= rtLevelS
+    rtTouchS := true
+rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
+      and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
+
+// ── Pullback (same state machine as the Screener) ─────────────────────────
+contextL = close > emaSlow
+touchedL = low <= emaFast and contextL
+var bool armedL = false
+if allowL and touchedL and close < emaFast
+    armedL := true
+if not contextL or not allowL
+    armedL := false
+triggerL = doPull and armedL and close > emaFast and close[1] <= emaFast and barOK
+if triggerL
+    armedL := false
+
+contextS = close < emaSlow
+touchedS = high >= emaFast and contextS
+var bool armedS = false
+if allowS and touchedS and close > emaFast
+    armedS := true
+if not contextS or not allowS
+    armedS := false
+triggerS = doPull and armedS and close < emaFast and close[1] >= emaFast and barOK
+if triggerS
+    armedS := false
+
+// ── Stops (same ladder as the Screener) ───────────────────────────────────
+swingLow  = ta.lowest(low, swingBack)
+swingHigh = ta.highest(high, swingBack)
+stopL = rtLong  ? rtLevelL : swingLow
+stopS = rtShort ? rtLevelS : swingHigh
+
+// ── Orders ────────────────────────────────────────────────────────────────
+// Fixed rupee risk so every trade is exactly 1R: report P&L / riskCash = R multiples.
+goLong   =(triggerL or rtLong)  and strategy.position_size == 0 and close > stopL
+goShort  = (triggerS or rtShort) and strategy.position_size == 0 and close < stopS
+
+if goLong
+    dist = close - stopL
+    qty  = math.max(math.floor(riskCash / dist), 1)
+    strategy.entry("L", strategy.long, qty = qty, comment = rtLong ? "BORTST" : "BUY")
+    strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
+if goShort
+    dist = stopS - close
+    qty  = math.max(math.floor(riskCash / dist), 1)
+    strategy.entry("S", strategy.short, qty = qty, comment = rtShort ? "BDRTST" : "SELL")
+    strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
+
+plot(emaFast, "Pullback EMA", color = #FF4081)
+plot(emaSlow, "Context EMA",  color = #FFC107)
