@@ -868,6 +868,46 @@ if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and 
         array.shift(tgtDirs)
         array.shift(tgtLive)
 
+// ── REVERSAL · overbought / oversold TURNS (5-minute and above) ───────────
+// Appended after the Targets block; inputs land as in_55 onward.
+// Marks the bar where an extended move starts to come back, not the extreme:
+//   OB = RSI was above the upper level and crossed back below it, OR price was
+//        stretched > N ATR above the context EMA and printed a down close.
+//   OS = mirror. Levels tighten to 75/25 on 5-minute automatically.
+// Pure price, so identical on futures and option premiums; on a premium chart
+// an OS turn is a bounce in the premium, not a reversal of the underlying.
+grpRV      = "Reversal (OB / OS turns)"
+showRev    = input.bool(true, "Show OB / OS turn markers", group = grpRV)
+revRsiHi   = input.int(70, "RSI upper level (15m+)", minval = 50, maxval = 95, group = grpRV)
+revRsiLo   = input.int(30, "RSI lower level (15m+)", minval = 5,  maxval = 50, group = grpRV)
+revRsiHi5  = input.int(75, "RSI upper level (5m)",   minval = 50, maxval = 95, group = grpRV)
+revRsiLo5  = input.int(25, "RSI lower level (5m)",   minval = 5,  maxval = 50, group = grpRV)
+revStretch = input.float(2.0, "EMA stretch (ATR x) for a turn", minval = 0, step = 0.25, group = grpRV,
+    tooltip = "Price more than this many ATR from the context EMA, then a close back " +
+            "toward it, also counts as a turn. 0 disables the stretch test.")
+cRev       = #B388FF                                  // purple, unused elsewhere
+
+revTfOK  = not timeframe.isintraday or timeframe.multiplier >= 5
+is5m     = timeframe.isintraday and timeframe.multiplier < 15
+obLvl    = is5m ? revRsiHi5 : revRsiHi
+osLvl    = is5m ? revRsiLo5 : revRsiLo
+
+rsiObTurn = rsi[1] >= obLvl and rsi < obLvl
+rsiOsTurn = rsi[1] <= osLvl and rsi > osLvl
+stretchUp = revStretch > 0 and (close[1] - emaSlow[1]) > atr * revStretch and close < open and close < close[1]
+stretchDn = revStretch > 0 and (emaSlow[1] - close[1]) > atr * revStretch and close > open and close > close[1]
+
+obTurn = showRev and revTfOK and barstate.isconfirmed and (rsiObTurn or stretchUp)
+osTurn = showRev and revTfOK and barstate.isconfirmed and (rsiOsTurn or stretchDn)
+
+plotshape(obTurn ? high : na, "OB turn", shape.triangledown, location.abovebar, cRev,
+        size = size.small, text = "OB", textcolor = cRev, force_overlay = true)
+plotshape(osTurn ? low : na, "OS turn", shape.triangleup, location.belowbar, cRev,
+        size = size.small, text = "OS", textcolor = cRev, force_overlay = true)
+
+alertcondition(obTurn, "OB turn", "Overbought turn - RSI back below the upper level or stretch fading")
+alertcondition(osTurn, "OS turn", "Oversold turn - RSI back above the lower level or stretch fading")
+
 alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
 alertcondition(fakePbS, "FAKE PULLDOWN failed SELL", "Pullback SELL failed - close through the swing-high stop")
 
