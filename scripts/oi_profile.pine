@@ -161,10 +161,23 @@ var box[]   bxs = array.new_box()
 var line[]  lns = array.new_line()
 var label[] lbs = array.new_label()
 
-// Redraw once per bar (first tick), not on every tick. A fresh calc from an
-// input change or a reload still draws immediately because the history pass
-// is not realtime.
-if barstate.islast and (not barstate.isrealtime or barstate.isnew)
+// debug counters (data window) — remove once the live-bar redraw is understood
+var int   dbgRuns  = 0
+var int   dbgBar   = 0
+var int   dbgN     = 0
+var float dbgMax   = 0
+var int   dbgBoxes = 0
+var int   dbgLbs   = 0
+var int   dbgPath  = 0   // 1 = dhan branch reached, 2 = old branch, 3 = maxOI == 0
+// Redraw once per bar. Gate on the bar index, NOT barstate.isnew: on a live
+// MCX chart isnew never fired for this block, so the profile only ever drew
+// when the last bar was historical (e.g. NIFTY after 15:30). A data push or
+// input change recalculates the whole script, which resets lastDrawBar.
+var int lastDrawBar = -1
+if barstate.islast and bar_index != lastDrawBar
+    lastDrawBar := bar_index
+    dbgRuns += 1
+    dbgBar  := bar_index
     while array.size(bxs) > 0
         box.delete(array.pop(bxs))
     while array.size(lns) > 0
@@ -223,6 +236,9 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
                 array.remove(putChg, j)
 
     maxOI = array.size(callOIs) > 0 ? math.max(array.max(callOIs), array.max(putOIs)) : 0.0
+    dbgN   := array.size(strikes)
+    dbgMax := maxOI
+    dbgPath := maxOI > 0 ? (dhanStyle ? 1 : 2) : 3
     if maxOI > 0
         x2 = bar_index + 4
         h = stepSz * 0.16
@@ -350,3 +366,15 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
                 table.cell(pan, 0, rowI, "")
                 table.cell(pan, 1, rowI, "")
                 table.cell(pan, 2, rowI, "")
+    dbgBoxes := array.size(bxs)
+    dbgLbs   := array.size(lbs)
+
+plot(dbgRuns,  "dbg runs",   display = display.data_window)
+plot(dbgBar,   "dbg bar",    display = display.data_window)
+plot(dbgN,     "dbg n",      display = display.data_window)
+plot(dbgMax,   "dbg maxOI",  display = display.data_window)
+plot(dbgBoxes, "dbg boxes",  display = display.data_window)
+plot(dbgLbs,   "dbg labels", display = display.data_window)
+plot(dbgPath,  "dbg path",   display = display.data_window)
+plot(bar_index, "dbg barindex", display = display.data_window)
+plot(barstate.isrealtime ? 1 : 0, "dbg realtime", display = display.data_window)
