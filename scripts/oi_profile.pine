@@ -148,6 +148,9 @@ showChg   = input.bool(true, "Show OI change (inner bar)",
      tooltip = "A darker inner bar for the day's change in OI (needs the feeder's " +
              "5-field data). Solid = OI added, outlined = OI unwound.")
 showVals  = input.bool(true, "Show strike + OI values on bars")
+barPct    = input.float(8, "Bar thickness (% of strike step)", minval = 1, maxval = 40, step = 1,
+     tooltip = "Dhan-style rows only. 8% of a 100-point step = 8 points per strike row. " +
+             "Lower it on 1m charts, raise it on daily.")
 
 // ── OI profile ──────────────────────────────────────────────────────────
 pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
@@ -232,25 +235,26 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
                 // candle and grow rightwards. CE on the upper half of the strike
                 // row, PE on the lower half. Inner bar = day's OI change.
                 x0 = bar_index + 3
+                hd = stepSz * barPct / 100      // half-row height, Dhan-style rows are thin
                 ccg = array.get(callChg, j)
                 pcg = array.get(putChg, j)
                 if cw > 0
-                    array.push(bxs, box.new(x0, k + h, x0 + cw, k + h * 0.12, border_color = na, bgcolor = color.new(#f23645, 55)))
+                    array.push(bxs, box.new(x0, k + hd, x0 + cw, k + hd * 0.12, border_color = na, bgcolor = color.new(#f23645, 55)))
                     if showChg and ccg != 0
                         cwc = math.max(1, math.round(maxW * math.abs(ccg) / maxOI))
-                        array.push(bxs, box.new(x0, k + h * 0.8, x0 + cwc, k + h * 0.32, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
+                        array.push(bxs, box.new(x0, k + hd * 0.8, x0 + cwc, k + hd * 0.32, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
                 if pw > 0
-                    array.push(bxs, box.new(x0, k - h * 0.12, x0 + pw, k - h, border_color = na, bgcolor = color.new(#26a69a, 55)))
+                    array.push(bxs, box.new(x0, k - hd * 0.12, x0 + pw, k - hd, border_color = na, bgcolor = color.new(#26a69a, 55)))
                     if showChg and pcg != 0
                         pwc = math.max(1, math.round(maxW * math.abs(pcg) / maxOI))
-                        array.push(bxs, box.new(x0, k - h * 0.32, x0 + pwc, k - h * 0.8, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
+                        array.push(bxs, box.new(x0, k - hd * 0.32, x0 + pwc, k - hd * 0.8, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
                 if showVals
                     // strike on the left of the row, OI values at the bar ends
                     array.push(lbs, label.new(x0 - 1, k, str.tostring(k, "#"), style = label.style_label_right, color = color.new(#131722, 100), textcolor = #d1d4dc, size = size.small))
                     if cw > 0
-                        array.push(lbs, label.new(x0 + cw, k + h * 0.56, compact(array.get(callOIs, j)) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #f23645, size = size.tiny))
+                        array.push(lbs, label.new(x0 + cw, k + hd * 0.56, compact(array.get(callOIs, j)) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #f23645, size = size.tiny))
                     if pw > 0
-                        array.push(lbs, label.new(x0 + pw, k - h * 0.56, compact(array.get(putOIs, j)) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #26a69a, size = size.tiny))
+                        array.push(lbs, label.new(x0 + pw, k - hd * 0.56, compact(array.get(putOIs, j)) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #26a69a, size = size.tiny))
             else
                 if cw > 0
                     array.push(bxs, box.new(x2 - cw, k + h, x2, k + h * 0.15, border_color = na, bgcolor = color.new(#f23645, 60)))
