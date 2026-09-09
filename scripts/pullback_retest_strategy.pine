@@ -50,6 +50,17 @@ flipFake  = input.bool(false, "Flip direction on a fake signal",
     tooltip = "After closing on a fake signal, open a trade the other way on the same bar.")
 fkWindow  = input.int(5, "Fakeout: bars allowed to reclaim", minval = 1, maxval = 20)
 fpWindow  = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30)
+// ── Filters (in_18..in_24) ─────────────────────────────────────────────────
+useST     = input.bool(false, "Supertrend filter (longs above, shorts below)")
+stLen     = input.int(10, "Supertrend ATR length", minval = 1)
+stMult    = input.float(3.0, "Supertrend multiplier", step = 0.1)
+useRSI    = input.bool(false, "RSI filter + OB/OS exits",
+    tooltip = "No new long while RSI is above the OB level, no new short below the OS " +
+            "level. An OB turn (RSI crossing back under OB) closes a long, an OS turn " +
+            "closes a short — same idea as the Screener's OB/OS markers.")
+rsiOB     = input.float(70, "RSI overbought", minval = 50, maxval = 95)
+rsiOS     = input.float(30, "RSI oversold",   minval = 5,  maxval = 50)
+daysBack  = input.int(0, "Only trade the last N days (0 = all history)", minval = 0, maxval = 60)
 
 doPull = mode == "Pullback" or mode == "Both" or mode == "All"
 doRT   = mode == "Retest"   or mode == "Both" or mode == "All"
@@ -66,6 +77,15 @@ emaSlow = ta.ema(close, slowLen)
 relVol  = volume / math.max(ta.sma(volume, volLen), 1)
 swingLow  = ta.lowest(low, swingBack)
 swingHigh = ta.highest(high, swingBack)
+[stLine, stDir] = ta.supertrend(stMult, stLen)   // stDir < 0 = uptrend
+rsi14     = ta.rsi(close, 14)
+obTurn    = rsi14[1] >= rsiOB and rsi14 < rsiOB
+osTurn    = rsi14[1] <= rsiOS and rsi14 > rsiOS
+stOKL     = not useST or stDir < 0
+stOKS     = not useST or stDir > 0
+rsiOKL    = not useRSI or rsi14 < rsiOB
+rsiOKS    = not useRSI or rsi14 > rsiOS
+inWindow  = daysBack == 0 or time >= timenow - daysBack * 86400000
 
 // ── Support / Resistance from pivots (same as Screener) ───────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
@@ -268,8 +288,8 @@ anyL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong or flipL
 anyS = triggerS or rtShort or brkShort or fakeShort or fakePbShort or flipS
 
 // Signal-based exits: close on a fake against us or an opposite entry signal.
-closeL = sigExit and strategy.position_size > 0 and (fakeVsLong  or anyS)
-closeS = sigExit and strategy.position_size < 0 and (fakeVsShort or anyL)
+closeL = (sigExit and strategy.position_size > 0 and (fakeVsLong  or anyS)) or (useRSI and strategy.position_size > 0 and obTurn)
+closeS = (sigExit and strategy.position_size < 0 and (fakeVsShort or anyL)) or (useRSI and strategy.position_size < 0 and osTurn)
 if closeL
     strategy.close("L", comment = fakeVsLong ? "FAKE exit" : "flip exit")
 if closeS
@@ -277,8 +297,8 @@ if closeS
 
 // Flat now, or flat after this bar's close order, so a new trade can start.
 flat     = strategy.position_size == 0 or closeL or closeS
-goLong   = anyL and not anyS and flat and close > stopL
-goShort  = anyS and not anyL and flat and close < stopS
+goLong   = anyL and not anyS and flat and close > stopL and stOKL and rsiOKL and inWindow
+goShort  = anyS and not anyL and flat and close < stopS and stOKS and rsiOKS and inWindow
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
