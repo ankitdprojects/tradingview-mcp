@@ -238,23 +238,20 @@ if barstate.islast and (not barstate.isrealtime or barstate.isnew)
                 hd = stepSz * barPct / 100      // half-row height, Dhan-style rows are thin
                 ccg = array.get(callChg, j)
                 pcg = array.get(putChg, j)
+                // Text lives INSIDE the boxes (per-strike label objects vanished on
+                // live bars). Strike + OI (+ day change) on the CE row, OI on the PE row.
+                ceTxt = showVals ? str.tostring(k, "#") + "  " + compact(array.get(callOIs, j)) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : "") : ""
+                peTxt = showVals ? compact(array.get(putOIs, j)) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : "") : ""
                 if cw > 0
-                    array.push(bxs, box.new(x0, k + hd, x0 + cw, k + hd * 0.12, border_color = na, bgcolor = color.new(#f23645, 55)))
+                    array.push(bxs, box.new(x0, k + hd, x0 + math.max(cw, showVals ? 8 : 1), k + hd * 0.12, border_color = na, bgcolor = color.new(#f23645, cw > 0 ? 55 : 100), text = ceTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                     if showChg and ccg != 0
                         cwc = math.max(1, math.round(maxW * math.abs(ccg) / maxOI))
                         array.push(bxs, box.new(x0, k + hd * 0.8, x0 + cwc, k + hd * 0.32, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
                 if pw > 0
-                    array.push(bxs, box.new(x0, k - hd * 0.12, x0 + pw, k - hd, border_color = na, bgcolor = color.new(#26a69a, 55)))
+                    array.push(bxs, box.new(x0, k - hd * 0.12, x0 + math.max(pw, showVals ? 8 : 1), k - hd, border_color = na, bgcolor = color.new(#26a69a, 55), text = peTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                     if showChg and pcg != 0
                         pwc = math.max(1, math.round(maxW * math.abs(pcg) / maxOI))
                         array.push(bxs, box.new(x0, k - hd * 0.32, x0 + pwc, k - hd * 0.8, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
-                if showVals
-                    // strike on the left of the row, OI values at the bar ends
-                    array.push(lbs, label.new(x0 - 1, k, str.tostring(k, "#"), style = label.style_label_right, color = color.new(#131722, 100), textcolor = #d1d4dc, size = size.small))
-                    if cw > 0
-                        array.push(lbs, label.new(x0 + cw, k + hd * 0.56, compact(array.get(callOIs, j)) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #f23645, size = size.tiny))
-                    if pw > 0
-                        array.push(lbs, label.new(x0 + pw, k - hd * 0.56, compact(array.get(putOIs, j)) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : ""), style = label.style_label_left, color = color.new(#131722, 100), textcolor = #26a69a, size = size.tiny))
             else
                 if cw > 0
                     array.push(bxs, box.new(x2 - cw, k + h, x2, k + h * 0.15, border_color = na, bgcolor = color.new(#f23645, 60)))
