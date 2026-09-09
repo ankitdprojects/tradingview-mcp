@@ -15,7 +15,7 @@ strategy("Pullback + Retest BT", overlay = true, initial_capital = 20000,
 // rejected and the backtest shows zero trades.
 
 // ── Inputs ────────────────────────────────────────────────────────────────
-mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both", "Breakout", "Fakeout", "FakePullback", "All"],
+mode      = input.string("Both", "Setups to trade", options = ["Pullback", "Retest", "Both", "Breakout", "Fakeout", "FakePullback", "All", "BothFk"],
     tooltip = "Pullback = BUY/SELL. Retest = BORTST/BDRTST. Both = those two. " +
             "Breakout = BRK up/down at the break bar. Fakeout = fade a failed break " +
             "(FAKE BORTST short / FAKE BDRTST long). FakePullback = fade a failed " +
@@ -61,11 +61,33 @@ useRSI    = input.bool(false, "RSI filter + OB/OS exits",
 rsiOB     = input.float(70, "RSI overbought", minval = 50, maxval = 95)
 rsiOS     = input.float(30, "RSI oversold",   minval = 5,  maxval = 50)
 daysBack  = input.int(0, "Only trade the last N days (0 = all history)", minval = 0, maxval = 60)
+// ── v14 "replace" switches (in_25..in_33). Every default = the OLD behaviour,
+//    so the whole upgrade is undone by leaving these alone. ─────────────────
+pullSrc   = input.string("EMA", "Pullback line", options = ["EMA", "VWAP"],
+    tooltip = "EMA = dip to the fast EMA in an EMA-defined trend (original). VWAP = " +
+            "dip to session VWAP with price on VWAP's side (VWAP bounce).")
+lvlSrc    = input.string("Pivots", "Levels for break / retest / fake", options = ["Pivots", "Session", "Both"],
+    tooltip = "Pivots = swing-high/low lines (original). Session = PDH, PDL, PDC and the " +
+            "opening range high/low. Both = union. Session levels turn the FAKE " +
+            "signal into a liquidity-sweep entry.")
+tgtMode   = input.string("R multiple", "Target", options = ["R multiple", "Next level"],
+    tooltip = "Next level = the nearest level beyond entry (from the level set above), " +
+            "falling back to the R multiple when no level is at least 0.5R away.")
+trendSrc  = input.string("Supertrend (chart TF)", "Trend filter source", options = ["Supertrend (chart TF)", "Supertrend 60m", "VWAP side"],
+    tooltip = "Used when the Supertrend filter is ON. 60m = the hourly Supertrend, " +
+            "VWAP side = long only above VWAP, short only below.")
+adxMin    = input.float(0, "ADX minimum for continuation entries (0 = off)", minval = 0, maxval = 60,
+    tooltip = "Blocks pullback / retest / breakout entries when ADX(14) is below this. " +
+            "Fake (reversal) entries are not blocked.")
+skipOpen  = input.int(0, "Skip first N minutes of the session (0 = off)", minval = 0, maxval = 120)
+skipClose = input.int(0, "Skip last N minutes of the session (0 = off)", minval = 0, maxval = 180)
+sessMins  = input.int(375, "Session length in minutes (NSE 375, MCX 870, crypto 1440)", minval = 60, maxval = 1440)
+orMins    = input.int(15, "Opening range minutes", minval = 1, maxval = 120)
 
-doPull = mode == "Pullback" or mode == "Both" or mode == "All"
-doRT   = mode == "Retest"   or mode == "Both" or mode == "All"
+doPull = mode == "Pullback" or mode == "Both" or mode == "All" or mode == "BothFk"
+doRT   = mode == "Retest"   or mode == "Both" or mode == "All" or mode == "BothFk"
 doBrk  = mode == "Breakout" or mode == "All"
-doFk   = mode == "Fakeout"  or mode == "All"
+doFk   = mode == "Fakeout"  or mode == "All" or mode == "BothFk"
 doFp   = mode == "FakePullback" or mode == "All"
 allowL = dirMode != "Short only"
 allowS = dirMode != "Long only"
@@ -78,14 +100,50 @@ relVol  = volume / math.max(ta.sma(volume, volLen), 1)
 swingLow  = ta.lowest(low, swingBack)
 swingHigh = ta.highest(high, swingBack)
 [stLine, stDir] = ta.supertrend(stMult, stLen)   // stDir < 0 = uptrend
+[stLine60, stDir60] = request.security(syminfo.tickerid, "60", ta.supertrend(stMult, stLen))
+vwapV     = ta.vwap(hlc3)                         // resets every session on intraday charts
+[diP, diM, adxV] = ta.dmi(14, 14)
 rsi14     = ta.rsi(close, 14)
 obTurn    = rsi14[1] >= rsiOB and rsi14 < rsiOB
 osTurn    = rsi14[1] <= rsiOS and rsi14 > rsiOS
-stOKL     = not useST or stDir < 0
-stOKS     = not useST or stDir > 0
+trendUp   = trendSrc == "Supertrend 60m" ? stDir60 < 0 : trendSrc == "VWAP side" ? close > vwapV : stDir < 0
+trendDn   = trendSrc == "Supertrend 60m" ? stDir60 > 0 : trendSrc == "VWAP side" ? close < vwapV : stDir > 0
+stOKL     = not useST or trendUp
+stOKS     = not useST or trendDn
 rsiOKL    = not useRSI or rsi14 < rsiOB
 rsiOKS    = not useRSI or rsi14 > rsiOS
+adxOK     = adxMin <= 0 or adxV >= adxMin
 inWindow  = daysBack == 0 or time >= timenow - daysBack * 86400000
+
+// ── Session levels: PDH / PDL / PDC + opening range, from this chart's bars ─
+var float pdH = na
+var float pdL = na
+var float pdC = na
+var float curH = na
+var float curL = na
+var float orH = na
+var float orL = na
+var int   sesStart = 0
+newSes  = timeframe.change("D")
+orBars  = timeframe.isintraday ? math.max(1, math.ceil(orMins / timeframe.multiplier)) : 1
+if newSes
+    pdH := curH
+    pdL := curL
+    pdC := close[1]
+    curH := high
+    curL := low
+    sesStart := bar_index
+    orH := high
+    orL := low
+else
+    curH := math.max(nz(curH, high), high)
+    curL := math.min(nz(curL, low), low)
+if not newSes and bar_index - sesStart < orBars
+    orH := math.max(nz(orH, high), high)
+    orL := math.min(nz(orL, low), low)
+orDone  = bar_index - sesStart >= orBars
+minsIn  = timeframe.isintraday ? (bar_index - sesStart) * timeframe.multiplier : 0
+timeOK  = not timeframe.isintraday or ((skipOpen <= 0 or minsIn >= skipOpen) and (skipClose <= 0 or minsIn <= sessMins - skipClose))
 
 // ── Support / Resistance from pivots (same as Screener) ───────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
@@ -102,17 +160,28 @@ if not na(pl)
         array.shift(supVal)
 
 nearestRes = float(na)
-for i = 0 to math.max(array.size(resVal) - 1, 0)
-    if array.size(resVal) > 0
-        v = array.get(resVal, i)
-        if v > close and (na(nearestRes) or v < nearestRes)
-            nearestRes := v
 nearestSup = float(na)
-for i = 0 to math.max(array.size(supVal) - 1, 0)
-    if array.size(supVal) > 0
-        v = array.get(supVal, i)
-        if v < close and (na(nearestSup) or v > nearestSup)
-            nearestSup := v
+if lvlSrc != "Session"
+    for i = 0 to math.max(array.size(resVal) - 1, 0)
+        if array.size(resVal) > 0
+            v = array.get(resVal, i)
+            if v > close and (na(nearestRes) or v < nearestRes)
+                nearestRes := v
+    for i = 0 to math.max(array.size(supVal) - 1, 0)
+        if array.size(supVal) > 0
+            v = array.get(supVal, i)
+            if v < close and (na(nearestSup) or v > nearestSup)
+                nearestSup := v
+if lvlSrc != "Pivots"
+    // PDH / PDL / PDC and the completed opening range join the level set.
+    sesLv = array.from(pdH, pdL, pdC, orDone ? orH : na, orDone ? orL : na)
+    for i = 0 to 4
+        v = array.get(sesLv, i)
+        if not na(v)
+            if v > close and (na(nearestRes) or v < nearestRes)
+                nearestRes := v
+            if v < close and (na(nearestSup) or v > nearestSup)
+                nearestSup := v
 
 // ── Breakout events (raw, feed the retest tracker) ────────────────────────
 volOK   = brkVolMin <= 0 or relVol < 0.01 or relVol >= brkVolMin
@@ -159,26 +228,30 @@ rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
       and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
 
 // ── Pullback (same state machine as the Screener) ─────────────────────────
-contextL = close > emaSlow
-touchedL = low <= emaFast and contextL
+// pbLine = the line price pulls back to; ctxLine = the trend context line.
+// EMA mode (original): 5 EMA / 13 EMA. VWAP mode: VWAP for both (VWAP bounce).
+pbLine   = pullSrc == "VWAP" ? vwapV : emaFast
+ctxLine  = pullSrc == "VWAP" ? vwapV : emaSlow
+contextL = close > ctxLine
+touchedL = low <= pbLine and contextL
 var bool armedL = false
-if allowL and touchedL and close < emaFast
+if allowL and touchedL and close < pbLine
     armedL := true
 if not contextL or not allowL
     armedL := false
-pullRawL = armedL and close > emaFast and close[1] <= emaFast and barOK   // raw: feeds the fake-pullback tracker
+pullRawL = armedL and close > pbLine and close[1] <= pbLine and barOK   // raw: feeds the fake-pullback tracker
 triggerL = doPull and pullRawL
 if pullRawL
     armedL := false
 
-contextS = close < emaSlow
-touchedS = high >= emaFast and contextS
+contextS = close < ctxLine
+touchedS = high >= pbLine and contextS
 var bool armedS = false
-if allowS and touchedS and close > emaFast
+if allowS and touchedS and close > pbLine
     armedS := true
 if not contextS or not allowS
     armedS := false
-pullRawS = armedS and close < emaFast and close[1] >= emaFast and barOK
+pullRawS = armedS and close < pbLine and close[1] >= pbLine and barOK
 triggerS = doPull and pullRawS
 if pullRawS
     armedS := false
@@ -297,8 +370,14 @@ if closeS
 
 // Flat now, or flat after this bar's close order, so a new trade can start.
 flat     = strategy.position_size == 0 or closeL or closeS
-goLong   = anyL and not anyS and flat and close > stopL and stOKL and rsiOKL and inWindow
-goShort  = anyS and not anyL and flat and close < stopS and stOKS and rsiOKS and inWindow
+// Continuation entries (pullback / retest / breakout) need the trend, RSI and
+// ADX filters; fake (reversal) entries only need RSI. All need the time window.
+contL    = triggerL or rtLong  or brkLong
+contS    = triggerS or rtShort or brkShort
+filtL    = (not contL or (stOKL and adxOK)) and rsiOKL and inWindow and timeOK
+filtS    = (not contS or (stOKS and adxOK)) and rsiOKS and inWindow and timeOK
+goLong   = anyL and not anyS and flat and close > stopL and filtL
+goShort  = anyS and not anyL and flat and close < stopS and filtS
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
@@ -306,13 +385,16 @@ maxQty = leverage > 0 ? strategy.equity * leverage / (close * syminfo.pointvalue
 if goLong
     dist = close - stopL
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
+    // Next-level target: nearest level above entry, if it is at least 0.5R away.
+    tgtL = tgtMode == "Next level" and not na(nearestRes) and nearestRes - close >= dist * 0.5 ? nearestRes : close + dist * rr
     strategy.entry("L", strategy.long, qty = qty, comment = tagL)
-    strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
+    strategy.exit("Lx", "L", stop = stopL, limit = tgtL)
 if goShort
     dist = stopS - close
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
+    tgtS = tgtMode == "Next level" and not na(nearestSup) and close - nearestSup >= dist * 0.5 ? nearestSup : close - dist * rr
     strategy.entry("S", strategy.short, qty = qty, comment = tagS)
-    strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
+    strategy.exit("Sx", "S", stop = stopS, limit = tgtS)
 
 plot(emaFast, "Pullback EMA", color = #FF4081)
 plot(emaSlow, "Context EMA",  color = #FFC107)
