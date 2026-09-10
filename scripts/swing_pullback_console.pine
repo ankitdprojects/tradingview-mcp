@@ -911,18 +911,4 @@ alertcondition(osTurn, "OS turn", "Oversold turn - RSI back above the lower leve
 alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
 alertcondition(fakePbS, "FAKE PULLDOWN failed SELL", "Pullback SELL failed - close through the swing-high stop")
 
-// ── Volume histogram in the Screener pane (Basic plan has no slot for the
-//    built-in Volume study). Scaled to the RSI pane: the biggest bar of the
-//    last volLookback bars reaches volHeight on the 0-100 RSI scale. Green =
-//    up candle, red = down candle, like a broker chart. Inputs appended
-//    (in_61..in_63) so earlier ids stay stable. ───────────────────────────
-grpVol     = "Volume"
-showVol    = input.bool(true, "Show volume bars in the pane", group = grpVol)
-volHeight  = input.int(35, "Bar height (% of pane)", minval = 10, maxval = 100, group = grpVol)
-volLookbk  = input.int(100, "Scale to the max of last N bars", minval = 10, maxval = 500, group = grpVol)
-volMax     = ta.highest(volume, volLookbk)
-volN       = showVol and volMax > 0 ? volume / volMax * volHeight : na
-plot(volN, "Volume", style = plot.style_columns,
-     color = close >= open ? color.new(#26a69a, 45) : color.new(#f23645, 45), histbase = 0)
-
  
