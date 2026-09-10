@@ -19,6 +19,10 @@ const N_EACH = 4;
 if (!SYMBOL) {
   const chartSym = await evaluate(`(window.TradingViewApi ? TradingViewApi.activeChart() : tvWidget.activeChart()).symbol()`);
   const tail = String(chartSym).split(':').pop().toUpperCase();
+  // Exact contract roots first (CRUDEOILM chart -> CRUDEOILM options, not the
+  // big CRUDEOIL chain), stripping a continuous "1!" or an option suffix.
+  const bare = tail.replace(/\d{6}[CP]\d+(\.\d+)?$/, '').replace(/1!$/, '');
+  const EXACT = ['CRUDEOILM', 'CRUDEOIL', 'NATGASMINI', 'NATURALGAS', 'GOLDM', 'SILVERM', 'SILVERMIC', 'SILVER', 'COPPER', 'ZINC', 'ZINCMINI', 'NIFTY', 'BANKNIFTY', 'FINNIFTY'];
   const ROOT_MAP = [
     ['BANKNIFTY', 'BANKNIFTY'], ['NIFTY', 'NIFTY'],
     ['GOLD', 'GOLDM'],                      // GOLDM carries gold's option liquidity, big GOLD is near-dead
@@ -27,8 +31,9 @@ if (!SYMBOL) {
     ['COPPER', 'COPPER'], ['ZINC', 'ZINC'],
   ];
   const hit = ROOT_MAP.find(([prefix]) => tail.startsWith(prefix));
-  if (!hit) { console.error(`Cannot infer option root from chart symbol "${chartSym}" — pass one explicitly.`); process.exit(1); }
-  SYMBOL = hit[1];
+  if (EXACT.includes(bare)) SYMBOL = bare;
+  else if (hit) SYMBOL = hit[1];
+  else { console.error(`Cannot infer option root from chart symbol "${chartSym}" — pass one explicitly.`); process.exit(1); }
   console.log(`chart ${chartSym} -> ${SYMBOL}`);
 }
 

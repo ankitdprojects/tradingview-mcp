@@ -151,6 +151,15 @@ showVals  = input.bool(true, "Show strike + OI values on bars")
 barPct    = input.float(8, "Bar thickness (% of strike step)", minval = 1, maxval = 40, step = 1,
      tooltip = "Dhan-style rows only. 8% of a 100-point step = 8 points per strike row. " +
              "Lower it on 1m charts, raise it on daily.")
+widthPct  = input.int(25, "Profile width (% of visible chart)", minval = 5, maxval = 80,
+     tooltip = "Dhan-style rows only. The biggest OI bar spans this share of the bars " +
+             "currently on screen, so the profile keeps the same size whatever the " +
+             "zoom level. Widen the chart's right margin to give it room.")
+
+// Bars currently on screen. Scripts that read these recalculate when the
+// chart is scrolled or zoomed, so the profile re-fits itself.
+visBars = math.max(20, math.round((chart.right_visible_bar_time - chart.left_visible_bar_time) / (timeframe.in_seconds() * 1000)))
+lblX    = bar_index - math.max(10, math.round(visBars * 0.45))   // wall / max-pain labels stay on screen
 
 // ── OI profile ──────────────────────────────────────────────────────────
 pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
@@ -229,10 +238,13 @@ if barstate.islast and bar_index != lastDrawBar
     if maxOI > 0
         x2 = bar_index + 4
         h = stepSz * 0.16
+        // Dhan-style: width is a share of the visible chart, not a fixed candle
+        // count, so a zoomed-in 1m chart does not blow the bars off screen.
+        wScale = dhanStyle ? math.max(8, math.round(visBars * widthPct / 100)) : maxW
         for j = 0 to array.size(strikes) - 1
             k = array.get(strikes, j)
-            cw = math.round(maxW * array.get(callOIs, j) / maxOI)
-            pw = math.round(maxW * array.get(putOIs, j) / maxOI)
+            cw = math.round(wScale * array.get(callOIs, j) / maxOI)
+            pw = math.round(wScale * array.get(putOIs, j) / maxOI)
             if dhanStyle
                 // Right-margin layout: both bars start 3 bars right of the last
                 // candle and grow rightwards. CE on the upper half of the strike
@@ -248,12 +260,12 @@ if barstate.islast and bar_index != lastDrawBar
                 if cw > 0
                     array.push(bxs, box.new(x0, k + hd, x0 + math.max(cw, showVals ? 8 : 1), k + hd * 0.12, border_color = na, bgcolor = color.new(#f23645, cw > 0 ? 55 : 100), text = ceTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                     if showChg and ccg != 0
-                        cwc = math.max(1, math.round(maxW * math.abs(ccg) / maxOI))
+                        cwc = math.max(1, math.round(wScale * math.abs(ccg) / maxOI))
                         array.push(bxs, box.new(x0, k + hd * 0.8, x0 + cwc, k + hd * 0.32, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
                 if pw > 0
                     array.push(bxs, box.new(x0, k - hd * 0.12, x0 + math.max(pw, showVals ? 8 : 1), k - hd, border_color = na, bgcolor = color.new(#26a69a, 55), text = peTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                     if showChg and pcg != 0
-                        pwc = math.max(1, math.round(maxW * math.abs(pcg) / maxOI))
+                        pwc = math.max(1, math.round(wScale * math.abs(pcg) / maxOI))
                         array.push(bxs, box.new(x0, k - hd * 0.32, x0 + pwc, k - hd * 0.8, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
             else
                 if cw > 0
@@ -269,10 +281,10 @@ if barstate.islast and bar_index != lastDrawBar
             sIdx := array.indexof(putOIs, array.max(putOIs))
         rK = array.get(strikes, rIdx)
         sK = array.get(strikes, sIdx)
-        array.push(lns, line.new(bar_index - 50, rK, x2, rK, color = color.new(#f23645, 20), style = line.style_dashed, extend = extend.left))
-        array.push(lns, line.new(bar_index - 50, sK, x2, sK, color = color.new(#26a69a, 20), style = line.style_dashed, extend = extend.left))
-        array.push(lbs, label.new(bar_index - 60, rK, "OI Resistance " + str.tostring(rK, format.mintick), style = label.style_label_down, color = color.new(#f23645, 75), textcolor = color.white, size = size.small))
-        array.push(lbs, label.new(bar_index - 60, sK, "OI Support " + str.tostring(sK, format.mintick), style = label.style_label_up, color = color.new(#26a69a, 75), textcolor = color.white, size = size.small))
+        array.push(lns, line.new(lblX, rK, x2, rK, color = color.new(#f23645, 20), style = line.style_dashed, extend = extend.left))
+        array.push(lns, line.new(lblX, sK, x2, sK, color = color.new(#26a69a, 20), style = line.style_dashed, extend = extend.left))
+        array.push(lbs, label.new(lblX, rK, "OI Resistance " + str.tostring(rK, format.mintick), style = label.style_label_down, color = color.new(#f23645, 75), textcolor = color.white, size = size.small))
+        array.push(lbs, label.new(lblX, sK, "OI Support " + str.tostring(sK, format.mintick), style = label.style_label_up, color = color.new(#26a69a, 75), textcolor = color.white, size = size.small))
     else if showOI and (array.size(pStrikes) == 0 or not showPanel)
         // Distinguish "no data" from "data exists but this chart can't host it"
         // (an option-premium chart's scale is nowhere near the strike prices).
@@ -293,8 +305,8 @@ if barstate.islast and bar_index != lastDrawBar
 
     // Max Pain line — only when it fits this chart's price scale
     if showOI and not na(mpV) and mpV > close * 0.6 and mpV < close * 1.6
-        array.push(lns, line.new(bar_index - 50, mpV, bar_index + 4, mpV, color = color.new(#FFD700, 45), style = line.style_dotted, extend = extend.left))
-        array.push(lbs, label.new(bar_index - 30, mpV, "Max Pain " + str.tostring(mpV, "#"), style = label.style_label_down, color = color.new(#FFD700, 85), textcolor = #FFD700, size = size.small))
+        array.push(lns, line.new(lblX, mpV, bar_index + 4, mpV, color = color.new(#FFD700, 45), style = line.style_dotted, extend = extend.left))
+        array.push(lbs, label.new(bar_index - math.max(5, math.round(visBars * 0.25)), mpV, "Max Pain " + str.tostring(mpV, "#"), style = label.style_label_down, color = color.new(#FFD700, 85), textcolor = #FFD700, size = size.small))
 
     // ── OI panel — screen-anchored, identical on every chart and timeframe ──
     if not showOI
