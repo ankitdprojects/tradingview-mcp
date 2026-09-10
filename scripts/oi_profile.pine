@@ -251,26 +251,37 @@ if barstate.islast and bar_index != lastDrawBar
             pw = math.round(wScale * array.get(putOIs, j) / maxOI)
             if dhanStyle
                 // Right-margin layout: both bars start 3 bars right of the last
-                // candle and grow rightwards. CE on the upper half of the strike
-                // row, PE on the lower half. Inner bar = day's OI change.
-                x0 = bar_index + 3
-                hd = stepSz * barPct / 100      // half-row height, Dhan-style rows are thin
-                ccg = array.get(callChg, j)
-                pcg = array.get(putChg, j)
-                // Text lives INSIDE the boxes (per-strike label objects vanished on
-                // live bars). Strike + OI (+ day change) on the CE row, OI on the PE row.
-                ceTxt = showVals ? str.tostring(k, "#") + "  " + compact(array.get(callOIs, j)) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : "") : ""
-                peTxt = showVals ? compact(array.get(putOIs, j)) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : "") : ""
-                if cw > 0
-                    array.push(bxs, box.new(x0, k + hd, x0 + math.max(cw, showVals ? 8 : 1), k + hd * 0.12, border_color = na, bgcolor = color.new(#f23645, cw > 0 ? 55 : 100), text = ceTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
-                    if showChg and ccg != 0
-                        cwc = math.max(1, math.round(wScale * math.abs(ccg) / maxOI))
-                        array.push(bxs, box.new(x0, k + hd * 0.8, x0 + cwc, k + hd * 0.32, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
-                if pw > 0
-                    array.push(bxs, box.new(x0, k - hd * 0.12, x0 + math.max(pw, showVals ? 8 : 1), k - hd, border_color = na, bgcolor = color.new(#26a69a, 55), text = peTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
-                    if showChg and pcg != 0
-                        pwc = math.max(1, math.round(wScale * math.abs(pcg) / maxOI))
-                        array.push(bxs, box.new(x0, k - hd * 0.32, x0 + pwc, k - hd * 0.8, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
+                // candle and grow rightwards, CE on the upper half of the strike
+                // row, PE on the lower half, inner bar = day's OI change.
+                // Widths are in TIME (ms), not bars, so they are continuous and
+                // exactly proportional to OI: the heaviest strike spans widthPct
+                // of the visible chart, a strike with half its OI spans half that.
+                // No minimum width for text: box text does not clip, it simply
+                // overflows a short bar to the right.
+                if showBars
+                    tfMs   = timeframe.in_seconds() * 1000
+                    spanMs = visBars * tfMs * widthPct / 100.0
+                    x0t    = time + 3 * tfMs
+                    minMs  = tfMs * 0.3
+                    ceOI   = array.get(callOIs, j)
+                    peOI   = array.get(putOIs, j)
+                    hd  = stepSz * barPct / 100      // half-row height
+                    ccg = array.get(callChg, j)
+                    pcg = array.get(putChg, j)
+                    ceTxt = showVals ? str.tostring(k, "#") + "  " + compact(ceOI) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : "") : ""
+                    peTxt = showVals ? compact(peOI) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : "") : ""
+                    if ceOI > 0
+                        ceW = math.max(minMs, spanMs * ceOI / maxOI)
+                        array.push(bxs, box.new(x0t, k + hd, int(x0t + ceW), k + hd * 0.12, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(#f23645, 55), text = ceTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
+                        if showChg and ccg != 0
+                            cW = math.max(minMs, spanMs * math.abs(ccg) / maxOI)
+                            array.push(bxs, box.new(x0t, k + hd * 0.8, int(x0t + cW), k + hd * 0.32, xloc = xloc.bar_time, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
+                    if peOI > 0
+                        peW = math.max(minMs, spanMs * peOI / maxOI)
+                        array.push(bxs, box.new(x0t, k - hd * 0.12, int(x0t + peW), k - hd, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(#26a69a, 55), text = peTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
+                        if showChg and pcg != 0
+                            pW = math.max(minMs, spanMs * math.abs(pcg) / maxOI)
+                            array.push(bxs, box.new(x0t, k - hd * 0.32, int(x0t + pW), k - hd * 0.8, xloc = xloc.bar_time, border_color = pcg < 0 ? #26a69a : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 15)))
             else
                 if cw > 0
                     array.push(bxs, box.new(x2 - cw, k + h, x2, k + h * 0.15, border_color = na, bgcolor = color.new(#f23645, 60)))
