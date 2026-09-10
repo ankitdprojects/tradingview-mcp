@@ -156,6 +156,10 @@ widthPct  = input.int(25, "Profile width (% of visible chart)", minval = 5, maxv
              "currently on screen, so the profile keeps the same size whatever the " +
              "zoom level. Widen the chart's right margin to give it room.")
 
+showBars  = input.bool(true, "Show strike bars on the price pane",
+     tooltip = "Off = only the panel, walls and max pain. Use this when the bars and " +
+             "the panel feel like the same data twice.")
+
 // Bars currently on screen. Scripts that read these recalculate when the
 // chart is scrolled or zoomed, so the profile re-fits itself.
 visBars = math.max(20, math.round((chart.right_visible_bar_time - chart.left_visible_bar_time) / (timeframe.in_seconds() * 1000)))
@@ -240,7 +244,7 @@ if barstate.islast and bar_index != lastDrawBar
         h = stepSz * 0.16
         // Dhan-style: width is a share of the visible chart, not a fixed candle
         // count, so a zoomed-in 1m chart does not blow the bars off screen.
-        wScale = dhanStyle ? math.max(8, math.round(visBars * widthPct / 100)) : maxW
+        wScale = not showBars ? 0 : dhanStyle ? math.max(8, math.round(visBars * widthPct / 100)) : maxW
         for j = 0 to array.size(strikes) - 1
             k = array.get(strikes, j)
             cw = math.round(wScale * array.get(callOIs, j) / maxOI)
