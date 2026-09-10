@@ -13,7 +13,7 @@ stLen   = input.int(10, "Supertrend ATR length", minval = 1)
 stMult  = input.float(3.0, "Supertrend multiplier", step = 0.1)
 // Appended after the originals so in_0..in_8 keep their ids (refresh_oi.mjs writes in_0/1/2/5).
 showPanel = input.bool(true, "Show OI panel (any chart / timeframe)")
-panelPos  = input.string("Bottom right", "Panel position", options = ["Bottom right", "Top right", "Bottom left", "Top left"])
+panelPos  = input.string("Bottom right", "Panel position", options = ["Bottom right", "Top right", "Bottom left", "Top left", "Middle right", "Middle left"])
 showVwap  = input.bool(true, "Show session VWAP")
 showLvls  = input.bool(true, "Show prev-day H/L/C + opening range")
 orMins    = input.int(15, "Opening range minutes", minval = 1)
@@ -166,7 +166,7 @@ visBars = math.max(20, math.round((chart.right_visible_bar_time - chart.left_vis
 lblX    = bar_index - math.max(10, math.round(visBars * 0.45))   // wall / max-pain labels stay on screen
 
 // ── OI profile ──────────────────────────────────────────────────────────
-pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : position.top_left
+pPos = panelPos == "Bottom right" ? position.bottom_right : panelPos == "Top right" ? position.top_right : panelPos == "Bottom left" ? position.bottom_left : panelPos == "Middle right" ? position.middle_right : panelPos == "Middle left" ? position.middle_left : position.top_left
 var table pan = table.new(pPos, 3, 14, border_width = 0, frame_width = 1, frame_color = color.new(#787b86, 55), bgcolor = color.new(#131722, 20))
 var bool panMerged = false
 
