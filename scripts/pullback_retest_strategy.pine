@@ -61,6 +61,21 @@ useRSI    = input.bool(false, "RSI filter + OB/OS exits",
 rsiOB     = input.float(70, "RSI overbought", minval = 50, maxval = 95)
 rsiOS     = input.float(30, "RSI oversold",   minval = 5,  maxval = 50)
 daysBack  = input.int(0, "Only trade the last N days (0 = all history)", minval = 0, maxval = 60)
+// ── User rule set (in_25..in_30). Defaults keep the previous behaviour. ───
+oppExit   = input.bool(true, "Close on an opposite entry signal",
+    tooltip = "Off = while in a trade, opposite BUY/SELL/retest signals are ignored; " +
+            "only a fake signal (stop) or the target closes it.")
+hardStop  = input.bool(true, "Keep a price stop under the trade",
+    tooltip = "Off = the fake signal is the only stop. A trade that goes wrong after " +
+            "the fake window has no exit until the target.")
+reqBreak  = input.bool(false, "After an exit, same-direction re-entry needs a fresh level break",
+    tooltip = "After a long closes, no new long until price closes above the nearest " +
+            "resistance again; after a short closes, no new short until support breaks.")
+obosEntry = input.bool(false, "OB / OS turn entries (2-candle confirm)",
+    tooltip = "OS turn on a bar where this and the previous candle are both red = BUY. " +
+            "OB turn with two green candles = SELL. Not subject to the Supertrend filter.")
+rsiOB5    = input.float(75, "RSI overbought below 15m", minval = 50, maxval = 95)
+rsiOS5    = input.float(25, "RSI oversold below 15m",   minval = 5,  maxval = 50)
 
 doPull = mode == "Pullback" or mode == "Both" or mode == "All"
 doRT   = mode == "Retest"   or mode == "Both" or mode == "All"
@@ -86,6 +101,20 @@ stOKS     = not useST or stDir > 0
 rsiOKL    = not useRSI or rsi14 < rsiOB
 rsiOKS    = not useRSI or rsi14 > rsiOS
 inWindow  = daysBack == 0 or time >= timenow - daysBack * 86400000
+
+// ── OB / OS turns with the Screener's definition (RSI cross back through the
+//    level, 75/25 below 15m and 70/30 above, or a 2-ATR stretch from the
+//    context EMA that reverses) + the user's 2-candle confirmation. ─────────
+atrR      = ta.atr(14)
+fast15    = timeframe.isintraday and timeframe.multiplier < 15
+obLvlX    = fast15 ? rsiOB5 : rsiOB
+osLvlX    = fast15 ? rsiOS5 : rsiOS
+obTurnX   = (rsi14[1] >= obLvlX and rsi14 < obLvlX) or ((close[1] - emaSlow[1]) > atrR * 2 and close < open and close < close[1])
+osTurnX   = (rsi14[1] <= osLvlX and rsi14 > osLvlX) or ((emaSlow[1] - close[1]) > atrR * 2 and close > open and close > close[1])
+twoRed    = close < open and close[1] < open[1]
+twoGreen  = close > open and close[1] > open[1]
+osLong    = obosEntry and allowL and barOK and osTurnX and twoRed
+obShort   = obosEntry and allowS and barOK and obTurnX and twoGreen
 
 // ── Support / Resistance from pivots (same as Screener) ───────────────────
 ph = ta.pivothigh(high, pvtLen, pvtLen)
@@ -271,8 +300,8 @@ stopL0 = rtLong ? rtLevelL : brkLong ? resPrev : (fakeLong or fakeLongRaw) ? fkS
 stopS0 = rtShort ? rtLevelS : brkShort ? supPrev : (fakeShort or fakeShortRaw) ? fkStopS : (fakePbShort or fakePbShortRaw) ? fpStopSx : swingHigh
 stopL  = math.min(stopL0, close - atr14 * minStopAtr)
 stopS  = math.max(stopS0, close + atr14 * minStopAtr)
-tagL   = rtLong ? "BORTST" : brkLong ? "BRK" : fakeLong ? "FAKE BDRTST" : fakePbLong ? "FAKE PULLDOWN" : "BUY"
-tagS   = rtShort ? "BDRTST" : brkShort ? "BRKDN" : fakeShort ? "FAKE BORTST" : fakePbShort ? "FAKE PULLBACK" : "SELL"
+tagL   = rtLong ? "BORTST" : brkLong ? "BRK" : fakeLong ? "FAKE BDRTST" : fakePbLong ? "FAKE PULLDOWN" : osLong ? "OS BUY" : "BUY"
+tagS   = rtShort ? "BDRTST" : brkShort ? "BRKDN" : fakeShort ? "FAKE BORTST" : fakePbShort ? "FAKE PULLBACK" : obShort ? "OB SELL" : "SELL"
 
 // ── Orders ────────────────────────────────────────────────────────────────
 // Fixed rupee risk so every trade is exactly 1R: report P&L / riskCash = R multiples.
@@ -284,21 +313,48 @@ fakeVsShort = fakePbLongRaw  or fakeLongRaw      // FAKE PULLDOWN / FAKE BDRTST
 flipS = flipFake and fakeVsLong  and strategy.position_size > 0
 flipL = flipFake and fakeVsShort and strategy.position_size < 0
 
-anyL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong or flipL
-anyS = triggerS or rtShort or brkShort or fakeShort or fakePbShort or flipS
+trendL = triggerL or rtLong  or brkLong  or fakeLong  or fakePbLong or flipL   // Supertrend-gated longs
+trendS = triggerS or rtShort or brkShort or fakeShort or fakePbShort or flipS
+anyL = trendL or osLong
+anyS = trendS or obShort
 
-// Signal-based exits: close on a fake against us or an opposite entry signal.
-closeL = (sigExit and strategy.position_size > 0 and (fakeVsLong  or anyS)) or (useRSI and strategy.position_size > 0 and obTurn)
-closeS = (sigExit and strategy.position_size < 0 and (fakeVsShort or anyL)) or (useRSI and strategy.position_size < 0 and osTurn)
+// Signal-based exits: a fake against us always closes; an opposite entry
+// signal closes only when oppExit is on (the user's rule set holds to target).
+closeL = (sigExit and strategy.position_size > 0 and (fakeVsLong  or (oppExit and anyS))) or (useRSI and strategy.position_size > 0 and obTurn)
+closeS = (sigExit and strategy.position_size < 0 and (fakeVsShort or (oppExit and anyL))) or (useRSI and strategy.position_size < 0 and osTurn)
 if closeL
     strategy.close("L", comment = fakeVsLong ? "FAKE exit" : "flip exit")
 if closeS
     strategy.close("S", comment = fakeVsShort ? "FAKE exit" : "flip exit")
 
+// A trade that ended on THIS bar (target / stop filled intrabar) blocks any
+// entry on the same bar: "at target the sell signal will not work".
+justExited = strategy.position_size == 0 and strategy.position_size[1] != 0
+
+// After an exit, the same direction needs a fresh level break before it can
+// trade again: a long needs a close above resistance, a short a close below
+// support. Cleared by the raw break events.
+var bool needBreakL = false
+var bool needBreakS = false
+if strategy.position_size[1] > 0 and strategy.position_size == 0
+    needBreakL := true
+if strategy.position_size[1] < 0 and strategy.position_size == 0
+    needBreakS := true
+if brkRawL
+    needBreakL := false
+if brkRawS
+    needBreakS := false
+brkOKL = not reqBreak or not needBreakL
+brkOKS = not reqBreak or not needBreakS
+
+// Supertrend gate applies to BUY / SELL / breakout / retest, not to OB-OS entries.
+stGateL = not useST or stDir < 0 or (osLong and not trendL)
+stGateS = not useST or stDir > 0 or (obShort and not trendS)
+
 // Flat now, or flat after this bar's close order, so a new trade can start.
-flat     = strategy.position_size == 0 or closeL or closeS
-goLong   = anyL and not anyS and flat and close > stopL and stOKL and rsiOKL and inWindow
-goShort  = anyS and not anyL and flat and close < stopS and stOKS and rsiOKS and inWindow
+flat     = (strategy.position_size == 0 or closeL or closeS) and not justExited
+goLong   = anyL and not anyS and flat and close > stopL and stGateL and rsiOKL and inWindow and brkOKL
+goShort  = anyS and not anyL and flat and close < stopS and stGateS and rsiOKS and inWindow and brkOKS
 
 // qty is in contracts; P&L per contract per point = syminfo.pointvalue (75 on
 // NIFTY futures, 1 on equities). Fractional qty keeps every trade at exactly 1R.
@@ -307,12 +363,12 @@ if goLong
     dist = close - stopL
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
     strategy.entry("L", strategy.long, qty = qty, comment = tagL)
-    strategy.exit("Lx", "L", stop = stopL, limit = close + dist * rr)
+    strategy.exit("Lx", "L", stop = hardStop ? stopL : na, limit = close + dist * rr)
 if goShort
     dist = stopS - close
     qty  = math.min(riskCash / (dist * syminfo.pointvalue), maxQty)
     strategy.entry("S", strategy.short, qty = qty, comment = tagS)
-    strategy.exit("Sx", "S", stop = stopS, limit = close - dist * rr)
+    strategy.exit("Sx", "S", stop = hardStop ? stopS : na, limit = close - dist * rr)
 
 plot(emaFast, "Pullback EMA", color = #FF4081)
 plot(emaSlow, "Context EMA",  color = #FFC107)
