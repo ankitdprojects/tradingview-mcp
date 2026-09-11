@@ -886,8 +886,14 @@ revStretch = input.float(2.0, "EMA stretch (ATR x) for a turn", minval = 0, step
     tooltip = "Price more than this many ATR from the context EMA, then a close back " +
             "toward it, also counts as a turn. 0 disables the stretch test.")
 cRev       = #B388FF                                  // purple, unused elsewhere
+// Appended after the volume group's old ids (in_61..63 were removed in v113),
+// so this lands as in_61 and nothing earlier shifts.
+revMinTf   = input.int(5, "Show OB / OS from this timeframe (minutes)", minval = 1, maxval = 60, group = grpRV,
+    tooltip = "1 = also on 1m and 3m charts (uses the 5m levels there, 75/25 by " +
+            "default). RSI is noisy on 1m: expect several turns per hour and treat " +
+            "them as scalp exits, not reversals.")
 
-revTfOK  = not timeframe.isintraday or timeframe.multiplier >= 5
+revTfOK  = not timeframe.isintraday or timeframe.multiplier >= revMinTf
 is5m     = timeframe.isintraday and timeframe.multiplier < 15
 obLvl    = is5m ? revRsiHi5 : revRsiHi
 osLvl    = is5m ? revRsiLo5 : revRsiLo
