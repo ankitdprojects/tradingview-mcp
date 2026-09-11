@@ -76,6 +76,12 @@ obosEntry = input.bool(false, "OB / OS turn entries (2-candle confirm)",
             "OB turn with two green candles = SELL. Not subject to the Supertrend filter.")
 rsiOB5    = input.float(75, "RSI overbought below 15m", minval = 50, maxval = 95)
 rsiOS5    = input.float(25, "RSI oversold below 15m",   minval = 5,  maxval = 50)
+eodClose  = input.bool(false, "Square off at session end (no overnight positions)",
+    tooltip = "Closes any open trade on the last bar of the session and blocks new " +
+            "entries on that bar. Intraday charts only.")
+eodTime   = input.int(0, "Square off from this time (HHMM, exchange time; 0 = last bar only)", minval = 0, maxval = 2359,
+    tooltip = "e.g. 1515 squares off from 15:15 on NSE, 2315 on MCX. 0 uses the " +
+            "session's final bar.")
 
 doPull = mode == "Pullback" or mode == "Both" or mode == "All"
 doRT   = mode == "Retest"   or mode == "Both" or mode == "All"
@@ -327,6 +333,18 @@ if closeL
 if closeS
     strategy.close("S", comment = fakeVsShort ? "FAKE exit" : "flip exit")
 
+// ── Session square-off: the bar that closes the session (or the bar eodMins
+//    before it) flattens everything and takes no new trade. The session end
+//    is detected from the symbol's own session so it works for NSE 15:30,
+//    MCX 23:30 and 24h crypto (never fires there, no session break). ───────
+lastBar   = eodClose and timeframe.isintraday and session.islastbar_regular
+minsNow   = hour(time, syminfo.timezone) * 60 + minute(time, syminfo.timezone)
+cutMins   = int(eodTime / 100) * 60 + eodTime % 100
+eodBar    = eodClose and timeframe.isintraday and eodTime > 0 and minsNow >= cutMins
+squareOff = lastBar or eodBar
+if squareOff and strategy.position_size != 0
+    strategy.close_all(comment = "EOD")
+
 // A trade that ended on THIS bar (target / stop filled intrabar) blocks any
 // entry on the same bar: "at target the sell signal will not work".
 justExited = strategy.position_size == 0 and strategy.position_size[1] != 0
@@ -352,7 +370,7 @@ stGateL = not useST or stDir < 0 or (osLong and not trendL)
 stGateS = not useST or stDir > 0 or (obShort and not trendS)
 
 // Flat now, or flat after this bar's close order, so a new trade can start.
-flat     = (strategy.position_size == 0 or closeL or closeS) and not justExited
+flat     = (strategy.position_size == 0 or closeL or closeS) and not justExited and not squareOff
 goLong   = anyL and not anyS and flat and close > stopL and stGateL and rsiOKL and inWindow and brkOKL
 goShort  = anyS and not anyL and flat and close < stopS and stGateS and rsiOKS and inWindow and brkOKS
 
