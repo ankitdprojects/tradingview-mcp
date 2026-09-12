@@ -106,7 +106,13 @@ stOKL     = not useST or stDir < 0
 stOKS     = not useST or stDir > 0
 rsiOKL    = not useRSI or rsi14 < rsiOB
 rsiOKS    = not useRSI or rsi14 > rsiOS
-inWindow  = daysBack == 0 or time >= timenow - daysBack * 86400000
+// Explicit date range (in_33 / in_34) wins over daysBack when set: lets one
+// week be tested at a time so results are not all from the same 5 sessions.
+fromDate  = input.int(0, "Window start YYYYMMDD (0 = off)", minval = 0)
+toDate    = input.int(0, "Window end YYYYMMDD (0 = off)",   minval = 0)
+ymd       = year * 10000 + month * 100 + dayofmonth
+inRange   = (fromDate == 0 or ymd >= fromDate) and (toDate == 0 or ymd <= toDate)
+inWindow  = (fromDate > 0 or toDate > 0) ? inRange : (daysBack == 0 or time >= timenow - daysBack * 86400000)
 
 // ── OB / OS turns with the Screener's definition (RSI cross back through the
 //    level, 75/25 below 15m and 70/30 above, or a 2-ATR stretch from the
