@@ -931,6 +931,11 @@ fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval =
 fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
 fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
 fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+fibOnlyOK = input.bool(true, "Show only while price respects the channel", group = grpFC,
+    tooltip = "Hidden until a ratio line has been touched and held at least N times, and " +
+            "hidden again once price closes outside the channel band or the trend flips.")
+fibMinT   = input.int(1, "Touches required before showing", minval = 1, maxval = 5, group = grpFC)
+fibTol    = input.float(0.15, "Touch tolerance (ATR x)", minval = 0.05, maxval = 1, step = 0.05, group = grpFC)
 
 fPh = ta.pivothigh(high, fibPvt, fibPvt)
 fPl = ta.pivotlow(low,  fibPvt, fibPvt)
@@ -948,6 +953,11 @@ if not na(fPh)
 var line[]  fibLn = array.new_line()
 var label[] fibLb = array.new_label()
 fibUp = close > emaSlow          // channel direction follows the context EMA
+// Channel geometry kept for the per-bar "is it being respected" test.
+var float fcX1 = na, var float fcY1 = na, var float fcSlope = na, var float fcWid = na
+var bool  fcUp = false
+var int   fcTouches = 0
+var bool  fcShown = false
 
 if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
     // Base line: two most recent pivots on the trend side. Width: the extreme
@@ -982,6 +992,8 @@ if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
         while array.size(fibLb) > 0
             label.delete(array.pop(fibLb))
         slope = (by2 - by1) / (bx2 - bx1)
+        fcX1 := bx1, fcY1 := by1, fcSlope := slope, fcWid := wid
+        fcUp := fibUp, fcTouches := 0, fcShown := false
         ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
         for r = 0 to array.size(ratios) - 1
             k   = array.get(ratios, r)
@@ -1000,7 +1012,34 @@ if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
                           style = label.style_label_left, color = color.new(fibCol, 100),
                           textcolor = fibCol, size = size.tiny, force_overlay = true))
 
-// Labels ride along with the latest bar so the ratio is readable at any zoom.
+// Is the channel being respected? Position of price inside the channel as a
+// ratio (0 = base line, 1 = far edge). A touch = a bar's extreme comes within
+// fibTol ATR of a ratio line and the bar closes back on the inside of it.
+// Respected = enough touches, price still inside the band, trend unchanged.
+fcBase   = not na(fcX1) ? fcY1 + fcSlope * (bar_index - fcX1) : na
+fcPosC   = not na(fcBase) and fcWid != 0 ? (close - fcBase) / fcWid : na
+fcPosH   = not na(fcBase) and fcWid != 0 ? (high  - fcBase) / fcWid : na
+fcPosL   = not na(fcBase) and fcWid != 0 ? (low   - fcBase) / fcWid : na
+fcTolR   = not na(fcWid) and fcWid != 0 ? atr * fibTol / math.abs(fcWid) : na
+if not na(fcPosC) and barstate.isconfirmed
+    lvls = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    bool touched = false
+    for i = 0 to array.size(lvls) - 1
+        k = array.get(lvls, i)
+        // wick reached the line (either side) and the close stayed on the "inside"
+        // (toward the middle of the channel) — a hold, not a break.
+        reached = math.min(math.abs(fcPosH - k), math.abs(fcPosL - k)) <= fcTolR
+        heldIn  = k <= 0.5 ? fcPosC >= k - fcTolR : fcPosC <= k + fcTolR
+        if reached and heldIn
+            touched := true
+    if touched
+        fcTouches += 1
+fcInside  = not na(fcPosC) and fcPosC >= -0.618 and fcPosC <= 1.618
+fcTrendOK = not na(fcPosC) and fcUp == fibUp
+fcRespect = not fibOnlyOK or (fcTouches >= fibMinT and fcInside and fcTrendOK)
+
+// Show / hide by colour so nothing is redrawn every bar. Labels ride along
+// with the latest bar so the ratio is readable at any zoom.
 if showFib and array.size(fibLb) > 0
     for i = 0 to array.size(fibLb) - 1
         lb = array.get(fibLb, i)
@@ -1008,5 +1047,10 @@ if showFib and array.size(fibLb) > 0
         x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
         sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
         label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+        kk = str.tonumber(label.get_text(lb))
+        isEdge = kk == 0.0 or kk == 1.0
+        isMid  = kk == 0.5 or kk == 0.618
+        line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
+        label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
 
  
