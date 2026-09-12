@@ -31,14 +31,42 @@ if (!SYMBOL) {
     ['COPPER', 'COPPER'], ['ZINC', 'ZINC'],
   ];
   const hit = ROOT_MAP.find(([prefix]) => tail.startsWith(prefix));
+  const exch = String(chartSym).split(':')[0].toUpperCase();
+  const coin = exch === 'DELTAIN' ? tail.replace(/USD(T)?\.P$/, '') : null;   // DELTAIN:BTCUSD.P -> BTC
   if (EXACT.includes(bare)) SYMBOL = bare;
   else if (hit) SYMBOL = hit[1];
-  else { console.error(`Cannot infer option root from chart symbol "${chartSym}" — pass one explicitly.`); process.exit(1); }
+  else if (exch === 'NSE' && /^[A-Z&-]+$/.test(bare)) SYMBOL = bare;   // any NSE stock: try its equity option chain
+  else if (coin && ['BTC', 'ETH', 'XAUT'].includes(coin)) SYMBOL = 'DELTA:' + coin;   // Delta lists options only for these
+  else {
+    // No option chain exists for this symbol (most crypto perps, BSE, unknown roots):
+    // clear the profile so the previous symbol's strikes do not linger on this chart.
+    const CH = `(window.TradingViewApi ? TradingViewApi.activeChart() : tvWidget.activeChart())`;
+    const studies = await evaluate(`${CH}.getAllStudies().map(function(s){return {id:s.id,name:s.name}})`);
+    const st = (studies || []).find(s => /oi profile/i.test(s.name));
+    if (st) {
+      const cur = await evaluate(`${CH}.getStudyById('${st.id}').getInputValues().find(function(i){return i.id==='in_5'}).value`);
+      let note = 'no option chain';
+      if (coin) {
+        // Perp-only coin: no strikes, but show the contract's aggregate OI + funding in the header.
+        try {
+          const t = (await (await fetch(`https://api.india.delta.exchange/v2/tickers/${tail.replace('.P', '')}`)).json()).result || {};
+          if (t.oi) note = `perp OI ${Number(t.oi).toLocaleString('en-IN')} ($${Math.round(Number(t.oi_value_usd) / 1000)}K) fund ${(Number(t.funding_rate) * 100).toFixed(3)}%`;
+        } catch { /* keep generic note */ }
+      }
+      if (String(cur || '').length > 0 || note !== 'no option chain') {
+        await setInputs({ entity_id: st.id, inputs: { in_0: coin || bare, in_1: note, in_5: '' } });
+        console.log(`chart ${chartSym}: ${note} — strike profile cleared`);
+      } else console.log(`chart ${chartSym}: ${note} (already clear)`);
+    }
+    process.exit(0);
+  }
   console.log(`chart ${chartSym} -> ${SYMBOL}`);
 }
 
 const MCX_SYMBOLS = ['GOLD', 'GOLDM', 'SILVER', 'SILVERM', 'CRUDEOIL', 'CRUDEOILM', 'NATURALGAS', 'NATGASMINI', 'COPPER', 'ZINC'];
 const IS_MCX = MCX_SYMBOLS.includes(SYMBOL);
+const NSE_INDICES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'NIFTYNXT50'];
+const NSE_TYPE = NSE_INDICES.includes(SYMBOL) ? 'Indices' : 'Equity';
 
 const CHART = `(window.TradingViewApi ? TradingViewApi.activeChart() : tvWidget.activeChart())`;
 const HDRS = {
@@ -58,7 +86,7 @@ async function fetchNse() {
     const info = await fetch(`https://www.nseindia.com/api/option-chain-contract-info?symbol=${SYMBOL}`, { headers: { ...HDRS, Cookie: cookies } });
     expiry = (await info.json()).expiryDates[0];
   }
-  const res = await fetch(`https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol=${SYMBOL}&expiry=${expiry}`, { headers: { ...HDRS, Cookie: cookies } });
+  const res = await fetch(`https://www.nseindia.com/api/option-chain-v3?type=${NSE_TYPE}&symbol=${SYMBOL}&expiry=${expiry}`, { headers: { ...HDRS, Cookie: cookies } });
   if (!res.ok) { console.error('NSE chain fetch failed:', res.status); process.exit(1); }
   const data = await res.json();
   const rows = data.records.data
@@ -99,7 +127,36 @@ async function fetchMcx() {
   return { expiry, spot, step, rows };
 }
 
-const { expiry, spot, step, rows } = IS_MCX ? await fetchMcx() : await fetchNse();
+// Delta Exchange India: options on BTC / ETH / XAUT. OI is in contracts (BTC
+// contract = 0.001 BTC); nearest expiry with any OI is used.
+const IS_DELTA = SYMBOL.startsWith('DELTA:');
+async function fetchDelta() {
+  const coin = SYMBOL.slice(6);
+  const j = await (await fetch(`https://api.india.delta.exchange/v2/tickers?contract_types=call_options,put_options&underlying_asset_symbols=${coin}`)).json();
+  const all = j.result || [];
+  if (!all.length) { console.error(`Delta: no options for ${coin}`); process.exit(1); }
+  const spot = Number(all[0].spot_price);
+  // group by expiry (symbol suffix DDMMYY), pick nearest with total OI > 0
+  const byExp = {};
+  for (const o of all) { const e = o.symbol.split('-').pop(); (byExp[e] ??= []).push(o); }
+  const expList = Object.keys(byExp).sort((a, b) => (a.slice(4) + a.slice(2, 4) + a.slice(0, 2)).localeCompare(b.slice(4) + b.slice(2, 4) + b.slice(0, 2)));
+  let expiry = EXPIRY_ARG || expList.find(e => byExp[e].some(o => Number(o.oi_contracts || o.oi) > 0)) || expList[0];
+  const rowsMap = {};
+  for (const o of byExp[expiry] || []) {
+    const k = Number(o.strike_price); const r = (rowsMap[k] ??= { strike: k, ce: 0, pe: 0, ceChg: 0, peChg: 0 });
+    const oi = Number(o.oi_contracts || o.oi || 0);
+    // Delta reports OI change only in USD over 6h; it does not convert cleanly to
+    // contracts, so the change columns are left at 0 for crypto.
+    if (o.contract_type === 'call_options') r.ce = oi; else r.pe = oi;
+  }
+  const rows = Object.values(rowsMap).sort((a, b) => a.strike - b.strike);
+  const gaps = {};
+  for (let i = 1; i < rows.length; i++) { const g = rows[i].strike - rows[i - 1].strike; gaps[g] = (gaps[g] || 0) + 1; }
+  const step = Number(Object.entries(gaps).sort((a, b) => b[1] - a[1])[0]?.[0]) || STEP;
+  return { expiry, spot, step, rows };
+}
+
+const { expiry, spot, step, rows } = IS_MCX ? await fetchMcx() : IS_DELTA ? await fetchDelta() : await fetchNse();
 
 // Pick the strikes that actually carry OI instead of a blind ATM±N grid —
 // on MCX the walls sit at far round strikes (gold: 150000/160000/175000...)
@@ -137,7 +194,7 @@ for (const k of rows) {
 if (mp !== null) parts.push(`mp:${mp}`);
 
 const oiStr = parts.join(',');
-console.log(`${IS_MCX ? 'MCX' : 'NSE'} ${SYMBOL} ${expiry} spot=${spot} chainStep=${step} drawStep=${drawStep}`);
+console.log(`${IS_MCX ? 'MCX' : IS_DELTA ? 'DELTA' : 'NSE'} ${SYMBOL} ${expiry} spot=${spot} chainStep=${step} drawStep=${drawStep}`);
 console.log('OI:', oiStr);
 
 const studies = await evaluate(`${CHART}.getAllStudies().map(function(s){return {id:s.id,name:s.name}})`);
