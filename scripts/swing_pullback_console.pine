@@ -917,4 +917,96 @@ alertcondition(osTurn, "OS turn", "Oversold turn - RSI back above the lower leve
 alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
 alertcondition(fakePbS, "FAKE PULLDOWN failed SELL", "Pullback SELL failed - close through the swing-high stop")
 
+// ── Fib channel (auto-anchored) ────────────────────────────────────────────
+// Like TradingView's Fib Channel drawing: a base trendline through two swing
+// points plus a width, with Fibonacci ratios drawn as parallel lines. Anchors
+// follow the trend: uptrend = base through the last two confirmed pivot lows,
+// width up to the highest high between them; downtrend = mirror. Rebuilt
+// whenever a new pivot confirms. Appended after the OB/OS block; inputs
+// in_62.. so nothing earlier moves. Costs drawings only, not an indicator slot.
+grpFC     = "Fib channel"
+showFib   = input.bool(true, "Show auto Fib channel", group = grpFC)
+fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval = 50, group = grpFC,
+    tooltip = "Larger = bigger swings and a wider, slower channel. Same idea as the S/R pivot length.")
+fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
+fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
+fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+
+fPh = ta.pivothigh(high, fibPvt, fibPvt)
+fPl = ta.pivotlow(low,  fibPvt, fibPvt)
+
+// Last two confirmed pivot lows / highs with their bar indexes.
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na   // pl2 = most recent
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na
+if not na(fPl)
+    pl1 := pl2, pl1i := pl2i
+    pl2 := fPl, pl2i := bar_index - fibPvt
+if not na(fPh)
+    ph1 := ph2, ph1i := ph2i
+    ph2 := fPh, ph2i := bar_index - fibPvt
+
+var line[]  fibLn = array.new_line()
+var label[] fibLb = array.new_label()
+fibUp = close > emaSlow          // channel direction follows the context EMA
+
+if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
+    // Base line: two most recent pivots on the trend side. Width: the extreme
+    // of the opposite side between them (highest high in an uptrend).
+    float bx1 = na, float by1 = na, float bx2 = na, float by2 = na, float wid = na
+    if fibUp and not na(pl1) and not na(pl2) and pl2i > pl1i
+        bx1 := pl1i, by1 := pl1, bx2 := pl2i, by2 := pl2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float hh = 0.0
+        for i = 0 to pl2i - pl1i
+            hh := math.max(hh, high[bar_index - pl1i - i])
+        // distance from the base line to the highest high, measured at its bar
+        int hhBar = pl1i
+        for i = 0 to pl2i - pl1i
+            if high[bar_index - pl1i - i] == hh
+                hhBar := pl1i + i
+        wid := hh - (by1 + slope * (hhBar - bx1))
+    else if not fibUp and not na(ph1) and not na(ph2) and ph2i > ph1i
+        bx1 := ph1i, by1 := ph1, bx2 := ph2i, by2 := ph2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float ll = 1.0e12
+        for i = 0 to ph2i - ph1i
+            ll := math.min(ll, low[bar_index - ph1i - i])
+        int llBar = ph1i
+        for i = 0 to ph2i - ph1i
+            if low[bar_index - ph1i - i] == ll
+                llBar := ph1i + i
+        wid := ll - (by1 + slope * (llBar - bx1))          // negative in a downtrend
+    if not na(wid) and wid != 0
+        while array.size(fibLn) > 0
+            line.delete(array.pop(fibLn))
+        while array.size(fibLb) > 0
+            label.delete(array.pop(fibLb))
+        slope = (by2 - by1) / (bx2 - bx1)
+        ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+        for r = 0 to array.size(ratios) - 1
+            k   = array.get(ratios, r)
+            off = wid * k
+            y1  = by1 + off
+            y2  = by2 + off
+            isEdge = k == 0.0 or k == 1.0
+            isMid  = k == 0.5 or k == 0.618
+            ln = line.new(int(bx1), y1, int(bx2), y2, extend = extend.right,
+                          color = color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55),
+                          width = isEdge ? fibWidth + 1 : fibWidth,
+                          style = isEdge ? line.style_solid : line.style_dotted, force_overlay = true)
+            array.push(fibLn, ln)
+            yNow = by1 + slope * (bar_index - bx1) + off
+            array.push(fibLb, label.new(bar_index + 2, yNow, str.tostring(k, "#.###"),
+                          style = label.style_label_left, color = color.new(fibCol, 100),
+                          textcolor = fibCol, size = size.tiny, force_overlay = true))
+
+// Labels ride along with the latest bar so the ratio is readable at any zoom.
+if showFib and array.size(fibLb) > 0
+    for i = 0 to array.size(fibLb) - 1
+        lb = array.get(fibLb, i)
+        ln = array.get(fibLn, i)
+        x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
+        sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
+        label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+
  
