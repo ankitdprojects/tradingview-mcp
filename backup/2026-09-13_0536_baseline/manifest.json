@@ -1,0 +1,73 @@
+{
+  "created": "2026-09-13T05:36:45.513Z",
+  "label": "baseline",
+  "copied": {
+    "pine": [
+      "oi_profile.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "screener.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "refresh_oi.mjs"
+    ],
+    "scratchpad": [
+      "agg_crypto.mjs",
+      "agg_rel.mjs",
+      "agg_rules.mjs",
+      "agg_rules3060.mjs",
+      "agg_ruleseod.mjs",
+      "agg_rulesfut.mjs",
+      "agg_swing.mjs",
+      "agg_v14.mjs",
+      "agg_weeks.mjs",
+      "agg_weeks_all.mjs",
+      "bt_debug.mjs",
+      "bt_sweep.mjs",
+      "new_web_pine.mjs",
+      "pine_menu.mjs",
+      "pine_toolbar.mjs",
+      "probe_delta.mjs",
+      "probe_symbols.mjs",
+      "push_web_pine.mjs",
+      "run_group.ps1",
+      "run_group2.ps1",
+      "run_rules.ps1",
+      "run_rules_3060.ps1",
+      "run_rules_crypto.ps1",
+      "run_rules_eod.ps1",
+      "run_rules_fut.ps1",
+      "run_rules_rel.ps1",
+      "run_rules_swing.ps1",
+      "run_rules_weeks.ps1",
+      "scan_signals.mjs",
+      "swap_console.mjs",
+      "swap_generic.mjs",
+      "time_load.mjs"
+    ]
+  },
+  "chart": {
+    "symbol": "DELTAIN:VVVUSD.P",
+    "resolution": "1",
+    "studies": [
+      {
+        "name": "OI Profile",
+        "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+        "pineVersion": "29.0"
+      },
+      {
+        "name": "Screener",
+        "pineId": "USER;ad5ec9f07f2b4daeb989326e14cc13b8",
+        "pineVersion": "116.0"
+      }
+    ]
+  }
+}
