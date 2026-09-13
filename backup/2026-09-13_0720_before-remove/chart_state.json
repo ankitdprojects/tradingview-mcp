@@ -1,0 +1,386 @@
+{
+  "symbol": "DELTAIN:VVVUSD.P",
+  "resolution": "1",
+  "studies": [
+    {
+      "id": "hw6Pf9",
+      "name": "OI Profile",
+      "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+      "pineVersion": "29.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "VVV"
+        },
+        {
+          "id": "in_1",
+          "value": "perp OI 9,113 ($212K) fund 0.500%"
+        },
+        {
+          "id": "in_2",
+          "value": 100
+        },
+        {
+          "id": "in_3",
+          "value": 4
+        },
+        {
+          "id": "in_4",
+          "value": 60
+        },
+        {
+          "id": "in_5",
+          "value": ""
+        },
+        {
+          "id": "in_6",
+          "value": true
+        },
+        {
+          "id": "in_7",
+          "value": 10
+        },
+        {
+          "id": "in_8",
+          "value": 3
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": "Middle right"
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": 15
+        },
+        {
+          "id": "in_14",
+          "value": true
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": true
+        },
+        {
+          "id": "in_17",
+          "value": true
+        },
+        {
+          "id": "in_18",
+          "value": 8
+        },
+        {
+          "id": "in_19",
+          "value": 25
+        },
+        {
+          "id": "in_20",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "rBYM3m",
+      "name": "Screener",
+      "pineId": "USER;ad5ec9f07f2b4daeb989326e14cc13b8",
+      "pineVersion": "116.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "Fast (1-3d)"
+        },
+        {
+          "id": "in_1",
+          "value": 20
+        },
+        {
+          "id": "in_2",
+          "value": 50
+        },
+        {
+          "id": "in_3",
+          "value": 200
+        },
+        {
+          "id": "in_4",
+          "value": 10
+        },
+        {
+          "id": "in_5",
+          "value": "Pullback + Retest"
+        },
+        {
+          "id": "in_6",
+          "value": 1
+        },
+        {
+          "id": "in_7",
+          "value": 12
+        },
+        {
+          "id": "in_8",
+          "value": true
+        },
+        {
+          "id": "in_9",
+          "value": "Both"
+        },
+        {
+          "id": "in_10",
+          "value": 1000
+        },
+        {
+          "id": "in_11",
+          "value": 20000
+        },
+        {
+          "id": "in_12",
+          "value": "Equity (shares)"
+        },
+        {
+          "id": "in_13",
+          "value": 10
+        },
+        {
+          "id": "in_14",
+          "value": true
+        },
+        {
+          "id": "in_15",
+          "value": 10
+        },
+        {
+          "id": "in_16",
+          "value": 4
+        },
+        {
+          "id": "in_17",
+          "value": 4294427471
+        },
+        {
+          "id": "in_18",
+          "value": 2
+        },
+        {
+          "id": "in_19",
+          "value": 0
+        },
+        {
+          "id": "in_20",
+          "value": true
+        },
+        {
+          "id": "in_21",
+          "value": 5
+        },
+        {
+          "id": "in_22",
+          "value": 3
+        },
+        {
+          "id": "in_23",
+          "value": 0.75
+        },
+        {
+          "id": "in_24",
+          "value": 0.85
+        },
+        {
+          "id": "in_25",
+          "value": 3
+        },
+        {
+          "id": "in_26",
+          "value": 1.5
+        },
+        {
+          "id": "in_27",
+          "value": 14
+        },
+        {
+          "id": "in_28",
+          "value": 14
+        },
+        {
+          "id": "in_29",
+          "value": 14
+        },
+        {
+          "id": "in_30",
+          "value": 20
+        },
+        {
+          "id": "in_31",
+          "value": 14
+        },
+        {
+          "id": "in_32",
+          "value": false
+        },
+        {
+          "id": "in_33",
+          "value": 0
+        },
+        {
+          "id": "in_34",
+          "value": 5
+        },
+        {
+          "id": "in_35",
+          "value": 4286660863
+        },
+        {
+          "id": "in_36",
+          "value": 4278698495
+        },
+        {
+          "id": "in_37",
+          "value": 4289635472
+        },
+        {
+          "id": "in_38",
+          "value": 2
+        },
+        {
+          "id": "in_39",
+          "value": "Dark"
+        },
+        {
+          "id": "in_40",
+          "value": "Small"
+        },
+        {
+          "id": "in_41",
+          "value": "Top right"
+        },
+        {
+          "id": "in_42",
+          "value": 12
+        },
+        {
+          "id": "in_43",
+          "value": false
+        },
+        {
+          "id": "in_44",
+          "value": false
+        },
+        {
+          "id": "in_45",
+          "value": 3
+        },
+        {
+          "id": "in_46",
+          "value": "Small"
+        },
+        {
+          "id": "in_47",
+          "value": true
+        },
+        {
+          "id": "in_48",
+          "value": 5
+        },
+        {
+          "id": "in_49",
+          "value": true
+        },
+        {
+          "id": "in_50",
+          "value": 6
+        },
+        {
+          "id": "in_51",
+          "value": true
+        },
+        {
+          "id": "in_52",
+          "value": 2
+        },
+        {
+          "id": "in_53",
+          "value": 20
+        },
+        {
+          "id": "in_54",
+          "value": 0.5
+        },
+        {
+          "id": "in_55",
+          "value": true
+        },
+        {
+          "id": "in_56",
+          "value": 70
+        },
+        {
+          "id": "in_57",
+          "value": 30
+        },
+        {
+          "id": "in_58",
+          "value": 75
+        },
+        {
+          "id": "in_59",
+          "value": 25
+        },
+        {
+          "id": "in_60",
+          "value": 2
+        },
+        {
+          "id": "in_61",
+          "value": 5
+        },
+        {
+          "id": "in_62",
+          "value": true
+        },
+        {
+          "id": "in_63",
+          "value": 10
+        },
+        {
+          "id": "in_64",
+          "value": true
+        },
+        {
+          "id": "in_65",
+          "value": 4280723455
+        },
+        {
+          "id": "in_66",
+          "value": 1
+        },
+        {
+          "id": "in_67",
+          "value": true
+        },
+        {
+          "id": "in_68",
+          "value": 1
+        },
+        {
+          "id": "in_69",
+          "value": 0.15
+        }
+      ]
+    }
+  ]
+}
