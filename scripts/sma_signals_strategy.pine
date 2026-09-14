@@ -29,6 +29,7 @@ capNotion  = input.bool(false, "Cap position to capital (options / cash, no leve
 pivLen     = input.int(10, "Fib swing pivot length", minval = 2)                                     // in_16
 fibDeep    = input.float(0.786, "Fib invalidation ratio", step = 0.01)                               // in_17
 fibTarget  = input.bool(false, "FIB target = 1.272 extension instead of R multiple")                 // in_18
+fixedQty   = input.float(0, "Fixed qty in contracts / lots (0 = risk-sized)", minval = 0)            // in_19  (options: 1 = one lot)
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -103,15 +104,18 @@ if oppExit and not flat
 goLong  = sigL and not sigS and flat and close > stopL and inWindow and not lastBar
 goShort = sigS and not sigL and flat and close < stopS and inWindow and not lastBar
 capQty  = capNotion ? strategy.equity / (close * syminfo.pointvalue) : 1e12
+// Whole contracts / shares only (TradingView rejects fractional option lots); never below 1.
+sizeFor(float dist) =>
+    fixedQty > 0 ? fixedQty : math.max(1, math.floor(math.min(riskCash / (dist * syminfo.pointvalue), capQty)))
 if goLong
     dist = close - stopL
-    qty  = math.min(riskCash / (dist * syminfo.pointvalue), capQty)
+    qty  = sizeFor(dist)
     tgt  = fibTarget and useFib and fibBuy and t1272 > close ? t1272 : close + dist * rr
     strategy.entry("L", strategy.long, qty = qty)
     strategy.exit("Lx", "L", stop = hardStop ? stopL : na, limit = tgt)
 if goShort
     dist = stopS - close
-    qty  = math.min(riskCash / (dist * syminfo.pointvalue), capQty)
+    qty  = sizeFor(dist)
     tgt  = fibTarget and useFib and fibSell and t1272 < close ? t1272 : close - dist * rr
     strategy.entry("S", strategy.short, qty = qty)
     strategy.exit("Sx", "S", stop = hardStop ? stopS : na, limit = tgt)

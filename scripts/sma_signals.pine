@@ -2,10 +2,10 @@
 indicator("SMA Signals", overlay=true, max_labels_count=200)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
-fastLen   = input.int(9,  "Fast SMA", minval=1)
-slowLen   = input.int(21, "Slow SMA", minval=2)
-useTrend  = input.bool(true, "Only trade with 50 SMA trend")
-trendLen  = input.int(50, "Trend SMA", minval=5)
+fastLen   = input.int(50,  "Fast SMA", minval=1)
+slowLen   = input.int(200, "Slow SMA", minval=2)
+useTrend  = input.bool(false, "Only trade with trend SMA")
+trendLen  = input.int(200, "Trend SMA", minval=5)
 confirm   = input.bool(true, "Close must be on the right side of both SMAs")
 showLbl   = input.bool(true, "Show BUY / SELL labels")
 alerts    = input.bool(true, "Enable alerts")
