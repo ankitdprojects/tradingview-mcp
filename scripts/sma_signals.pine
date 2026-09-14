@@ -127,9 +127,9 @@ plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
 
 if showLbl and buy
-    label.new(bar_index, low - ta.atr(14) * lblGap,  "BUY\nSMA",  style=label.style_label_up,   color=color.new(#00c853, 0), textcolor=color.black, size=size.small)
+    label.new(bar_index, low - ta.atr(14) * lblGap, "BUY", style = label.style_label_up, color=color.new(#00c853, 0), textcolor=color.black, size=size.small, tooltip = "BUY\nSMA")
 if showLbl and sell
-    label.new(bar_index, high + ta.atr(14) * lblGap, "SELL\nSMA", style=label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small)
+    label.new(bar_index, high + ta.atr(14) * lblGap, "SELL", style = label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small, tooltip = "SELL\nSMA")
 
 // Soft background so the current regime is visible at a glance
 bgcolor(fast > slow ? color.new(#00c853, 94) : color.new(#ff1744, 94))
@@ -429,9 +429,9 @@ swTrS = not sweepTr or na(trend) or close < trend
 sweepLo = sweepOn and gateL and f15SwL and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
 sweepHi = sweepOn and gateS and f15SwS and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
 if showLbl and sweepLo
-    label.new(bar_index, low - atr14 * lblGap,  "BUY\nsweep",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nsweep")
 if showLbl and sweepHi
-    label.new(bar_index, high + atr14 * lblGap, "SELL\nsweep", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nsweep")
 if showTS and sweepLo
     sp = math.min(low, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -502,9 +502,9 @@ plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0)
 stFlipUp = stOn and stSigOn and gateL and f15StL and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
 stFlipDn = stOn and stSigOn and gateS and f15StS and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
 if showLbl and stFlipUp
-    label.new(bar_index, low - atr14 * lblGap,  "BUY\nST",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nST")
 if showLbl and stFlipDn
-    label.new(bar_index, high + atr14 * lblGap, "SELL\nST", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nST")
 if showTS and stFlipUp
     sp = math.min(stLine, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -556,9 +556,9 @@ emSell = emOn and emSigOn and gateS and f15EmS and emDn and emTouchS and close <
 emBuy  := emBuy  and not emBuy[1]
 emSell := emSell and not emSell[1]
 if showLbl and emBuy
-    label.new(bar_index, low - atr14 * lblGap,  "BUY\nEMA",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nEMA")
 if showLbl and emSell
-    label.new(bar_index, high + atr14 * lblGap, "SELL\nEMA", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nEMA")
 if showTS and emBuy
     sp = math.min(low, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -624,11 +624,11 @@ drawHtf(bool on, string tf, color col) =>
     fresh = on and othersOK and not is15 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
     // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
     if fresh and b
-        label.new(bar_index, low - atr14 * htGap,  "BUY " + tf + "m\n" + tb,  style = label.style_label_up,   color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "stop " + str.tostring(spB, format.mintick))
+        label.new(bar_index, low - atr14 * htGap, "BUY " + tf + "m", style = label.style_label_up, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "BUY " + tf + "m\n" + tb + "  " + "stop " + str.tostring(spB, format.mintick))
         if showTS
             newTrade(true, spB, px + (px - spB) * tgtR)
     if fresh and s
-        label.new(bar_index, high + atr14 * htGap, "SELL " + tf + "m\n" + ts, style = label.style_label_down, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "stop " + str.tostring(spS, format.mintick))
+        label.new(bar_index, high + atr14 * htGap, "SELL " + tf + "m", style = label.style_label_down, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "SELL " + tf + "m\n" + ts + "  " + "stop " + str.tostring(spS, format.mintick))
         if showTS
             newTrade(false, spS, px - (spS - px) * tgtR)
     fresh and (b or s)
@@ -657,9 +657,9 @@ if not na(rPh)
     divSell := rsiDivOn and not is15 and not na(dHi1) and rPh > dHi1 and rsiAt < dHiR1 and rsiAt > 50 and gateS
     dHi1 := rPh, dHiR1 := rsiAt
 if showLbl and divBuy
-    label.new(bar_index - rsiDivPv, low[rsiDivPv] - atr14 * lblGap,  "BUY\nRSI div",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+    label.new(bar_index - rsiDivPv, low[rsiDivPv] - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nRSI div")
 if showLbl and divSell
-    label.new(bar_index - rsiDivPv, high[rsiDivPv] + atr14 * lblGap, "SELL\nRSI div", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+    label.new(bar_index - rsiDivPv, high[rsiDivPv] + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nRSI div")
 if showTS and divBuy
     sp = math.min(low[rsiDivPv], close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -691,9 +691,9 @@ wkTfS    = wkOn and (is1m or is15 or wkAllTf) and sigOK and blkS and rsiS
 wkBuy  = wkTf  and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean
 wkSell = wkTfS and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean
 if showLbl and wkBuy
-    label.new(bar_index, low - atr14 * lblGap,  "BUY\nwick",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nwick")
 if showLbl and wkSell
-    label.new(bar_index, high + atr14 * lblGap, "SELL\nwick", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nwick")
 if showTS and wkBuy
     newTrade(true,  math.min(low, close - atr14 * minStopAtr), wkMean)
 if showTS and wkSell
@@ -724,12 +724,12 @@ m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 m5Buy   = m5Fresh and m5B and blkL and rsiL
 m5Sell  = m5Fresh and m5S and blkS and rsiS
 if m5Buy
-    label.new(bar_index, low - atr14 * lblGap,  "5min BUY",  style = label.style_label_up,   color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal)
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY")
     if showTS
         sp = math.min(m5SlowV, m5Px - atr14 * minStopAtr)
         newTrade(true, sp, m5Px + (m5Px - sp) * tgtR)
 if m5Sell
-    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(m5SellC, 0), textcolor = color.white, size = size.normal)
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(m5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL")
     if showTS
         sp = math.max(m5SlowV, m5Px + atr14 * minStopAtr)
         newTrade(false, sp, m5Px - (sp - m5Px) * tgtR)
@@ -761,11 +761,11 @@ w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 w5Buy   = w5Fresh and w5B and blkL and rsiL
 w5Sell  = w5Fresh and w5S and blkS and rsiS
 if w5Buy
-    label.new(bar_index, low - atr14 * lblGap,  "5min BUY\nwick",  style = label.style_label_up,   color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal)
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\nwick")
     if showTS
         newTrade(true,  math.min(w5Low,  w5Px - w5Atr * minStopAtr), w5Mean)
 if w5Sell
-    label.new(bar_index, high + atr14 * lblGap, "5min SELL\nwick", style = label.style_label_down, color = color.new(w5SellC, 0), textcolor = color.white, size = size.normal)
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(w5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL\nwick")
     if showTS
         newTrade(false, math.max(w5High, w5Px + w5Atr * minStopAtr), w5Mean)
 alertcondition(w5Buy,  "5MIN WICK BUY",  "SMA Signals: 5-minute wick rejection BUY {{ticker}} @ {{close}}")
@@ -829,12 +829,81 @@ s15Fresh = s15On and lt15 and barstate.isconfirmed and ta.change(time("15")) != 
 s15Buy   = s15Fresh and s15B and blkL and rsiL
 s15Sell  = s15Fresh and s15S and blkS and rsiS
 if s15Buy
-    label.new(bar_index, low - atr14 * lblGap,  "15min BUY\n" + s15Tb,  style = label.style_label_up,   color = color.new(s15BuyC, 0),  textcolor = color.black, size = size.normal)
+    label.new(bar_index, low - atr14 * lblGap, "15min BUY", style = label.style_label_up, color = color.new(s15BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "15min BUY\n" + s15Tb)
     if showTS
         newTrade(true, s15StopB, s15TgtB)
 if s15Sell
-    label.new(bar_index, high + atr14 * lblGap, "15min SELL\n" + s15Ts, style = label.style_label_down, color = color.new(s15SellC, 0), textcolor = color.black, size = size.normal)
+    label.new(bar_index, high + atr14 * lblGap, "15min SELL", style = label.style_label_down, color = color.new(s15SellC, 0), textcolor = color.black, size = size.normal, tooltip = "15min SELL\n" + s15Ts)
     if showTS
         newTrade(false, s15StopS, s15TgtS)
 alertcondition(s15Buy,  "15MIN BUY",  "SMA Signals: 15-minute set BUY {{ticker}} @ {{close}}")
 alertcondition(s15Sell, "15MIN SELL", "SMA Signals: 15-minute set SELL {{ticker}} @ {{close}}")
+
+
+// ── 5-minute keep-list set on the 1-minute chart (v35) ───────────────────
+// What the 5-minute chart shows (sweep, Supertrend flip with ADX, 50 EMA touch, RSI divergence)
+// computed on 5-minute bars and marked on the 1-minute chart as "5min BUY sweep", "5min BUY EMA",
+// "5min BUY ST", "5min BUY RSI div" (and SELL) when the 5-minute candle closes. 1-minute chart only.
+grpK5    = "5-minute set on the 1-minute chart"
+k5On     = input.bool(true, "Show 5-minute sweep / ST / EMA / RSI-div on the 1-minute chart", group = grpK5)
+k5BuyC   = input.color(#69f0ae, "5min set BUY colour",  group = grpK5)
+k5SellC  = input.color(#ff8a80, "5min set SELL colour", group = grpK5)
+
+k5Sig() =>
+    _atr = ta.atr(14)
+    _slow = ta.sma(close, slowLen)
+    _gL = not trendAll or na(_slow) or close > _slow
+    _gS = not trendAll or na(_slow) or close < _slow
+    // sweep
+    _ph = ta.pivothigh(high, smcPiv, smcPiv), _pl = ta.pivotlow(low, smcPiv, smcPiv)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - smcPiv
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - smcPiv
+    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    // Supertrend flip with ADX
+    [_stL, _stD] = ta.supertrend(stMult, stLen)
+    [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
+    _stB = _stD < 0 and _stD[1] >= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _stS = _stD > 0 and _stD[1] <= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    // EMA touch
+    _e = ta.ema(close, emLen)
+    _emB0 = _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
+    _emS0 = _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
+    _emB = _emB0 and not _emB0[1], _emS = _emS0 and not _emS0[1]
+    // RSI divergence (confirmed at the pivot)
+    _rsi = ta.rsi(close, rsiLen)
+    _rPl = ta.pivotlow(low, rsiDivPv, rsiDivPv), _rPh = ta.pivothigh(high, rsiDivPv, rsiDivPv)
+    var float _dLo = na, var float _dLoR = na, var float _dHi = na, var float _dHiR = na
+    _dvB = false, _dvS = false
+    if not na(_rPl)
+        _r = _rsi[rsiDivPv]
+        _dvB := not na(_dLo) and _rPl < _dLo and _r > _dLoR and _r < 50
+        _dLo := _rPl, _dLoR := _r
+    if not na(_rPh)
+        _r = _rsi[rsiDivPv]
+        _dvS := not na(_dHi) and _rPh > _dHi and _r < _dHiR and _r > 50
+        _dHi := _rPh, _dHiR := _r
+    _b = _gL and (_swB or _stB or _emB or _dvB)
+    _s = _gS and (_swS or _stS or _emS or _dvS)
+    _tb = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "RSI div"
+    _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "RSI div"
+    _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low[rsiDivPv], close - _atr * minStopAtr)
+    _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high[rsiDivPv], close + _atr * minStopAtr)
+    [_b, _s, _tb, _ts, _stopB, _stopS, close]
+[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_off)
+k5Fresh = k5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+k5Buy   = k5Fresh and k5B and blkL and rsiL
+k5Sell  = k5Fresh and k5S and blkS and rsiS
+if k5Buy
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(k5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\n" + k5Tb)
+    if showTS
+        newTrade(true, k5StopB, k5Px + (k5Px - k5StopB) * tgtR)
+if k5Sell
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(k5SellC, 0), textcolor = color.black, size = size.normal, tooltip = "5min SELL\n" + k5Ts)
+    if showTS
+        newTrade(false, k5StopS, k5Px - (k5StopS - k5Px) * tgtR)
+alertcondition(k5Buy,  "5MIN SET BUY",  "SMA Signals: 5-minute set BUY {{ticker}} @ {{close}}")
+alertcondition(k5Sell, "5MIN SET SELL", "SMA Signals: 5-minute set SELL {{ticker}} @ {{close}}")
