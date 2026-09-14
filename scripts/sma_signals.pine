@@ -107,7 +107,7 @@ rsiLen   = input.int(14,  "RSI length", minval = 2,                 group = grpR
 rsiGuard = input.bool(true, "Guard: no BUY above / no SELL below",  group = grpRSI)
 rsiHi    = input.int(70,  "Overbought", minval = 50, maxval = 100,  group = grpRSI)
 rsiLo    = input.int(30,  "Oversold",   minval = 0,  maxval = 50,   group = grpRSI)
-rsiDivOn = input.bool(true, "RSI divergence BUY / SELL",            group = grpRSI)
+rsiDivOn = input.bool(false, "RSI divergence BUY / SELL",           group = grpRSI)
 rsiDivPv = input.int(5,   "Divergence pivot length", minval = 2,    group = grpRSI)
 rsi      = ta.rsi(close, rsiLen)
 rsiL     = not rsiGuard or rsi < rsiHi
@@ -543,7 +543,7 @@ if axOn and barstate.islast
 grpEM    = "50 EMA touch"
 emOn     = input.bool(true, "Show 50 EMA",                     group = grpEM)
 emLen    = input.int(50,    "EMA length", minval = 2,          group = grpEM)
-emSigOn  = input.bool(true, "BUY / SELL on touch and go",     group = grpEM)
+emSigOn  = input.bool(false, "BUY / SELL on touch and go",    group = grpEM)
 emSlope  = input.int(5,     "EMA must be rising / falling over N bars", minval = 1, group = grpEM)
 emTol    = input.float(0.1, "Touch tolerance (ATR x)", step = 0.05, minval = 0, group = grpEM)
 emCol    = input.color(#ffeb3b, "EMA colour",                  group = grpEM)
@@ -612,7 +612,7 @@ htfSig() =>
     _e = ta.ema(close, emLen)
     _emB0 = emSigOn and _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
     _emS0 = emSigOn and _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
-    _emB = _emB0 and not _emB0[1], _emS = _emS0 and not _emS0[1]
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
     // first family that fires decides the tag and the stop
     _b = _gL and (_smaB or _swB or _stB or _emB)
     _s = _gS and (_smaS or _swS or _stS or _emS)
@@ -811,7 +811,7 @@ s15Sig() =>
     _e = ta.ema(close, emLen)
     _emB0 = _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1] and _stD < 0
     _emS0 = _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1] and _stD > 0
-    _emB = _emB0 and not _emB0[1], _emS = _emS0 and not _emS0[1]
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
     // wick rejection
     _mean = ta.sma(close, wkLen)
     _body = math.abs(close - open), _rng = high - low
@@ -875,7 +875,7 @@ k5Sig() =>
     _e = ta.ema(close, emLen)
     _emB0 = _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
     _emS0 = _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
-    _emB = _emB0 and not _emB0[1], _emS = _emS0 and not _emS0[1]
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
     // RSI divergence (confirmed at the pivot)
     _rsi = ta.rsi(close, rsiLen)
     _rPl = ta.pivotlow(low, rsiDivPv, rsiDivPv), _rPh = ta.pivothigh(high, rsiDivPv, rsiDivPv)
@@ -889,8 +889,8 @@ k5Sig() =>
         _r = _rsi[rsiDivPv]
         _dvS := not na(_dHi) and _rPh > _dHi and _r < _dHiR and _r > 50
         _dHi := _rPh, _dHiR := _r
-    _b = _gL and (_swB or _stB or _emB or _dvB)
-    _s = _gS and (_swS or _stS or _emS or _dvS)
+    _b = _gL and (_swB or _stB or _emB or (rsiDivOn and _dvB))
+    _s = _gS and (_swS or _stS or _emS or (rsiDivOn and _dvS))
     _tb = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "RSI div"
     _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "RSI div"
     _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low[rsiDivPv], close - _atr * minStopAtr)
