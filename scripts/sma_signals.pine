@@ -472,6 +472,7 @@ htC      = input.timeframe("60", "Timeframe 3", group = grpHT)
 htColA   = input.color(#ffb300, "15m colour", group = grpHT)
 htColB   = input.color(#b388ff, "30m colour", group = grpHT)
 htColC   = input.color(#ffffff, "60m colour", group = grpHT)
+htGap    = input.float(1.0, "Label distance from candle (ATR x)", step = 0.25, minval = 0, group = grpHT)
 
 htfSig() =>
     _atr   = ta.atr(14)
@@ -512,16 +513,13 @@ htfSig() =>
 drawHtf(bool on, string tf, color col) =>
     [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
     fresh = on and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
     if fresh and b
-        label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(col, 0), size = size.small, tooltip = tf + "m BUY " + tb + "  stop " + str.tostring(spB, format.mintick))
-        if showLbl
-            label.new(bar_index, low, "BUY " + tf + "m\n" + tb, style = label.style_label_up, color = color.new(col, 100), textcolor = col, size = size.small)
+        label.new(bar_index, low - atr14 * htGap,  "BUY " + tf + "m\n" + tb,  style = label.style_label_up,   color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "stop " + str.tostring(spB, format.mintick))
         if showTS
             newTrade(true, spB, px + (px - spB) * tgtR)
     if fresh and s
-        label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(col, 0), size = size.small, tooltip = tf + "m SELL " + ts + "  stop " + str.tostring(spS, format.mintick))
-        if showLbl
-            label.new(bar_index, high, "SELL " + tf + "m\n" + ts, style = label.style_label_down, color = color.new(col, 100), textcolor = col, size = size.small)
+        label.new(bar_index, high + atr14 * htGap, "SELL " + tf + "m\n" + ts, style = label.style_label_down, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "stop " + str.tostring(spS, format.mintick))
         if showTS
             newTrade(false, spS, px - (spS - px) * tgtR)
     fresh and (b or s)
