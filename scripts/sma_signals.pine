@@ -458,3 +458,75 @@ if showTS and emSell
     newTrade(false, sp, close - (sp - close) * tgtR)
 alertcondition(emBuy,  "EMA BUY",  "SMA Signals: 50 EMA touch BUY {{ticker}} @ {{close}}")
 alertcondition(emSell, "EMA SELL", "SMA Signals: 50 EMA touch SELL {{ticker}} @ {{close}}")
+
+// ── Higher-timeframe signals on a lower chart (v23) ─────────────────────
+// The four kept families (SMA 50/200 cross, liquidity sweep, Supertrend flip with ADX, 50 EMA touch)
+// recomputed on 15m / 30m / 60m bars and marked on ANY lower-timeframe chart (e.g. 1m) on the bar
+// where that higher-timeframe candle closes. Same 200 SMA trend gate. Stop = that family's stop
+// measured on the higher timeframe, target 1.5R. Colour = timeframe: 15m amber, 30m violet, 60m white.
+grpHT    = "Higher-timeframe signals"
+htOn     = input.bool(true, "Show 15m / 30m / 60m signals on lower charts", group = grpHT)
+htA      = input.timeframe("15", "Timeframe 1", group = grpHT)
+htB      = input.timeframe("30", "Timeframe 2", group = grpHT)
+htC      = input.timeframe("60", "Timeframe 3", group = grpHT)
+htColA   = input.color(#ffb300, "15m colour", group = grpHT)
+htColB   = input.color(#b388ff, "30m colour", group = grpHT)
+htColC   = input.color(#ffffff, "60m colour", group = grpHT)
+
+htfSig() =>
+    _atr   = ta.atr(14)
+    _fast  = ta.sma(close, fastLen), _slow = ta.sma(close, slowLen)
+    _gL    = not trendAll or na(_slow) or close > _slow
+    _gS    = not trendAll or na(_slow) or close < _slow
+    // SMA cross
+    _smaB  = ta.crossover(_fast, _slow)  and (not confirm or (close > _fast and close > _slow))
+    _smaS  = ta.crossunder(_fast, _slow) and (not confirm or (close < _fast and close < _slow))
+    // liquidity sweep
+    _ph = ta.pivothigh(high, smcPiv, smcPiv), _pl = ta.pivotlow(low, smcPiv, smcPiv)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - smcPiv
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - smcPiv
+    _swB = sweepOn and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = sweepOn and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    // Supertrend flip + ADX
+    [_stL, _stD] = ta.supertrend(stMult, stLen)
+    [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
+    _stB = stSigOn and _stD < 0 and _stD[1] >= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _stS = stSigOn and _stD > 0 and _stD[1] <= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    // 50 EMA touch & go
+    _e = ta.ema(close, emLen)
+    _emB0 = emSigOn and _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
+    _emS0 = emSigOn and _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
+    _emB = _emB0 and not _emB0[1], _emS = _emS0 and not _emS0[1]
+    // first family that fires decides the tag and the stop
+    _b = _gL and (_smaB or _swB or _stB or _emB)
+    _s = _gS and (_smaS or _swS or _stS or _emS)
+    _tagB = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "SMA"
+    _tagS = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "SMA"
+    _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : _slow, close - _atr * minStopAtr)
+    _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : _slow, close + _atr * minStopAtr)
+    [_b, _s, _tagB, _tagS, _stopB, _stopS, close]
+
+drawHtf(bool on, string tf, color col) =>
+    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
+    fresh = on and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    if fresh and b
+        label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(col, 0), size = size.small, tooltip = tf + "m BUY " + tb + "  stop " + str.tostring(spB, format.mintick))
+        if showLbl
+            label.new(bar_index, low, "BUY " + tf + "m\n" + tb, style = label.style_label_up, color = color.new(col, 100), textcolor = col, size = size.small)
+        if showTS
+            newTrade(true, spB, px + (px - spB) * tgtR)
+    if fresh and s
+        label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(col, 0), size = size.small, tooltip = tf + "m SELL " + ts + "  stop " + str.tostring(spS, format.mintick))
+        if showLbl
+            label.new(bar_index, high, "SELL " + tf + "m\n" + ts, style = label.style_label_down, color = color.new(col, 100), textcolor = col, size = size.small)
+        if showTS
+            newTrade(false, spS, px - (spS - px) * tgtR)
+    fresh and (b or s)
+
+hA = drawHtf(htOn, htA, htColA)
+hB = drawHtf(htOn, htB, htColB)
+hC = drawHtf(htOn, htC, htColC)
+alertcondition(hA or hB or hC, "HTF SIGNAL", "SMA Signals: higher-timeframe signal on {{ticker}}")
