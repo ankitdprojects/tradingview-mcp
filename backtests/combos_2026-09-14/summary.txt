@@ -1,0 +1,178 @@
+
+== by config ==
+All keepers                net    57877 trades  619 win%  43 avgW/avgL 1.50 cells+ 16/21
+Supertrend +ADX20          net    47235 trades  108 win%  52 avgW/avgL 1.33 cells+ 14/21
+Sweep + Wick               net    25793 trades  396 win%  42 avgW/avgL 1.57 cells+ 15/21
+Sweep +VWAP side           net    25586 trades   65 win%  54 avgW/avgL 1.33 cells+ 15/21
+Sweep + EMA touch          net    23007 trades  214 win%  49 avgW/avgL 1.23 cells+ 14/21
+Supertrend + EMA touch     net    22081 trades  253 win%  44 avgW/avgL 1.37 cells+ 12/21
+SMA50/200 +ST +ADX20       net    12081 trades   15 win%  67 avgW/avgL 1.67 cells+ 7/21
+Sweep +ADX20               net     7642 trades   95 win%  49 avgW/avgL 1.15 cells+ 11/21
+EMA touch +ST filter       net     4917 trades   45 win%  49 avgW/avgL 1.24 cells+ 8/21
+Sweep +ST filter           net     -999 trades   33 win%  48 avgW/avgL 1.02 cells+ 7/21
+Wick +ST filter            net   -11022 trades   32 win%  38 avgW/avgL 0.67 cells+ 3/21
+FIB +ST filter             net   -17569 trades   54 win%  41 avgW/avgL 1.04 cells+ 4/21
+
+== by timeframe ==
+60m                        net   140315 trades  334 win%  54 avgW/avgL 1.44 cells+ 49/84
+30m                        net    57321 trades  617 win%  43 avgW/avgL 1.48 cells+ 38/84
+15m                        net    -1007 trades  978 win%  43 avgW/avgL 1.30 cells+ 39/84
+
+== by tf x config ==
+30m  Supertrend +ADX20     net    33925 trades   28 win%  50 avgW/avgL 3.08 cells+ 5/7
+60m  Sweep + EMA touch     net    29264 trades   37 win%  70 avgW/avgL 1.31 cells+ 7/7
+60m  Supertrend + EMA touch net    25785 trades   38 win%  53 avgW/avgL 1.58 cells+ 5/7
+60m  All keepers           net    24910 trades  111 win%  48 avgW/avgL 1.46 cells+ 7/7
+15m  All keepers           net    18441 trades  310 win%  42 avgW/avgL 1.52 cells+ 5/7
+60m  Sweep + Wick          net    18239 trades   73 win%  49 avgW/avgL 1.50 cells+ 5/7
+60m  Sweep +VWAP side      net    16175 trades   18 win%  67 avgW/avgL 1.67 cells+ 6/7
+30m  All keepers           net    14526 trades  198 win%  43 avgW/avgL 1.47 cells+ 4/7
+30m  Sweep +VWAP side      net    12617 trades   21 win%  52 avgW/avgL 1.85 cells+ 5/7
+30m  Sweep + Wick          net    11463 trades  130 win%  44 avgW/avgL 1.48 cells+ 5/7
+30m  Supertrend + EMA touch net    11351 trades   78 win%  41 avgW/avgL 1.66 cells+ 4/7
+60m  Sweep +ADX20          net    11194 trades   15 win%  73 avgW/avgL 1.21 cells+ 5/7
+15m  SMA50/200 +ST +ADX20  net     9228 trades   10 win%  60 avgW/avgL 2.30 cells+ 3/7
+15m  Supertrend +ADX20     net     8798 trades   65 win%  52 avgW/avgL 1.01 cells+ 4/7
+15m  EMA touch +ST filter  net     6684 trades   20 win%  60 avgW/avgL 1.44 cells+ 5/7
+60m  FIB +ST filter        net     5487 trades   11 win%  36 avgW/avgL 2.75 cells+ 2/7
+60m  Supertrend +ADX20     net     4512 trades   15 win%  53 avgW/avgL 1.21 cells+ 5/7
+60m  Sweep +ST filter      net     3483 trades    3 win% 100 avgW/avgL - cells+ 3/7
+60m  EMA touch +ST filter  net     2699 trades    7 win%  57 avgW/avgL 1.07 cells+ 1/7
+30m  SMA50/200 +ST +ADX20  net     2263 trades    3 win%  67 avgW/avgL 1.31 cells+ 2/7
+30m  Sweep + EMA touch     net     1186 trades   70 win%  46 avgW/avgL 1.22 cells+ 4/7
+60m  SMA50/200 +ST +ADX20  net      590 trades    2 win% 100 avgW/avgL - cells+ 2/7
+30m  Sweep +ADX20          net      228 trades   31 win%  45 avgW/avgL 1.23 cells+ 3/7
+15m  Sweep +ST filter      net     -418 trades   15 win%  47 avgW/avgL 1.11 cells+ 2/7
+15m  Wick +ST filter       net    -2007 trades   19 win%  42 avgW/avgL 1.02 cells+ 1/7
+60m  Wick +ST filter       net    -2023 trades    4 win%  25 avgW/avgL 0.58 cells+ 1/7
+15m  Sweep +VWAP side      net    -3205 trades   26 win%  46 avgW/avgL 1.03 cells+ 4/7
+15m  Sweep +ADX20          net    -3780 trades   49 win%  45 avgW/avgL 1.09 cells+ 3/7
+15m  Sweep + Wick          net    -3910 trades  193 win%  37 avgW/avgL 1.61 cells+ 5/7
+30m  Sweep +ST filter      net    -4063 trades   15 win%  40 avgW/avgL 1.09 cells+ 2/7
+30m  EMA touch +ST filter  net    -4466 trades   18 win%  33 avgW/avgL 1.35 cells+ 2/7
+30m  Wick +ST filter       net    -6992 trades    9 win%  33 avgW/avgL 0.28 cells+ 1/7
+15m  Sweep + EMA touch     net    -7443 trades  107 win%  44 avgW/avgL 1.13 cells+ 3/7
+15m  FIB +ST filter        net    -8340 trades   27 win%  48 avgW/avgL 0.71 cells+ 1/7
+30m  FIB +ST filter        net   -14716 trades   16 win%  31 avgW/avgL 1.04 cells+ 1/7
+15m  Supertrend + EMA touch net   -15055 trades  137 win%  44 avgW/avgL 1.15 cells+ 3/7
+
+== by symbol ==
+BANKNIFTY260929P56300      net    90129 trades  278 win%  51 avgW/avgL 1.57 cells+ 21/36
+RELIANCE260929C1280        net    56591 trades  301 win%  42 avgW/avgL 1.77 cells+ 23/36
+NIFTY260929P23400          net    50104 trades  426 win%  49 avgW/avgL 1.35 cells+ 25/36
+RELIANCE260929P1280        net    42791 trades  245 win%  49 avgW/avgL 1.34 cells+ 22/36
+SBIN260929P1000            net    15493 trades  357 win%  47 avgW/avgL 1.19 cells+ 17/36
+SBIN260929C1000            net     4223 trades  253 win%  32 avgW/avgL 2.12 cells+ 11/36
+BANKNIFTY260929C56300      net   -62703 trades   69 win%  32 avgW/avgL 1.28 cells+ 7/36
+
+== top 12 cells ==
+SBIN260929C1000        60m  Supertrend + EMA touch net    25816 tr   4 win%  75 PF 20.84 DD%   5
+BANKNIFTY260929P56300  30m  All keepers    net    22143 tr  27 win%  59 PF 3.31 DD%  16
+SBIN260929C1000        30m  Supertrend + EMA touch net    22107 tr   6 win%  50 PF 3.36 DD%  22
+SBIN260929C1000        30m  Supertrend +ADX20 net    19095 tr   3 win%  67 PF 17.40 DD%   7
+BANKNIFTY260929P56300  30m  Sweep + Wick   net    17763 tr  16 win%  75 PF 6.13 DD%   8
+NIFTY260929P23400      15m  All keepers    net    14380 tr  75 win%  44 PF 1.61 DD%  40
+SBIN260929C1000        15m  Supertrend + EMA touch net    12703 tr  13 win%  46 PF 1.78 DD%  24
+SBIN260929P1000        15m  All keepers    net    12622 tr  58 win%  48 PF 1.45 DD%  31
+BANKNIFTY260929P56300  60m  Sweep + Wick   net     9870 tr  10 win%  60 PF 6.07 DD%   9
+RELIANCE260929C1280    30m  FIB +ST filter net     9798 tr   3 win%  67 PF 11.66 DD%   5
+RELIANCE260929P1280    15m  Supertrend +ADX20 net     9467 tr   8 win%  75 PF 2.77 DD%  17
+SBIN260929C1000        15m  All keepers    net     9356 tr  36 win%  31 PF 1.36 DD%  25
+
+== bottom 6 cells ==
+BANKNIFTY260929C56300  15m  Supertrend + EMA touch net   -24489 tr   5 win%  20 DD% 172
+BANKNIFTY260929C56300  15m  All keepers    net   -18220 tr  13 win%  15 DD% 135
+SBIN260929C1000        15m  Sweep + Wick   net   -14354 tr  30 win%  23 DD%  79
+SBIN260929C1000        30m  Sweep + Wick   net   -14127 tr  20 win%  20 DD%  78
+BANKNIFTY260929C56300  30m  Supertrend + EMA touch net   -13169 tr   3 win%  33 DD%  81
+SBIN260929P1000        30m  Sweep + EMA touch net   -10743 tr  19 win%  37 DD%  62
+
+TOTAL 196628 trades 1929
+
+########## FUTURES
+
+== by config ==
+SMA50/200 +ST +ADX20       net    -4429 trades   27 win%  37 avgW/avgL 1.51 cells+ 4/9
+Wick +ST filter            net   -27954 trades   64 win%  45 avgW/avgL 0.52 cells+ 1/9
+Sweep +ST filter           net   -28913 trades   49 win%  45 avgW/avgL 0.52 cells+ 4/9
+Supertrend +ADX20          net   -41080 trades  113 win%  52 avgW/avgL 0.74 cells+ 6/9
+FIB +ST filter             net   -41851 trades   67 win%  49 avgW/avgL 0.63 cells+ 4/9
+EMA touch +ST filter       net   -67640 trades  113 win%  33 avgW/avgL 0.88 cells+ 2/9
+Sweep +VWAP side           net   -81153 trades   98 win%  36 avgW/avgL 0.93 cells+ 1/9
+Sweep +ADX20               net   -96791 trades  159 win%  38 avgW/avgL 0.78 cells+ 1/9
+Supertrend + EMA touch     net  -150943 trades  311 win%  42 avgW/avgL 0.85 cells+ 3/9
+Sweep + EMA touch          net  -199547 trades  401 win%  38 avgW/avgL 0.77 cells+ 1/9
+Sweep + Wick               net  -269858 trades  525 win%  36 avgW/avgL 0.87 cells+ 1/9
+All keepers                net  -340479 trades  819 win%  37 avgW/avgL 0.95 cells+ 1/9
+
+== by timeframe ==
+60m                        net  -214351 trades  443 win%  36 avgW/avgL 1.19 cells+ 10/36
+15m                        net  -561343 trades 1501 win%  38 avgW/avgL 0.96 cells+ 7/36
+30m                        net  -574944 trades  802 win%  42 avgW/avgL 0.61 cells+ 12/36
+
+== by tf x config ==
+60m  Supertrend +ADX20     net    11955 trades   18 win%  56 avgW/avgL 1.47 cells+ 3/3
+15m  FIB +ST filter        net     9241 trades   32 win%  59 avgW/avgL 0.86 cells+ 2/3
+30m  SMA50/200 +ST +ADX20  net      339 trades    5 win%  40 avgW/avgL 1.69 cells+ 2/3
+15m  SMA50/200 +ST +ADX20  net    -1859 trades   15 win%  27 avgW/avgL 2.55 cells+ 1/3
+30m  Sweep +ST filter      net    -2013 trades   10 win%  60 avgW/avgL 0.52 cells+ 2/3
+30m  Wick +ST filter       net    -2142 trades   13 win%  69 avgW/avgL 0.35 cells+ 1/3
+60m  Sweep +ST filter      net    -2533 trades    9 win%  56 avgW/avgL 0.50 cells+ 1/3
+60m  SMA50/200 +ST +ADX20  net    -2909 trades    7 win%  57 avgW/avgL 0.57 cells+ 1/3
+60m  Sweep +ADX20          net    -3035 trades   19 win%  37 avgW/avgL 1.54 cells+ 1/3
+60m  Wick +ST filter       net    -6415 trades   10 win%  40 avgW/avgL 0.39 cells+ 0/3
+60m  EMA touch +ST filter  net    -6520 trades   17 win%  18 avgW/avgL 3.40 cells+ 1/3
+60m  Supertrend + EMA touch net   -14539 trades   47 win%  40 avgW/avgL 1.14 cells+ 1/3
+60m  Sweep +VWAP side      net   -17247 trades   23 win%  35 avgW/avgL 1.23 cells+ 1/3
+15m  Wick +ST filter       net   -19397 trades   41 win%  39 avgW/avgL 0.55 cells+ 0/3
+30m  FIB +ST filter        net   -20239 trades   19 win%  42 avgW/avgL 0.60 cells+ 1/3
+15m  Supertrend +ADX20     net   -21182 trades   57 win%  51 avgW/avgL 0.78 cells+ 2/3
+15m  Sweep +ST filter      net   -24368 trades   30 win%  37 avgW/avgL 0.51 cells+ 1/3
+30m  EMA touch +ST filter  net   -25161 trades   34 win%  41 avgW/avgL 0.54 cells+ 1/3
+60m  FIB +ST filter        net   -30853 trades   16 win%  38 avgW/avgL 0.26 cells+ 1/3
+60m  Sweep + EMA touch     net   -31187 trades   59 win%  31 avgW/avgL 1.46 cells+ 0/3
+30m  Sweep +VWAP side      net   -31561 trades   34 win%  38 avgW/avgL 0.68 cells+ 0/3
+30m  Supertrend +ADX20     net   -31853 trades   38 win%  53 avgW/avgL 0.56 cells+ 1/3
+15m  Sweep +VWAP side      net   -32345 trades   41 win%  34 avgW/avgL 0.94 cells+ 0/3
+15m  EMA touch +ST filter  net   -35958 trades   62 win%  32 avgW/avgL 0.69 cells+ 0/3
+60m  Sweep + Wick          net   -43802 trades   85 win%  33 avgW/avgL 1.28 cells+ 0/3
+15m  Sweep +ADX20          net   -44046 trades   93 win%  41 avgW/avgL 0.71 cells+ 0/3
+15m  Supertrend + EMA touch net   -47873 trades  163 win%  41 avgW/avgL 1.05 cells+ 1/3
+30m  Sweep +ADX20          net   -49710 trades   47 win%  32 avgW/avgL 0.55 cells+ 0/3
+60m  All keepers           net   -67266 trades  133 win%  35 avgW/avgL 1.16 cells+ 0/3
+30m  Sweep + EMA touch     net   -80513 trades  127 win%  43 avgW/avgL 0.53 cells+ 1/3
+15m  Sweep + EMA touch     net   -87847 trades  215 win%  38 avgW/avgL 0.77 cells+ 0/3
+30m  Supertrend + EMA touch net   -88532 trades  101 win%  46 avgW/avgL 0.55 cells+ 1/3
+30m  Sweep + Wick          net   -95279 trades  140 win%  39 avgW/avgL 0.62 cells+ 1/3
+15m  All keepers           net  -124932 trades  452 win%  37 avgW/avgL 1.10 cells+ 0/3
+15m  Sweep + Wick          net  -130777 trades  300 win%  36 avgW/avgL 0.88 cells+ 0/3
+30m  All keepers           net  -148281 trades  234 win%  40 avgW/avgL 0.67 cells+ 1/3
+
+== by symbol ==
+CRUDEOILM1!                net    16325 trades 1474 win%  44 avgW/avgL 1.32 cells+ 18/36
+NIFTY1!                    net  -594658 trades  587 win%  33 avgW/avgL 0.90 cells+ 6/36
+BANKNIFTY1!                net  -772307 trades  685 win%  33 avgW/avgL 1.09 cells+ 5/36
+
+== top 12 cells ==
+MCX:CRUDEOILM1!        30m  Supertrend + EMA touch net    12798 tr  51 win%  63 PF 1.98 DD%  11
+MCX:CRUDEOILM1!        15m  Supertrend + EMA touch net     9380 tr  92 win%  42 PF 1.40 DD%  29
+MCX:CRUDEOILM1!        30m  Supertrend +ADX20 net     8930 tr  14 win%  64 PF 2.79 DD%  13
+MCX:CRUDEOILM1!        15m  FIB +ST filter net     8637 tr  15 win%  67 PF 3.35 DD%   8
+BANKNIFTY1!            60m  Supertrend +ADX20 net     6732 tr   6 win%  50 PF 1.73 DD%  34
+MCX:CRUDEOILM1!        30m  All keepers    net     6589 tr 121 win%  53 PF 1.28 DD%  21
+MCX:CRUDEOILM1!        60m  Supertrend + EMA touch net     6446 tr  20 win%  55 PF 2.62 DD%  14
+MCX:CRUDEOILM1!        60m  FIB +ST filter net     4719 tr   6 win%  83 PF 7.20 DD%   8
+NIFTY1!                60m  SMA50/200 +ST +ADX20 net     4691 tr   2 win% 100 PF 0.00 DD%  19
+BANKNIFTY1!            15m  Supertrend +ADX20 net     4587 tr  15 win%  53 PF 1.10 DD%  79
+MCX:CRUDEOILM1!        15m  Supertrend +ADX20 net     4257 tr  25 win%  48 PF 1.41 DD%  33
+MCX:CRUDEOILM1!        60m  Supertrend +ADX20 net     4168 tr   7 win%  71 PF 6.90 DD%   6
+
+== bottom 6 cells ==
+BANKNIFTY1!            30m  All keepers    net   -86277 tr  57 win%  30 DD% 449
+NIFTY1!                30m  All keepers    net   -68593 tr  56 win%  21 DD% 343
+BANKNIFTY1!            15m  Sweep + Wick   net   -68054 tr  71 win%  35 DD% 385
+BANKNIFTY1!            30m  Sweep + Wick   net   -61283 tr  34 win%  26 DD% 306
+BANKNIFTY1!            15m  All keepers    net   -58895 tr 104 win%  35 DD% 288
+NIFTY1!                15m  Sweep + Wick   net   -58211 tr  62 win%  26 DD% 329
+
+TOTAL -1350639 trades 2746
