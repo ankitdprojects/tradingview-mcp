@@ -332,12 +332,12 @@ dcTrendL = not dcTrendG or na(trend) or close > trend
 dcTrendS = not dcTrendG or na(trend) or close < trend
 dcBuy  = dcOn and dcSigOn and close > dcUpper and close[1] <= dcUpper[1] and close > open and dcTrendL
 dcSell = dcOn and dcSigOn and close < dcLower and close[1] >= dcLower[1] and close < open and dcTrendS
-plotshape(dcBuy,  "DC BUY",  shape.labelup,   location.belowbar, color = color.new(dcCol, 0), text = "DC", textcolor = color.black, size = size.tiny)
-plotshape(dcSell, "DC SELL", shape.labeldown, location.abovebar, color = color.new(dcCol, 0), text = "DC", textcolor = color.black, size = size.tiny)
+plotshape(dcBuy,  "DC BUY",  shape.triangleup,   location.belowbar, color = color.new(dcCol, 0), size = size.small)
+plotshape(dcSell, "DC SELL", shape.triangledown, location.abovebar, color = color.new(dcCol, 0), size = size.small)
 if showLbl and dcBuy
-    label.new(bar_index, low,  "DC BUY",  style = label.style_label_up,   color = color.new(dcCol, 100), textcolor = dcCol, size = size.small)
+    label.new(bar_index, low,  "BUY",  style = label.style_label_up,   color = color.new(dcCol, 100), textcolor = dcCol, size = size.small)
 if showLbl and dcSell
-    label.new(bar_index, high, "DC SELL", style = label.style_label_down, color = color.new(dcCol, 100), textcolor = dcCol, size = size.small)
+    label.new(bar_index, high, "SELL", style = label.style_label_down, color = color.new(dcCol, 100), textcolor = dcCol, size = size.small)
 if showTS and dcBuy
     sp = math.min(dcMid, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
