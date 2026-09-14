@@ -30,6 +30,8 @@ pivLen     = input.int(10, "Fib swing pivot length", minval = 2)                
 fibDeep    = input.float(0.786, "Fib invalidation ratio", step = 0.01)                               // in_17
 fibTarget  = input.bool(false, "FIB target = 1.272 extension instead of R multiple")                 // in_18
 fixedQty   = input.float(0, "Fixed qty in contracts / lots (0 = risk-sized)", minval = 0)            // in_19  (options: 1 = one lot)
+capPerTrade = input.float(20000, "Capital per trade (Rs, 0 = use risk sizing)", minval = 0)        // in_20  user rule 2026-09-14: whole 20k every trade
+stopMode   = input.string("Signal", "Stop / target", options = ["Signal", "Swing"])                  // in_21  Signal = SMA stop at slow SMA / FIB stop at 0.786 + 1.272 target
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -85,8 +87,14 @@ plotshape(sigS, "S", shape.triangledown, location.abovebar, color = color.new(#f
 
 // ── Stops / sizing ────────────────────────────────────────────────────────
 atr14 = ta.atr(14)
-stopL = math.min(ta.lowest(low, swingLen),  close - atr14 * minStopAtr)
-stopS = math.max(ta.highest(high, swingLen), close + atr14 * minStopAtr)
+// Signal-specific stops: SMA trade → slow SMA level (trend failed); FIB trade → invalidation ratio level.
+// Swing mode keeps the old lowest-low / highest-high stop. All floored at minStopAtr from entry.
+isFibL = useFib and fibBuy  and not (useSma and smaBuy)
+isFibS = useFib and fibSell and not (useSma and smaSell)
+rawL   = stopMode == "Swing" ? ta.lowest(low, swingLen)   : (isFibL ? f786 : slow)
+rawS   = stopMode == "Swing" ? ta.highest(high, swingLen) : (isFibS ? f786 : slow)
+stopL  = math.min(rawL, close - atr14 * minStopAtr)
+stopS  = math.max(rawS, close + atr14 * minStopAtr)
 flat  = strategy.position_size == 0
 
 // Square-off: intraday only. Daily / weekly hold overnight until target or stop.
@@ -106,16 +114,21 @@ goShort = sigS and not sigL and flat and close < stopS and inWindow and not last
 capQty  = capNotion ? strategy.equity / (close * syminfo.pointvalue) : 1e12
 // Whole contracts / shares only (TradingView rejects fractional option lots); never below 1.
 sizeFor(float dist) =>
-    fixedQty > 0 ? fixedQty : math.max(1, math.floor(math.min(riskCash / (dist * syminfo.pointvalue), capQty)))
+    fixedQty > 0 ? fixedQty :
+      capPerTrade > 0 ? math.max(1, math.floor(capPerTrade / (close * syminfo.pointvalue))) :
+      math.max(1, math.floor(math.min(riskCash / (dist * syminfo.pointvalue), capQty)))
+// FIB trades target the 1.272 extension in Signal mode (or when fibTarget is on); SMA trades use the R multiple.
+fibTgtL = (stopMode == "Signal" or fibTarget) and isFibL and t1272 > close
+fibTgtS = (stopMode == "Signal" or fibTarget) and isFibS and t1272 < close
 if goLong
     dist = close - stopL
     qty  = sizeFor(dist)
-    tgt  = fibTarget and useFib and fibBuy and t1272 > close ? t1272 : close + dist * rr
+    tgt  = fibTgtL ? t1272 : close + dist * rr
     strategy.entry("L", strategy.long, qty = qty)
     strategy.exit("Lx", "L", stop = hardStop ? stopL : na, limit = tgt)
 if goShort
     dist = stopS - close
     qty  = sizeFor(dist)
-    tgt  = fibTarget and useFib and fibSell and t1272 < close ? t1272 : close - dist * rr
+    tgt  = fibTgtS ? t1272 : close - dist * rr
     strategy.entry("S", strategy.short, qty = qty)
     strategy.exit("Sx", "S", stop = hardStop ? stopS : na, limit = tgt)

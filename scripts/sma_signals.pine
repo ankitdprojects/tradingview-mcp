@@ -1,5 +1,5 @@
 //@version=6
-indicator("SMA Signals", overlay=true, max_labels_count=200)
+indicator("SMA Signals", overlay=true, max_labels_count=200, max_lines_count=100)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 fastLen   = input.int(50,  "Fast SMA", minval=1)
@@ -118,3 +118,55 @@ alertcondition(buy,     "SMA BUY",  "SMA Signals: BUY {{ticker}} @ {{close}}")
 alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
 alertcondition(fibBuy,  "FIB BUY",  "SMA Signals: FIB BUY {{ticker}} @ {{close}}")
 alertcondition(fibSell, "FIB SELL", "SMA Signals: FIB SELL {{ticker}} @ {{close}}")
+
+// ── Target & stop marks (v5) ──────────────────────────────────────────────
+// SMA trade: stop = slow SMA level (trend failed), floored at minStopAtr below/above entry;
+//            target = entry ± tgtR × stop distance.
+// FIB trade: stop = invalidation ratio (0.786) level; target = 1.272 extension.
+// Lines are dotted, extend to the right while live, and get ✓ / ✗ when hit.
+showTS     = input.bool(true, "Mark target & stop",              group="Targets")
+tgtR       = input.float(2, "SMA target (R multiple)", step=0.5, group="Targets")
+minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
+maxLive    = input.int(4, "Max live trades shown", minval=1, maxval=20, group="Targets")
+
+atr14 = ta.atr(14)
+var line[]  tLn = array.new_line(),  var line[]  sLn = array.new_line()
+var label[] tLb = array.new_label(), var label[] sLb = array.new_label()
+var float[] tPx = array.new_float(), var float[] sPx = array.new_float()
+var int[]   tDir = array.new_int()
+
+newTrade(bool isLong, float stopPx, float tgtPx) =>
+    col = isLong ? #00c853 : #ff1744
+    array.push(tLn, line.new(bar_index, tgtPx, bar_index + 1, tgtPx, color=color.new(col, 0), style=line.style_dotted, width=2))
+    array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
+    array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
+    array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
+    array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
+    if array.size(tPx) > maxLive
+        line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
+        array.shift(tPx), array.shift(sPx), array.shift(tDir)
+
+if showTS
+    if buy
+        sp = math.min(slow, close - atr14 * minStopAtr)
+        newTrade(true, sp, close + (close - sp) * tgtR)
+    if sell
+        sp = math.max(slow, close + atr14 * minStopAtr)
+        newTrade(false, sp, close - (sp - close) * tgtR)
+    if fibBuy
+        newTrade(true, math.min(f786, close - atr14 * minStopAtr), t1272)
+    if fibSell
+        newTrade(false, math.max(f786, close + atr14 * minStopAtr), t1272)
+    // track live trades
+    for i = array.size(tPx) - 1 to 0
+        if i >= 0 and i < array.size(tPx) and array.get(tDir, i) != 0
+            d  = array.get(tDir, i)
+            tp = array.get(tPx, i), sp = array.get(sPx, i)
+            hitT = d == 1 ? high >= tp : low <= tp
+            hitS = d == 1 ? low <= sp  : high >= sp
+            line.set_x2(array.get(tLn, i), bar_index + 1), line.set_x2(array.get(sLn, i), bar_index + 1)
+            label.set_x(array.get(tLb, i), bar_index + 1), label.set_x(array.get(sLb, i), bar_index + 1)
+            if hitS and not (buy or sell or fibBuy or fibSell)
+                label.set_text(array.get(sLb, i), "Stop " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
+            else if hitT and not (buy or sell or fibBuy or fibSell)
+                label.set_text(array.get(tLb, i), "Target " + str.tostring(tp, format.mintick) + " ✓"), array.set(tDir, i, 0)
