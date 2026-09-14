@@ -1,5 +1,5 @@
 //@version=6
-indicator("SMA Signals", overlay=true, max_labels_count=200, max_lines_count=150)
+indicator("SMA Signals", overlay=true, max_labels_count=300, max_lines_count=200, max_boxes_count=60)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 fastLen   = input.int(50,  "Fast SMA", minval=1)
@@ -411,3 +411,96 @@ if showTS and hBs
     newTrade(false, math.max(hB_st, close + atr14 * minStopAtr), hB_t)
 alertcondition(hAb or hBb, "FIB HTF BUY",  "SMA Signals: higher-timeframe FIB BUY {{ticker}} @ {{close}}")
 alertcondition(hAs or hBs, "FIB HTF SELL", "SMA Signals: higher-timeframe FIB SELL {{ticker}} @ {{close}}")
+
+// ── Smart Money Concepts + liquidity sweeps (v12) ────────────────────────
+// Structure : swing highs/lows from a short pivot. Close above the last swing high =
+//             BOS (continuation) if the trend was up, CHoCH (reversal) if it was down. Mirror for lows.
+// Order block: on a bullish BOS/CHoCH the last bearish candle before the break becomes a
+//             bullish OB (box extended right until price closes below it). Mirror for bearish.
+// Liquidity : a wick beyond the previous swing high/low that CLOSES back inside = sweep of the
+//             stops resting there. Sweep of a swing LOW + close back above it = BUY (cyan-pink),
+//             sweep of a swing HIGH = SELL. Stop = the sweep wick, target 1.5R.
+grpSMC   = "Smart Money Concepts"
+smcOn    = input.bool(true, "Show structure (BOS / CHoCH)",        group = grpSMC)
+smcPiv   = input.int(5,     "Structure pivot length", minval = 2,  group = grpSMC)
+obOn     = input.bool(true, "Show order blocks",                   group = grpSMC)
+obMax    = input.int(6,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
+sweepOn  = input.bool(true, "Liquidity sweep BUY / SELL",         group = grpSMC)
+sweepTr  = input.bool(false, "Sweep signals only with trend SMA", group = grpSMC)
+smcBull  = input.color(#00e5ff, "Bullish colour", group = grpSMC)
+smcBear  = input.color(#ff4081, "Bearish colour", group = grpSMC)
+
+sPh = ta.pivothigh(high, smcPiv, smcPiv)
+sPl = ta.pivotlow(low,  smcPiv, smcPiv)
+var float sH = na, var int sHbar = na, var float sL = na, var int sLbar = na   // last confirmed swings
+var float prevH = na, var float prevL = na                                  // the swing before that (liquidity)
+var int   trendDir = 0                                                     // +1 after a bullish break, -1 after bearish
+if not na(sPh)
+    prevH := sH, sH := sPh, sHbar := bar_index - smcPiv
+if not na(sPl)
+    prevL := sL, sL := sPl, sLbar := bar_index - smcPiv
+
+// Structure breaks (once per swing: the swing is consumed after the break)
+var bool hUsed = false, var bool lUsed = false
+if not na(sPh)
+    hUsed := false
+if not na(sPl)
+    lUsed := false
+brkUp = not na(sH) and not hUsed and close > sH
+brkDn = not na(sL) and not lUsed and close < sL
+var box[] obs = array.new_box()
+var bool[] obsBull = array.new_bool()
+if smcOn and brkUp
+    isChoch = trendDir < 0
+    line.new(sHbar, sH, bar_index, sH, color = color.new(smcBull, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sH, isChoch ? "CHoCH" : "BOS", style = label.style_label_down, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny)
+    trendDir := 1, hUsed := true
+    // bullish OB = last bearish candle in the leg up to this break
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] < open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBull, 60), bgcolor = color.new(smcBull, 88), extend = extend.right)), array.push(obsBull, true)
+if smcOn and brkDn
+    isChoch = trendDir > 0
+    line.new(sLbar, sL, bar_index, sL, color = color.new(smcBear, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sL, isChoch ? "CHoCH" : "BOS", style = label.style_label_up, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny)
+    trendDir := -1, lUsed := true
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] > open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBear, 60), bgcolor = color.new(smcBear, 88), extend = extend.right)), array.push(obsBull, false)
+// mitigate / trim order blocks
+if array.size(obs) > 0
+    for i = array.size(obs) - 1 to 0
+        b = array.get(obs, i)
+        bull = array.get(obsBull, i)
+        gone = bull ? close < box.get_bottom(b) : close > box.get_top(b)
+        if gone
+            box.delete(array.remove(obs, i)), array.remove(obsBull, i)
+    while array.size(obs) > obMax
+        box.delete(array.shift(obs)), array.shift(obsBull)
+
+// Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
+swTrL = not sweepTr or na(trend) or close > trend
+swTrS = not sweepTr or na(trend) or close < trend
+sweepLo = sweepOn and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = sweepOn and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+plotshape(sweepLo, "SWEEP BUY",  shape.triangleup,   location.belowbar, color = color.new(smcBull, 0), size = size.small)
+plotshape(sweepHi, "SWEEP SELL", shape.triangledown, location.abovebar, color = color.new(smcBear, 0), size = size.small)
+if showLbl and sweepLo
+    label.new(bar_index, low,  "BUY\nsweep",  style = label.style_label_up,   color = color.new(smcBull, 100), textcolor = smcBull, size = size.small)
+if showLbl and sweepHi
+    label.new(bar_index, high, "SELL\nsweep", style = label.style_label_down, color = color.new(smcBear, 100), textcolor = smcBear, size = size.small)
+if showTS and sweepLo
+    sp = math.min(low, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and sweepHi
+    sp = math.max(high, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(sweepLo, "SWEEP BUY",  "SMA Signals: liquidity sweep BUY {{ticker}} @ {{close}}")
+alertcondition(sweepHi, "SWEEP SELL", "SMA Signals: liquidity sweep SELL {{ticker}} @ {{close}}")
+alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "SMA Signals: structure break on {{ticker}}")
