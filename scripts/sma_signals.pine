@@ -63,6 +63,20 @@ if array.size(majS) > 0
 blkL = not blkOn or not nearRes
 blkS = not blkOn or not nearSup
 
+// ── RSI (v27) ────────────────────────────────────────────────────────────
+// Guard: no BUY while RSI is overbought, no SELL while oversold. Reading shown in the panel.
+// Divergence signals further down: price makes a lower low but RSI a higher low = BUY, mirror = SELL.
+grpRSI   = "RSI"
+rsiLen   = input.int(14,  "RSI length", minval = 2,                 group = grpRSI)
+rsiGuard = input.bool(true, "Guard: no BUY above / no SELL below",  group = grpRSI)
+rsiHi    = input.int(70,  "Overbought", minval = 50, maxval = 100,  group = grpRSI)
+rsiLo    = input.int(30,  "Oversold",   minval = 0,  maxval = 50,   group = grpRSI)
+rsiDivOn = input.bool(true, "RSI divergence BUY / SELL",            group = grpRSI)
+rsiDivPv = input.int(5,   "Divergence pivot length", minval = 2,    group = grpRSI)
+rsi      = ta.rsi(close, rsiLen)
+rsiL     = not rsiGuard or rsi < rsiHi
+rsiS     = not rsiGuard or rsi > rsiLo
+
 // ── Signals ───────────────────────────────────────────────────────────────
 upCross   = ta.crossover(fast, slow)
 downCross = ta.crossunder(fast, slow)
@@ -71,10 +85,10 @@ trendOK_S = not useTrend or close < trend
 confOK_L  = not confirm or (close > fast and close > slow)
 confOK_S  = not confirm or (close < fast and close < slow)
 
-gateL = sigOK and blkL and (not trendAll or na(slow) or close > slow)
-gateS = sigOK and blkS and (not trendAll or na(slow) or close < slow)
-buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL
-sell = downCross and trendOK_S and confOK_S and sigOK and blkS
+gateL = sigOK and blkL and rsiL and (not trendAll or na(slow) or close > slow)
+gateS = sigOK and blkS and rsiS and (not trendAll or na(slow) or close < slow)
+buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL
+sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS
 
 plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
@@ -468,7 +482,7 @@ alertcondition(stFlipUp, "SUPERTREND BUY",  "SMA Signals: Supertrend BUY {{ticke
 alertcondition(stFlipDn, "SUPERTREND SELL", "SMA Signals: Supertrend SELL {{ticker}} @ {{close}}")
 
 // ATR / ADX panel (table = no plot budget used)
-var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 5, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
+var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 6, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
 if axOn and barstate.islast
     adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
     adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
@@ -482,6 +496,9 @@ if axOn and barstate.islast
     table.cell(axT, 1, 3, stDir < 0 ? "UP" : "DOWN", text_color = stDir < 0 ? #00c853 : #ff1744, text_size = size.small)
     table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
     table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
+    rsiCol = rsi >= rsiHi ? #ff1744 : rsi <= rsiLo ? #00c853 : color.white
+    table.cell(axT, 0, 5, "RSI " + str.tostring(rsi, "#.#"), text_color = rsiCol, text_size = size.small)
+    table.cell(axT, 1, 5, rsi >= rsiHi ? "overbought" : rsi <= rsiLo ? "oversold" : "neutral", text_color = rsiCol, text_size = size.small)
 
 // ── 50 EMA touch & go (v20) ──────────────────────────────────────────────
 // BUY: the EMA is rising and price is above it, the bar's low touches (or dips through) the EMA,
@@ -587,3 +604,34 @@ hA = drawHtf(htOn, htA, htColA)
 hB = drawHtf(htOn, htB, htColB)
 hC = drawHtf(htOn, htC, htColC)
 alertcondition(hA or hB or hC, "HTF SIGNAL", "SMA Signals: higher-timeframe signal on {{ticker}}")
+
+
+// ── RSI divergence (v27) ─────────────────────────────────────────────────
+// Bullish: price sets a lower pivot low while RSI sets a higher pivot low (selling is losing force).
+// Bearish: price higher pivot high, RSI lower pivot high. Confirmed at the pivot, marked there.
+// Stop = the pivot extreme, target 1.5R. Same trend / level / RSI guards as every other signal.
+rPl = ta.pivotlow(low,  rsiDivPv, rsiDivPv)
+rPh = ta.pivothigh(high, rsiDivPv, rsiDivPv)
+var float dLo1 = na, var float dLoR1 = na, var float dHi1 = na, var float dHiR1 = na
+divBuy  = false
+divSell = false
+if not na(rPl)
+    rsiAt = rsi[rsiDivPv]
+    divBuy := rsiDivOn and not na(dLo1) and rPl < dLo1 and rsiAt > dLoR1 and rsiAt < 50 and gateL
+    dLo1 := rPl, dLoR1 := rsiAt
+if not na(rPh)
+    rsiAt = rsi[rsiDivPv]
+    divSell := rsiDivOn and not na(dHi1) and rPh > dHi1 and rsiAt < dHiR1 and rsiAt > 50 and gateS
+    dHi1 := rPh, dHiR1 := rsiAt
+if showLbl and divBuy
+    label.new(bar_index - rsiDivPv, low[rsiDivPv] - atr14 * lblGap,  "BUY\nRSI div",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+if showLbl and divSell
+    label.new(bar_index - rsiDivPv, high[rsiDivPv] + atr14 * lblGap, "SELL\nRSI div", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+if showTS and divBuy
+    sp = math.min(low[rsiDivPv], close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and divSell
+    sp = math.max(high[rsiDivPv], close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(divBuy,  "RSI DIV BUY",  "SMA Signals: RSI bullish divergence {{ticker}} @ {{close}}")
+alertcondition(divSell, "RSI DIV SELL", "SMA Signals: RSI bearish divergence {{ticker}} @ {{close}}")
