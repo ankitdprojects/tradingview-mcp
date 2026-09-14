@@ -1,5 +1,5 @@
 //@version=6
-indicator("SMA Signals", overlay=true, max_labels_count=200, max_lines_count=100)
+indicator("SMA Signals", overlay=true, max_labels_count=200, max_lines_count=150)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 fastLen   = input.int(50,  "Fast SMA", minval=1)
@@ -78,8 +78,8 @@ drawFib(line ln, label lb, float px, string txt, color col, int startBar) =>
         nl := line.new(startBar, px, bar_index + 1, px, color=col, style=line.style_dashed, width=1)
         nb := label.new(bar_index + 1, px, txt, style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.tiny)
     else
-        line.set_xy1(nl, startBar, px), line.set_xy2(nl, bar_index + 1, px)
-        label.set_xy(nb, bar_index + 1, px), label.set_text(nb, txt)
+        line.set_xy1(nl, startBar, px), line.set_xy2(nl, bar_index + 1, px), line.set_color(nl, col)
+        label.set_xy(nb, bar_index + 1, px), label.set_text(nb, txt), label.set_textcolor(nb, col)
     [nl, nb]
 
 if fibOn and not na(rng) and rng > 0 and barstate.islast
@@ -90,8 +90,9 @@ if fibOn and not na(rng) and rng > 0 and barstate.islast
     [a3, b3]     = drawFib(l618, lb618, f618,  "0.618", color.new(#ff9800, 0),  startBar)
     [a4, b4]     = drawFib(l786, lb786, f786,  str.tostring(fibDeep), color.new(#ef5350, 0), startBar)
     [a5, b5]     = drawFib(l100, lb100, upLeg ? swLo : swHi, "1",     color.new(#787b86, 20), startBar)
-    [a6, b6]     = drawFib(lt1,  lbt1,  t1272, "T 1.272", color.new(#00c853, 0), startBar)
-    [a7, b7]     = drawFib(lt2,  lbt2,  t1618, "T 1.618", color.new(#00c853, 0), startBar)
+    // an option premium can't go below 0: hide extension targets that fall under it (colour 100 = invisible)
+    [a6, b6]     = drawFib(lt1,  lbt1,  math.max(t1272, syminfo.mintick), "T 1.272", color.new(#00c853, t1272 > 0 ? 0 : 100), startBar)
+    [a7, b7]     = drawFib(lt2,  lbt2,  math.max(t1618, syminfo.mintick), "T 1.618", color.new(#00c853, t1618 > 0 ? 0 : 100), startBar)
     l0 := a0, lb0 := b0, l382 := a1, lb382 := b1, l500 := a2, lb500 := b2, l618 := a3, lb618 := b3
     l786 := a4, lb786 := b4, l100 := a5, lb100 := b5, lt1 := a6, lbt1 := b6, lt2 := a7, lbt2 := b7
 
@@ -170,3 +171,139 @@ if showTS
                 label.set_text(array.get(sLb, i), "Stop " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
             else if hitT and not (buy or sell or fibBuy or fibSell)
                 label.set_text(array.get(tLb, i), "Target " + str.tostring(tp, format.mintick) + " ✓"), array.set(tDir, i, 0)
+
+// ── Fib channel (auto-anchored) ────────────────────────────────────────────
+// Like TradingView's Fib Channel drawing: a base trendline through two swing
+// points plus a width, with Fibonacci ratios drawn as parallel lines. Anchors
+// follow the trend: uptrend = base through the last two confirmed pivot lows,
+// width up to the highest high between them; downtrend = mirror. Rebuilt
+// whenever a new pivot confirms. Appended after the OB/OS block; inputs
+// earlier input ids stay stable. Costs drawings only, not an indicator slot.
+grpFC     = "Fib channel"
+showFib   = input.bool(true, "Show auto Fib channel", group = grpFC)
+fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval = 50, group = grpFC,
+    tooltip = "Larger = bigger swings and a wider, slower channel. Same idea as the S/R pivot length.")
+fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
+fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
+fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+fibOnlyOK = input.bool(true, "Show only while price respects the channel", group = grpFC,
+    tooltip = "Hidden until a ratio line has been touched and held at least N times, and " +
+            "hidden again once price closes outside the channel band or the trend flips.")
+fibMinT   = input.int(1, "Touches required before showing", minval = 1, maxval = 5, group = grpFC)
+fibTol    = input.float(0.15, "Touch tolerance (ATR x)", minval = 0.05, maxval = 1, step = 0.05, group = grpFC)
+
+fPh = ta.pivothigh(high, fibPvt, fibPvt)
+fPl = ta.pivotlow(low,  fibPvt, fibPvt)
+
+// Last two confirmed pivot lows / highs with their bar indexes.
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na   // pl2 = most recent
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na
+if not na(fPl)
+    pl1 := pl2, pl1i := pl2i
+    pl2 := fPl, pl2i := bar_index - fibPvt
+if not na(fPh)
+    ph1 := ph2, ph1i := ph2i
+    ph2 := fPh, ph2i := bar_index - fibPvt
+
+var line[]  fibLn = array.new_line()
+var label[] fibLb = array.new_label()
+fibUp = close > trend            // channel direction follows the 200 SMA
+// Channel geometry kept for the per-bar "is it being respected" test.
+var float fcX1 = na, var float fcY1 = na, var float fcSlope = na, var float fcWid = na
+var bool  fcUp = false
+var int   fcTouches = 0
+var bool  fcShown = false
+
+if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
+    // Base line: two most recent pivots on the trend side. Width: the extreme
+    // of the opposite side between them (highest high in an uptrend).
+    float bx1 = na, float by1 = na, float bx2 = na, float by2 = na, float wid = na
+    if fibUp and not na(pl1) and not na(pl2) and pl2i > pl1i
+        bx1 := pl1i, by1 := pl1, bx2 := pl2i, by2 := pl2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float hh = 0.0
+        for i = 0 to pl2i - pl1i
+            hh := math.max(hh, high[bar_index - pl1i - i])
+        // distance from the base line to the highest high, measured at its bar
+        int hhBar = pl1i
+        for i = 0 to pl2i - pl1i
+            if high[bar_index - pl1i - i] == hh
+                hhBar := pl1i + i
+        wid := hh - (by1 + slope * (hhBar - bx1))
+    else if not fibUp and not na(ph1) and not na(ph2) and ph2i > ph1i
+        bx1 := ph1i, by1 := ph1, bx2 := ph2i, by2 := ph2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float ll = 1.0e12
+        for i = 0 to ph2i - ph1i
+            ll := math.min(ll, low[bar_index - ph1i - i])
+        int llBar = ph1i
+        for i = 0 to ph2i - ph1i
+            if low[bar_index - ph1i - i] == ll
+                llBar := ph1i + i
+        wid := ll - (by1 + slope * (llBar - bx1))          // negative in a downtrend
+    if not na(wid) and wid != 0
+        while array.size(fibLn) > 0
+            line.delete(array.pop(fibLn))
+        while array.size(fibLb) > 0
+            label.delete(array.pop(fibLb))
+        slope = (by2 - by1) / (bx2 - bx1)
+        fcX1 := bx1, fcY1 := by1, fcSlope := slope, fcWid := wid
+        fcUp := fibUp, fcTouches := 0, fcShown := false
+        ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+        for r = 0 to array.size(ratios) - 1
+            k   = array.get(ratios, r)
+            off = wid * k
+            y1  = by1 + off
+            y2  = by2 + off
+            isEdge = k == 0.0 or k == 1.0
+            isMid  = k == 0.5 or k == 0.618
+            ln = line.new(int(bx1), y1, int(bx2), y2, extend = extend.right,
+                          color = color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55),
+                          width = isEdge ? fibWidth + 1 : fibWidth,
+                          style = isEdge ? line.style_solid : line.style_dotted, force_overlay = true)
+            array.push(fibLn, ln)
+            yNow = by1 + slope * (bar_index - bx1) + off
+            array.push(fibLb, label.new(bar_index + 2, yNow, str.tostring(k, "#.###"),
+                          style = label.style_label_left, color = color.new(fibCol, 100),
+                          textcolor = fibCol, size = size.tiny, force_overlay = true))
+
+// Is the channel being respected? Position of price inside the channel as a
+// ratio (0 = base line, 1 = far edge). A touch = a bar's extreme comes within
+// fibTol ATR of a ratio line and the bar closes back on the inside of it.
+// Respected = enough touches, price still inside the band, trend unchanged.
+fcBase   = not na(fcX1) ? fcY1 + fcSlope * (bar_index - fcX1) : na
+fcPosC   = not na(fcBase) and fcWid != 0 ? (close - fcBase) / fcWid : na
+fcPosH   = not na(fcBase) and fcWid != 0 ? (high  - fcBase) / fcWid : na
+fcPosL   = not na(fcBase) and fcWid != 0 ? (low   - fcBase) / fcWid : na
+fcTolR   = not na(fcWid) and fcWid != 0 ? atr14 * fibTol / math.abs(fcWid) : na
+if not na(fcPosC) and barstate.isconfirmed
+    lvls = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    bool touched = false
+    for i = 0 to array.size(lvls) - 1
+        k = array.get(lvls, i)
+        // wick reached the line (either side) and the close stayed on the "inside"
+        // (toward the middle of the channel) — a hold, not a break.
+        reached = math.min(math.abs(fcPosH - k), math.abs(fcPosL - k)) <= fcTolR
+        heldIn  = k <= 0.5 ? fcPosC >= k - fcTolR : fcPosC <= k + fcTolR
+        if reached and heldIn
+            touched := true
+    if touched
+        fcTouches += 1
+fcInside  = not na(fcPosC) and fcPosC >= -0.618 and fcPosC <= 1.618
+fcTrendOK = not na(fcPosC) and fcUp == fibUp
+fcRespect = not fibOnlyOK or (fcTouches >= fibMinT and fcInside and fcTrendOK)
+
+// Show / hide by colour so nothing is redrawn every bar. Labels ride along
+// with the latest bar so the ratio is readable at any zoom.
+if showFib and array.size(fibLb) > 0
+    for i = 0 to array.size(fibLb) - 1
+        lb = array.get(fibLb, i)
+        ln = array.get(fibLn, i)
+        x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
+        sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
+        label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+        kk = str.tonumber(label.get_text(lb))
+        isEdge = kk == 0.0 or kk == 1.0
+        isMid  = kk == 0.5 or kk == 0.618
+        line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
+        label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
