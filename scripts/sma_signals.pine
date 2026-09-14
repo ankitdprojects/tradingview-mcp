@@ -11,7 +11,9 @@ showLbl   = input.bool(true, "Show BUY / SELL text labels")
 sigMinTf  = input.int(0, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
 lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, minval = 0, group = "Display")
 trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
-sigOK     = sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60
+// Signals are evaluated only on CLOSED bars (barstate.isconfirmed) so a label, once drawn, never disappears
+// when the live bar moves against it. A signal therefore appears at the close of its bar and then stays.
+sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed
 oneMinOnly = input.bool(true, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
 is1m      = timeframe.in_seconds() <= 60
 othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
@@ -594,7 +596,7 @@ htfSig() =>
 
 drawHtf(bool on, string tf, color col) =>
     [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
-    fresh = on and othersOK and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    fresh = on and othersOK and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
     // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
     if fresh and b
         label.new(bar_index, low - atr14 * htGap,  "BUY " + tf + "m\n" + tb,  style = label.style_label_up,   color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "stop " + str.tostring(spB, format.mintick))
@@ -693,7 +695,7 @@ m5Sig() =>
     _x = ta.crossunder(_f, _s) and (not m5Conf or (close < _f and close < _s))
     [_b, _x, _s, close]
 [m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_off)
-m5Fresh = m5On and is1m and ta.change(time("5")) != 0
+m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 m5Buy   = m5Fresh and m5B and blkL and rsiL
 m5Sell  = m5Fresh and m5S and blkS and rsiS
 if m5Buy
@@ -730,7 +732,7 @@ w5Sig() =>
     _s = _rng > 0 and _upper >= _body * wkRatio and _upper >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
     [_b, _s, _mean, low, high, close, _atr]
 [w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_off)
-w5Fresh = w5On and is1m and ta.change(time("5")) != 0
+w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 w5Buy   = w5Fresh and w5B and blkL and rsiL
 w5Sell  = w5Fresh and w5S and blkS and rsiS
 if w5Buy
