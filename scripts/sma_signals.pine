@@ -307,3 +307,56 @@ if showFib and array.size(fibLb) > 0
         isMid  = kk == 0.5 or kk == 0.618
         line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
         label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
+
+// ── Bollinger Bands (v9) ──────────────────────────────────────────────────
+// Bands + two things to act on:
+//   FOCUS  = squeeze: band width at its lowest of the last N bars (volatility coiled,
+//            a move is coming). Background tinted yellow while it lasts, "SQUEEZE" tag at the start.
+//   SIGNAL = squeeze breakout: first close outside a band while / right after a squeeze,
+//            in the direction of the 200 SMA. BB BUY above the upper band, BB SELL below the lower.
+grpBB    = "Bollinger Bands"
+bbOn     = input.bool(true,  "Show Bollinger Bands",              group = grpBB)
+bbLen    = input.int(20,     "Length", minval = 5,                group = grpBB)
+bbMult   = input.float(2.0,  "StdDev", minval = 0.5, step = 0.1, group = grpBB)
+bbSqzN   = input.int(100,    "Squeeze = narrowest width in N bars", minval = 20, group = grpBB)
+bbSqzOn  = input.bool(true,  "Highlight squeeze (focus)",         group = grpBB)
+bbSigOn  = input.bool(true,  "BB BUY / SELL on squeeze breakout", group = grpBB)
+bbTrendG = input.bool(true,  "Breakout only with 200 SMA trend",  group = grpBB)
+bbCol    = input.color(#7e57c2, "Band colour",                    group = grpBB)
+
+bbBasis  = ta.sma(close, bbLen)
+bbDev    = bbMult * ta.stdev(close, bbLen)
+bbUpper  = bbBasis + bbDev
+bbLower  = bbBasis - bbDev
+bbWidth  = (bbUpper - bbLower) / bbBasis
+pU = plot(bbOn ? bbUpper : na, "BB Upper", color = color.new(bbCol, 20), linewidth = 1)
+pL = plot(bbOn ? bbLower : na, "BB Lower", color = color.new(bbCol, 20), linewidth = 1)
+plot(bbOn ? bbBasis : na, "BB Basis", color = color.new(bbCol, 50), linewidth = 1, style = plot.style_line)
+fill(pU, pL, color = color.new(bbCol, 93), title = "BB fill")
+
+// Squeeze: current width is the narrowest of the lookback (allow a 5% tolerance so it holds a few bars)
+bbSqz    = bbOn and bbSqzOn and bbWidth <= ta.lowest(bbWidth, bbSqzN) * 1.05
+bgcolor(bbSqz ? color.new(#ffd600, 85) : na, title = "Squeeze focus")
+if bbSqz and not bbSqz[1]
+    label.new(bar_index, bbUpper, "SQUEEZE", style = label.style_label_down, color = color.new(#ffd600, 100), textcolor = #ffd600, size = size.tiny)
+
+// Breakout: first close beyond a band during or within 3 bars after a squeeze
+recentSqz = bbSqz or bbSqz[1] or bbSqz[2] or bbSqz[3]
+bbBuy  = bbOn and bbSigOn and recentSqz and close > bbUpper and close[1] <= bbUpper[1] and close > open and (not bbTrendG or close > trend)
+bbSell = bbOn and bbSigOn and recentSqz and close < bbLower and close[1] >= bbLower[1] and close < open and (not bbTrendG or close < trend)
+plotshape(bbBuy,  "BB BUY",  shape.labelup,   location.belowbar, color = color.new(bbCol, 0), text = "BB", textcolor = color.white, size = size.tiny)
+plotshape(bbSell, "BB SELL", shape.labeldown, location.abovebar, color = color.new(bbCol, 0), text = "BB", textcolor = color.white, size = size.tiny)
+if showLbl and bbBuy
+    label.new(bar_index, low,  "BB BUY",  style = label.style_label_up,   color = color.new(bbCol, 100), textcolor = bbCol, size = size.small)
+if showLbl and bbSell
+    label.new(bar_index, high, "BB SELL", style = label.style_label_down, color = color.new(bbCol, 100), textcolor = bbCol, size = size.small)
+// stop = opposite band, target = 1.5R (SMA rule), marked like the other signals
+if showTS and bbBuy
+    sp = math.min(bbLower, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and bbSell
+    sp = math.max(bbUpper, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(bbSqz and not bbSqz[1], "BB SQUEEZE", "SMA Signals: Bollinger squeeze on {{ticker}}")
+alertcondition(bbBuy,  "BB BUY",  "SMA Signals: BB BUY {{ticker}} @ {{close}}")
+alertcondition(bbSell, "BB SELL", "SMA Signals: BB SELL {{ticker}} @ {{close}}")
