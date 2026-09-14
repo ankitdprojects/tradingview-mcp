@@ -682,3 +682,95 @@ if showTS and fvgSell
 alertcondition(bullGap or bearGap, "FVG formed", "SMA Signals: new Fair Value Gap on {{ticker}}")
 alertcondition(fvgBuy,  "FVG BUY",  "SMA Signals: FVG retest BUY {{ticker}} @ {{close}}")
 alertcondition(fvgSell, "FVG SELL", "SMA Signals: FVG retest SELL {{ticker}} @ {{close}}")
+
+// ── Support / Resistance + Supertrend + ATR / ADX (v19) ──────────────────
+grpSR    = "Support / Resistance"
+srOn     = input.bool(true, "Show S/R levels",                 group = grpSR)
+srPiv    = input.int(15,    "Pivot length", minval = 3,        group = grpSR)
+srMax    = input.int(6,     "Levels kept (each side)", minval = 1, maxval = 12, group = grpSR)
+srTol    = input.float(0.3, "Merge levels closer than (ATR x)", step = 0.1, group = grpSR)
+srResC   = input.color(#ef5350, "Resistance colour", group = grpSR)
+srSupC   = input.color(#26a69a, "Support colour",    group = grpSR)
+
+grpST    = "Supertrend"
+stOn     = input.bool(true, "Show Supertrend",                 group = grpST)
+stLen    = input.int(10,    "ATR length", minval = 1,          group = grpST)
+stMult   = input.float(3.0, "Multiplier", step = 0.5,          group = grpST)
+stSigOn  = input.bool(true, "BUY / SELL on Supertrend flip",  group = grpST)
+stAdxMin = input.float(20,  "Flip signal needs ADX above (0 = off)", step = 1, minval = 0, group = grpST)
+
+grpAX    = "ATR / ADX"
+axOn     = input.bool(true, "Show ATR / ADX panel",           group = grpAX)
+adxLen   = input.int(14,    "ADX length", minval = 1,          group = grpAX)
+axPos    = input.string("Top right", "Panel position", options = ["Top right", "Top left", "Bottom right", "Bottom left"], group = grpAX)
+
+// S/R: confirmed pivot highs become resistance, pivot lows support; nearby levels merge; lines extend right
+srPh = ta.pivothigh(high, srPiv, srPiv)
+srPl = ta.pivotlow(low,  srPiv, srPiv)
+var line[]  srRl = array.new_line(), var line[]  srSl = array.new_line()
+var label[] srRb = array.new_label(), var label[] srSb = array.new_label()
+addLevel(line[] lines, label[] labs, float px, int startBar, color col, string tag) =>
+    // drop an existing level within tolerance (it gets replaced by the fresher one)
+    if array.size(lines) > 0
+        for i = array.size(lines) - 1 to 0
+            if math.abs(line.get_y1(array.get(lines, i)) - px) <= atr14 * srTol
+                line.delete(array.remove(lines, i)), label.delete(array.remove(labs, i))
+    array.push(lines, line.new(startBar, px, bar_index + 1, px, color = color.new(col, 30), style = line.style_solid, width = 1, extend = extend.right))
+    array.push(labs, label.new(bar_index + 1, px, tag + " " + str.tostring(px, format.mintick), style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.tiny))
+    while array.size(lines) > srMax
+        line.delete(array.shift(lines)), label.delete(array.shift(labs))
+if srOn and not na(srPh)
+    addLevel(srRl, srRb, srPh, bar_index - srPiv, srResC, "R")
+if srOn and not na(srPl)
+    addLevel(srSl, srSb, srPl, bar_index - srPiv, srSupC, "S")
+// keep labels at the right edge; a broken level swaps colour (resistance below price acts as support)
+if srOn and barstate.islast
+    for i = 0 to (array.size(srRb) > 0 ? array.size(srRb) - 1 : na)
+        lb = array.get(srRb, i), ln = array.get(srRl, i)
+        label.set_x(lb, bar_index + 1)
+        c = line.get_y1(ln) > close ? srResC : srSupC
+        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
+    for i = 0 to (array.size(srSb) > 0 ? array.size(srSb) - 1 : na)
+        lb = array.get(srSb, i), ln = array.get(srSl, i)
+        label.set_x(lb, bar_index + 1)
+        c = line.get_y1(ln) < close ? srSupC : srResC
+        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
+
+// Supertrend + ADX
+[stLine, stDir] = ta.supertrend(stMult, stLen)
+[diP, diM, adx] = ta.dmi(adxLen, adxLen)
+plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
+stFlipUp = stOn and stSigOn and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipDn = stOn and stSigOn and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+if stFlipUp
+    label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(#00c853, 0), size = size.small, tooltip = "Supertrend BUY")
+if stFlipDn
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(#ff1744, 0), size = size.small, tooltip = "Supertrend SELL")
+if showLbl and stFlipUp
+    label.new(bar_index, low,  "BUY\nST",  style = label.style_label_up,   color = color.new(#00c853, 100), textcolor = #00c853, size = size.small)
+if showLbl and stFlipDn
+    label.new(bar_index, high, "SELL\nST", style = label.style_label_down, color = color.new(#ff1744, 100), textcolor = #ff1744, size = size.small)
+if showTS and stFlipUp
+    sp = math.min(stLine, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and stFlipDn
+    sp = math.max(stLine, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(stFlipUp, "SUPERTREND BUY",  "SMA Signals: Supertrend BUY {{ticker}} @ {{close}}")
+alertcondition(stFlipDn, "SUPERTREND SELL", "SMA Signals: Supertrend SELL {{ticker}} @ {{close}}")
+
+// ATR / ADX panel (table = no plot budget used)
+var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 5, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
+if axOn and barstate.islast
+    adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
+    adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
+    table.cell(axT, 0, 0, "ATR " + str.tostring(atr14, format.mintick), text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 0, str.tostring(100 * atr14 / close, "#.##") + "%", text_color = #9598a1, text_size = size.small)
+    table.cell(axT, 0, 1, "ADX " + str.tostring(adx, "#.#"), text_color = adxCol, text_size = size.small)
+    table.cell(axT, 1, 1, adxTxt, text_color = adxCol, text_size = size.small)
+    table.cell(axT, 0, 2, "+DI " + str.tostring(diP, "#.#"), text_color = diP > diM ? #00c853 : #9598a1, text_size = size.small)
+    table.cell(axT, 1, 2, "-DI " + str.tostring(diM, "#.#"), text_color = diM > diP ? #ff1744 : #9598a1, text_size = size.small)
+    table.cell(axT, 0, 3, "Supertrend", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 3, stDir < 0 ? "UP" : "DOWN", text_color = stDir < 0 ? #00c853 : #ff1744, text_size = size.small)
+    table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
