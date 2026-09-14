@@ -27,16 +27,44 @@ trendOK_S = not useTrend or close < trend
 confOK_L  = not confirm or (close > fast and close > slow)
 confOK_S  = not confirm or (close < fast and close < slow)
 
-buy  = upCross   and trendOK_L and confOK_L
-sell = downCross and trendOK_S and confOK_S
+// ── RSI filter (v2) ───────────────────────────────────────────────────────
+useRsi  = input.bool(true, "RSI filter",            group="RSI")
+rsiLen  = input.int(14,    "RSI length", minval=2,  group="RSI")
+rsiMid  = input.int(50,    "BUY needs RSI above / SELL below", minval=1, maxval=99, group="RSI")
+rsiHi   = input.int(70,    "No BUY when RSI above (overbought)",  minval=50, maxval=100, group="RSI")
+rsiLo   = input.int(30,    "No SELL when RSI below (oversold)",   minval=0,  maxval=50,  group="RSI")
+rsi     = ta.rsi(close, rsiLen)
+rsiOK_L = not useRsi or (rsi > rsiMid and rsi < rsiHi)
+rsiOK_S = not useRsi or (rsi < rsiMid and rsi > rsiLo)
+
+buy  = upCross   and trendOK_L and confOK_L and rsiOK_L
+sell = downCross and trendOK_S and confOK_S and rsiOK_S
 
 plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
 
 if showLbl and buy
-    label.new(bar_index, low,  "BUY",  style=label.style_label_up,   color=color.new(#00c853, 100), textcolor=#00c853, size=size.small)
+    label.new(bar_index, low,  "BUY\nRSI " + str.tostring(rsi, "#"),  style=label.style_label_up,   color=color.new(#00c853, 100), textcolor=#00c853, size=size.small)
 if showLbl and sell
-    label.new(bar_index, high, "SELL", style=label.style_label_down, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small)
+    label.new(bar_index, high, "SELL\nRSI " + str.tostring(rsi, "#"), style=label.style_label_down, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small)
+
+// ── RSI's own signals: oversold / overbought turn ─────────────────────────
+rsiSig    = input.bool(true, "RSI BUY / SELL signals (turn from oversold / overbought)", group="RSI")
+rsiSigTr  = input.bool(true, "RSI signals only with 50 SMA trend", group="RSI")
+rsiBuy  = rsiSig and ta.crossover(rsi, rsiLo)  and (not rsiSigTr or close > trend)   // came back up out of oversold
+rsiSell = rsiSig and ta.crossunder(rsi, rsiHi) and (not rsiSigTr or close < trend)   // fell back down out of overbought
+
+plotshape(rsiBuy,  "RSI BUY",  shape.circle, location.belowbar, color=color.new(#2962ff, 0), size=size.tiny)
+plotshape(rsiSell, "RSI SELL", shape.circle, location.abovebar, color=color.new(#aa00ff, 0), size=size.tiny)
+if showLbl and rsiBuy
+    label.new(bar_index, low,  "RSI BUY",  style=label.style_label_up,   color=color.new(#2962ff, 100), textcolor=#2962ff, size=size.small)
+if showLbl and rsiSell
+    label.new(bar_index, high, "RSI SELL", style=label.style_label_down, color=color.new(#aa00ff, 100), textcolor=#aa00ff, size=size.small)
+alertcondition(rsiBuy,  "RSI BUY",  "SMA Signals: RSI BUY {{ticker}} @ {{close}}")
+alertcondition(rsiSell, "RSI SELL", "SMA Signals: RSI SELL {{ticker}} @ {{close}}")
+
+// RSI value exported to the data window / status line
+plot(rsi, "RSI", display=display.data_window + display.status_line)
 
 // Soft background so the current regime is visible at a glance
 bgcolor(fast > slow ? color.new(#00c853, 94) : color.new(#ff1744, 94))
