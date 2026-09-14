@@ -504,3 +504,63 @@ if showTS and sweepHi
 alertcondition(sweepLo, "SWEEP BUY",  "SMA Signals: liquidity sweep BUY {{ticker}} @ {{close}}")
 alertcondition(sweepHi, "SWEEP SELL", "SMA Signals: liquidity sweep SELL {{ticker}} @ {{close}}")
 alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "SMA Signals: structure break on {{ticker}}")
+
+// ── VWAP mean reversion (v13) ────────────────────────────────────────────
+// Session VWAP with ±1σ / ±2σ bands. Mean-reversion signal: price stretched beyond the outer band
+// and then CLOSES back inside it → BUY from below (blue triangle), SELL from above.
+// Target = VWAP itself (that is the reversion), stop = the extreme reached beyond the band.
+grpVW    = "VWAP mean reversion"
+vwOn     = input.bool(true,  "Show session VWAP + bands",       group = grpVW)
+vwMult1  = input.float(1.0,  "Inner band (σ)", step = 0.25,      group = grpVW)
+vwMult2  = input.float(2.0,  "Outer band (σ) = signal band", step = 0.25, group = grpVW)
+vwSigOn  = input.bool(true,  "VWAP BUY / SELL (reclaim of outer band)", group = grpVW)
+vwTrendG = input.bool(false, "Signals only with trend SMA",      group = grpVW)
+vwCol    = input.color(#2962ff, "VWAP colour",                   group = grpVW)
+
+newSess  = ta.change(time("D")) != 0
+var float vwSumPV = 0.0, var float vwSumV = 0.0, var float vwSumPV2 = 0.0
+if newSess
+    vwSumPV := 0.0, vwSumV := 0.0, vwSumPV2 := 0.0
+vwV = nz(volume) > 0 ? volume : 1.0            // symbols without volume still get a price-average line
+vwSumPV  += hlc3 * vwV
+vwSumV   += vwV
+vwSumPV2 += hlc3 * hlc3 * vwV
+vwap     = vwSumPV / vwSumV
+vwVar    = math.max(vwSumPV2 / vwSumV - vwap * vwap, 0)
+vwSd     = math.sqrt(vwVar)
+vwU1 = vwap + vwSd * vwMult1, vwL1 = vwap - vwSd * vwMult1
+vwU2 = vwap + vwSd * vwMult2, vwL2 = vwap - vwSd * vwMult2
+plot(vwOn ? vwap : na, "VWAP", color = color.new(vwCol, 0), linewidth = 2)
+pU1 = plot(vwOn ? vwU1 : na, "VWAP +1σ", color = color.new(vwCol, 60))
+pL1 = plot(vwOn ? vwL1 : na, "VWAP -1σ", color = color.new(vwCol, 60))
+pU2 = plot(vwOn ? vwU2 : na, "VWAP +2σ", color = color.new(vwCol, 35), style = plot.style_circles)
+pL2 = plot(vwOn ? vwL2 : na, "VWAP -2σ", color = color.new(vwCol, 35), style = plot.style_circles)
+fill(pU1, pL1, color = color.new(vwCol, 94), title = "VWAP 1σ fill")
+
+// stretched = a close beyond the outer band; the signal is the first close back inside
+var bool  vwBelow = false, var bool vwAbove = false
+var float vwExtLo = na, var float vwExtHi = na
+if close < vwL2
+    vwBelow := true, vwExtLo := na(vwExtLo) ? low : math.min(vwExtLo, low)
+if close > vwU2
+    vwAbove := true, vwExtHi := na(vwExtHi) ? high : math.max(vwExtHi, high)
+vwTrL = not vwTrendG or na(trend) or close > trend
+vwTrS = not vwTrendG or na(trend) or close < trend
+vwBuy  = vwOn and vwSigOn and vwBelow and close > vwL2 and close > open and close < vwap and vwTrL
+vwSell = vwOn and vwSigOn and vwAbove and close < vwU2 and close < open and close > vwap and vwTrS
+if vwBuy or close > vwap
+    vwBelow := false, vwExtLo := na
+if vwSell or close < vwap
+    vwAbove := false, vwExtHi := na
+plotshape(vwBuy,  "VWAP BUY",  shape.triangleup,   location.belowbar, color = color.new(vwCol, 0), size = size.small)
+plotshape(vwSell, "VWAP SELL", shape.triangledown, location.abovebar, color = color.new(vwCol, 0), size = size.small)
+if showLbl and vwBuy
+    label.new(bar_index, low,  "BUY\nvwap",  style = label.style_label_up,   color = color.new(vwCol, 100), textcolor = vwCol, size = size.small)
+if showLbl and vwSell
+    label.new(bar_index, high, "SELL\nvwap", style = label.style_label_down, color = color.new(vwCol, 100), textcolor = vwCol, size = size.small)
+if showTS and vwBuy
+    newTrade(true,  math.min(nz(vwExtLo[1], low), close - atr14 * minStopAtr), vwap)
+if showTS and vwSell
+    newTrade(false, math.max(nz(vwExtHi[1], high), close + atr14 * minStopAtr), vwap)
+alertcondition(vwBuy,  "VWAP BUY",  "SMA Signals: VWAP mean-reversion BUY {{ticker}} @ {{close}}")
+alertcondition(vwSell, "VWAP SELL", "SMA Signals: VWAP mean-reversion SELL {{ticker}} @ {{close}}")
