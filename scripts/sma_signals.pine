@@ -7,7 +7,10 @@ slowLen   = input.int(200, "Slow SMA", minval=2)
 useTrend  = input.bool(false, "Only trade with trend SMA")
 trendLen  = input.int(200, "Trend SMA", minval=5)
 confirm   = input.bool(true, "Close must be on the right side of both SMAs")
-showLbl   = input.bool(true, "Show BUY / SELL labels")
+showLbl   = input.bool(false, "Show text labels (off = compact markers only)")
+sigMinTf  = input.int(15, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
+trendAll  = input.bool(true, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
+sigOK     = sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60
 alerts    = input.bool(true, "Enable alerts")
 
 // ── SMAs ──────────────────────────────────────────────────────────────────
@@ -27,8 +30,10 @@ trendOK_S = not useTrend or close < trend
 confOK_L  = not confirm or (close > fast and close > slow)
 confOK_S  = not confirm or (close < fast and close < slow)
 
-buy  = upCross   and trendOK_L and confOK_L
-sell = downCross and trendOK_S and confOK_S
+gateL = sigOK and (not trendAll or na(slow) or close > slow)
+gateS = sigOK and (not trendAll or na(slow) or close < slow)
+buy  = upCross   and trendOK_L and confOK_L and sigOK
+sell = downCross and trendOK_S and confOK_S and sigOK
 
 plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
@@ -52,7 +57,7 @@ alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
 showTS     = input.bool(true, "Mark target & stop",              group="Targets")
 tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
-maxLive    = input.int(4, "Max live trades shown", minval=1, maxval=20, group="Targets")
+maxLive    = input.int(2, "Max live trades shown", minval=1, maxval=20, group="Targets")
 
 atr14 = ta.atr(14)
 var line[]  tLn = array.new_line(),  var line[]  sLn = array.new_line()
@@ -237,10 +242,10 @@ if showFib and array.size(fibLb) > 0
 //             stops resting there. Sweep of a swing LOW + close back above it = BUY (cyan-pink),
 //             sweep of a swing HIGH = SELL. Stop = the sweep wick, target 1.5R.
 grpSMC   = "Smart Money Concepts"
-smcOn    = input.bool(true, "Show structure (BOS / CHoCH)",        group = grpSMC)
+smcOn    = input.bool(false, "Show structure (BOS / CHoCH)",       group = grpSMC)
 smcPiv   = input.int(5,     "Structure pivot length", minval = 2,  group = grpSMC)
 obOn     = input.bool(true, "Show order blocks",                   group = grpSMC)
-obMax    = input.int(6,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
+obMax    = input.int(3,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
 sweepOn  = input.bool(true, "Liquidity sweep BUY / SELL",         group = grpSMC)
 sweepTr  = input.bool(false, "Sweep signals only with trend SMA", group = grpSMC)
 smcBull  = input.color(#00e5ff, "Bullish colour", group = grpSMC)
@@ -303,8 +308,8 @@ if array.size(obs) > 0
 // Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
 swTrL = not sweepTr or na(trend) or close > trend
 swTrS = not sweepTr or na(trend) or close < trend
-sweepLo = sweepOn and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
-sweepHi = sweepOn and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+sweepLo = sweepOn and gateL and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = sweepOn and gateS and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
 if sweepLo
     label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(smcBull, 0), size = size.small, tooltip = "SWEEP BUY")
 if sweepHi
@@ -327,7 +332,7 @@ alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "SMA Signals: structur
 grpSR    = "Support / Resistance"
 srOn     = input.bool(true, "Show S/R levels",                 group = grpSR)
 srPiv    = input.int(15,    "Pivot length", minval = 3,        group = grpSR)
-srMax    = input.int(6,     "Levels kept (each side)", minval = 1, maxval = 12, group = grpSR)
+srMax    = input.int(3,     "Levels kept (each side)", minval = 1, maxval = 12, group = grpSR)
 srTol    = input.float(0.3, "Merge levels closer than (ATR x)", step = 0.1, group = grpSR)
 srResC   = input.color(#ef5350, "Resistance colour", group = grpSR)
 srSupC   = input.color(#26a69a, "Support colour",    group = grpSR)
@@ -380,8 +385,8 @@ if srOn and barstate.islast
 [stLine, stDir] = ta.supertrend(stMult, stLen)
 [diP, diM, adx] = ta.dmi(adxLen, adxLen)
 plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
-stFlipUp = stOn and stSigOn and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
-stFlipDn = stOn and stSigOn and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipUp = stOn and stSigOn and gateL and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipDn = stOn and stSigOn and gateS and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
 if stFlipUp
     label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(#00c853, 0), size = size.small, tooltip = "Supertrend BUY")
 if stFlipDn
@@ -433,8 +438,8 @@ emUp     = ema50 > ema50[emSlope]
 emDn     = ema50 < ema50[emSlope]
 emTouchL = low  <= ema50 + atr14 * emTol
 emTouchS = high >= ema50 - atr14 * emTol
-emBuy  = emOn and emSigOn and emUp and emTouchL and close > ema50 and close > open and close[1] > ema50[1]
-emSell = emOn and emSigOn and emDn and emTouchS and close < ema50 and close < open and close[1] < ema50[1]
+emBuy  = emOn and emSigOn and gateL and emUp and emTouchL and close > ema50 and close > open and close[1] > ema50[1]
+emSell = emOn and emSigOn and gateS and emDn and emTouchS and close < ema50 and close < open and close[1] < ema50[1]
 emBuy  := emBuy  and not emBuy[1]
 emSell := emSell and not emSell[1]
 if emBuy
