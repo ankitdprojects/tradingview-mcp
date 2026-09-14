@@ -1,0 +1,207 @@
+
+== by config ==
+SMA 50/200                 net     5870 trades  161 win%  43 avgW/avgL 1.40 cells+ 15/40
+EMA touch                  net    -1614 trades  411 win%  43 avgW/avgL 1.32 cells+ 16/40
+Wick                       net   -13503 trades 1273 win%  35 avgW/avgL 1.80 cells+ 23/40
+Sweep                      net   -16856 trades  816 win%  42 avgW/avgL 1.29 cells+ 18/40
+SMA 9/21                   net   -70157 trades  777 win%  39 avgW/avgL 1.33 cells+ 15/40
+FIB                        net  -116715 trades  573 win%  38 avgW/avgL 1.12 cells+ 11/40
+VWAP                       net  -134681 trades 1140 win%  40 avgW/avgL 1.11 cells+ 8/40
+Supertrend                 net  -142070 trades 1555 win%  37 avgW/avgL 1.46 cells+ 13/40
+Donchian                   net  -155377 trades 1089 win%  39 avgW/avgL 1.28 cells+ 12/40
+FVG                        net  -198560 trades 2063 win%  38 avgW/avgL 1.29 cells+ 14/40
+
+== by timeframe ==
+60m                        net   -21710 trades  422 win%  48 avgW/avgL 1.01 cells+ 33/80
+30m                        net   -69974 trades  699 win%  44 avgW/avgL 1.13 cells+ 31/80
+15m                        net  -177225 trades 1196 win%  40 avgW/avgL 1.19 cells+ 35/80
+5m                         net  -283519 trades 2521 win%  38 avgW/avgL 1.33 cells+ 25/80
+1m                         net  -291235 trades 5020 win%  37 avgW/avgL 1.43 cells+ 21/80
+
+== by tf x config ==
+60m  Supertrend            net    29588 trades   39 win%  54 avgW/avgL 1.58 cells+ 4/8
+5m   SMA 9/21              net    19338 trades  179 win%  42 avgW/avgL 1.57 cells+ 5/8
+60m  Sweep                 net    13510 trades   36 win%  67 avgW/avgL 0.79 cells+ 7/8
+1m   SMA 50/200            net    11293 trades   99 win%  44 avgW/avgL 1.46 cells+ 5/8
+60m  EMA touch             net     9410 trades   10 win%  60 avgW/avgL 1.45 cells+ 3/8
+15m  EMA touch             net     8555 trades   42 win%  55 avgW/avgL 1.18 cells+ 6/8
+30m  Sweep                 net     8204 trades   59 win%  51 avgW/avgL 1.17 cells+ 4/8
+15m  SMA 50/200            net     7792 trades   16 win%  56 avgW/avgL 1.56 cells+ 4/8
+30m  Wick                  net     7778 trades  108 win%  42 avgW/avgL 1.58 cells+ 5/8
+60m  SMA 50/200            net     2949 trades    5 win%  60 avgW/avgL 1.44 cells+ 3/8
+15m  Wick                  net     2482 trades  174 win%  33 avgW/avgL 2.11 cells+ 5/8
+30m  Supertrend            net     2006 trades   66 win%  44 avgW/avgL 1.30 cells+ 5/8
+30m  SMA 50/200            net      457 trades    5 win%  40 avgW/avgL 1.71 cells+ 2/8
+30m  SMA 9/21              net    -2209 trades   29 win%  41 avgW/avgL 1.31 cells+ 4/8
+5m   EMA touch             net    -2317 trades  110 win%  40 avgW/avgL 1.42 cells+ 3/8
+60m  FVG                   net    -3821 trades   65 win%  51 avgW/avgL 0.92 cells+ 4/8
+60m  Wick                  net    -5153 trades   64 win%  41 avgW/avgL 1.31 cells+ 4/8
+30m  EMA touch             net    -5226 trades   29 win%  41 avgW/avgL 1.09 cells+ 3/8
+5m   Wick                  net    -7270 trades  363 win%  34 avgW/avgL 1.79 cells+ 4/8
+5m   Sweep                 net    -9634 trades  215 win%  39 avgW/avgL 1.39 cells+ 2/8
+60m  FIB                   net   -10094 trades   24 win%  38 avgW/avgL 1.17 cells+ 3/8
+30m  Donchian              net   -11312 trades   78 win%  45 avgW/avgL 1.09 cells+ 2/8
+30m  FIB                   net   -11332 trades   28 win%  36 avgW/avgL 1.33 cells+ 2/8
+1m   Wick                  net   -11341 trades  564 win%  34 avgW/avgL 1.72 cells+ 5/8
+1m   Sweep                 net   -11512 trades  413 win%  40 avgW/avgL 1.28 cells+ 2/8
+60m  SMA 9/21              net   -11807 trades   18 win%  39 avgW/avgL 0.56 cells+ 2/8
+1m   EMA touch             net   -12037 trades  220 win%  41 avgW/avgL 1.05 cells+ 1/8
+15m  Donchian              net   -15535 trades  135 win%  46 avgW/avgL 1.07 cells+ 4/8
+1m   VWAP                  net   -15579 trades  286 win%  34 avgW/avgL 1.69 cells+ 2/8
+5m   SMA 50/200            net   -16621 trades   36 win%  31 avgW/avgL 1.31 cells+ 1/8
+15m  Sweep                 net   -17424 trades   93 win%  43 avgW/avgL 0.95 cells+ 3/8
+60m  Donchian              net   -20636 trades   47 win%  36 avgW/avgL 1.21 cells+ 2/8
+15m  SMA 9/21              net   -23584 trades   77 win%  45 avgW/avgL 0.79 cells+ 3/8
+5m   FIB                   net   -23654 trades  145 win%  38 avgW/avgL 1.24 cells+ 2/8
+60m  VWAP                  net   -25656 trades  114 win%  51 avgW/avgL 0.57 cells+ 1/8
+30m  FVG                   net   -26990 trades  119 win%  42 avgW/avgL 1.08 cells+ 3/8
+15m  VWAP                  net   -27282 trades  241 win%  41 avgW/avgL 1.07 cells+ 1/8
+15m  FIB                   net   -29576 trades   66 win%  38 avgW/avgL 0.96 cells+ 3/8
+30m  VWAP                  net   -31350 trades  178 win%  46 avgW/avgL 0.78 cells+ 1/8
+1m   FVG                   net   -31609 trades 1145 win%  38 avgW/avgL 1.47 cells+ 2/8
+5m   VWAP                  net   -34814 trades  321 win%  38 avgW/avgL 1.24 cells+ 3/8
+15m  Supertrend            net   -35974 trades  136 win%  43 avgW/avgL 1.06 cells+ 3/8
+1m   FIB                   net   -42058 trades  310 win%  38 avgW/avgL 1.07 cells+ 1/8
+15m  FVG                   net   -46679 trades  216 win%  35 avgW/avgL 1.36 cells+ 3/8
+1m   SMA 9/21              net   -51895 trades  474 win%  36 avgW/avgL 1.31 cells+ 1/8
+1m   Donchian              net   -52242 trades  531 win%  36 avgW/avgL 1.43 cells+ 1/8
+5m   Donchian              net   -55652 trades  298 win%  41 avgW/avgL 1.18 cells+ 3/8
+5m   Supertrend            net   -63434 trades  336 win%  37 avgW/avgL 1.33 cells+ 0/8
+1m   Supertrend            net   -74255 trades  978 win%  35 avgW/avgL 1.52 cells+ 1/8
+5m   FVG                   net   -89461 trades  518 win%  37 avgW/avgL 1.12 cells+ 2/8
+
+== by symbol ==
+RELIANCE260929C1280        net    25573 trades  937 win%  39 avgW/avgL 1.69 cells+ 24/50
+SBIN260929P1000            net   -34801 trades 1428 win%  40 avgW/avgL 1.41 cells+ 25/50
+BANKNIFTY260929P56300      net   -45718 trades 1308 win%  42 avgW/avgL 1.25 cells+ 20/50
+RELIANCE260929P1280        net   -59183 trades 1199 win%  41 avgW/avgL 1.32 cells+ 22/50
+NIFTY260929P23400          net   -64485 trades 1964 win%  40 avgW/avgL 1.38 cells+ 21/50
+BANKNIFTY260929C56300      net  -128489 trades  314 win%  34 avgW/avgL 1.08 cells+ 11/50
+SBIN260929C1000            net  -198233 trades  886 win%  30 avgW/avgL 1.61 cells+ 12/50
+NIFTY260929C23500          net  -338328 trades 1822 win%  36 avgW/avgL 1.25 cells+ 10/50
+
+== top 12 cells ==
+SBIN260929C1000        60m  Supertrend     net    27118 tr   3 win% 100 PF 0.00 DD%   5
+SBIN260929C1000        30m  Supertrend     net    22107 tr   6 win%  50 PF 3.36 DD%  22
+NIFTY260929C23500      30m  FVG            net    15832 tr  28 win%  64 PF 1.62 DD%  38
+SBIN260929C1000        5m   SMA 9/21       net    14960 tr  15 win%  47 PF 2.76 DD%  15
+RELIANCE260929C1280    5m   SMA 9/21       net    14490 tr  20 win%  60 PF 2.80 DD%   7
+SBIN260929C1000        30m  Donchian       net    12796 tr   4 win%  75 PF 2.97 DD%  17
+SBIN260929C1000        60m  Donchian       net    12558 tr   3 win%  67 PF 4.25 DD%  11
+BANKNIFTY260929P56300  30m  Wick           net    11664 tr  10 win%  70 PF 5.28 DD%   9
+SBIN260929C1000        15m  Donchian       net    10838 tr   7 win%  43 PF 2.10 DD%  23
+RELIANCE260929P1280    1m   SMA 50/200     net    10534 tr  15 win%  67 PF 2.86 DD%  21
+SBIN260929C1000        15m  Supertrend     net     9990 tr  12 win%  42 PF 1.47 DD%  34
+SBIN260929P1000        60m  FVG            net     9847 tr  11 win%  55 PF 3.13 DD%  25
+
+== bottom 6 cells ==
+NIFTY260929C23500      5m   Donchian       net   -46130 tr  62 win%  39 DD% 242
+SBIN260929C1000        1m   Supertrend     net   -31323 tr 122 win%  32 DD% 144
+NIFTY260929C23500      5m   FVG            net   -29580 tr  89 win%  30 DD% 161
+SBIN260929C1000        30m  FVG            net   -26211 tr   9 win%  11 DD% 131
+BANKNIFTY260929C56300  15m  Supertrend     net   -24489 tr   5 win%  20 DD% 172
+SBIN260929C1000        5m   FVG            net   -23723 tr  31 win%  32 DD% 126
+
+TOTAL -843663 trades 9858
+
+########## FUTURES
+
+== by config ==
+SMA 50/200                 net  -117218 trades  131 win%  33 avgW/avgL 0.94 cells+ 4/15
+Supertrend                 net  -229127 trades  614 win%  39 avgW/avgL 1.10 cells+ 6/15
+SMA 9/21                   net  -343314 trades  665 win%  35 avgW/avgL 0.82 cells+ 4/15
+FIB                        net  -346880 trades  603 win%  33 avgW/avgL 0.87 cells+ 4/15
+EMA touch                  net  -430833 trades  763 win%  31 avgW/avgL 0.56 cells+ 1/15
+Donchian                   net  -449735 trades  913 win%  38 avgW/avgL 0.91 cells+ 5/15
+VWAP                       net  -523688 trades  996 win%  32 avgW/avgL 0.65 cells+ 1/15
+Sweep                      net  -634812 trades 1125 win%  32 avgW/avgL 0.62 cells+ 2/15
+Wick                       net  -729163 trades 1405 win%  27 avgW/avgL 0.80 cells+ 1/15
+FVG                        net  -894804 trades 1736 win%  32 avgW/avgL 0.94 cells+ 1/15
+
+== by timeframe ==
+60m                        net  -299735 trades  477 win%  39 avgW/avgL 0.84 cells+ 8/30
+30m                        net  -475419 trades  813 win%  43 avgW/avgL 0.71 cells+ 9/30
+15m                        net  -671705 trades 1387 win%  38 avgW/avgL 0.90 cells+ 8/30
+5m                         net -1474808 trades 2753 win%  35 avgW/avgL 0.87 cells+ 3/30
+1m                         net -1777907 trades 3521 win%  26 avgW/avgL 0.55 cells+ 1/30
+
+== by tf x config ==
+60m  Supertrend            net     7765 trades   28 win%  57 avgW/avgL 0.93 cells+ 2/3
+15m  FIB                   net     5012 trades   77 win%  51 avgW/avgL 1.04 cells+ 2/3
+30m  SMA 50/200            net      339 trades    5 win%  40 avgW/avgL 1.69 cells+ 2/3
+60m  SMA 50/200            net    -2990 trades    8 win%  50 avgW/avgL 0.76 cells+ 1/3
+15m  Supertrend            net    -3104 trades   93 win%  49 avgW/avgL 1.00 cells+ 2/3
+15m  SMA 50/200            net    -7970 trades   21 win%  38 avgW/avgL 1.24 cells+ 0/3
+60m  EMA touch             net   -14574 trades   21 win%  19 avgW/avgL 2.33 cells+ 0/3
+60m  Sweep                 net   -16612 trades   38 win%  37 avgW/avgL 1.19 cells+ 1/3
+60m  VWAP                  net   -19811 trades   96 win%  51 avgW/avgL 0.58 cells+ 1/3
+30m  SMA 9/21              net   -23640 trades   54 win%  44 avgW/avgL 0.81 cells+ 1/3
+60m  Wick                  net   -26193 trades   56 win%  30 avgW/avgL 1.45 cells+ 0/3
+60m  Donchian              net   -30600 trades   54 win%  46 avgW/avgL 0.72 cells+ 1/3
+30m  Supertrend            net   -33074 trades   52 win%  56 avgW/avgL 0.54 cells+ 1/3
+30m  FIB                   net   -36632 trades   49 win%  41 avgW/avgL 0.69 cells+ 1/3
+30m  Donchian              net   -37139 trades   86 win%  52 avgW/avgL 0.64 cells+ 2/3
+30m  EMA touch             net   -37704 trades   63 win%  48 avgW/avgL 0.42 cells+ 1/3
+60m  SMA 9/21              net   -40587 trades   28 win%  29 avgW/avgL 0.54 cells+ 1/3
+5m   Supertrend            net   -51671 trades  165 win%  43 avgW/avgL 1.04 cells+ 1/3
+1m   SMA 50/200            net   -51999 trades   52 win%  29 avgW/avgL 0.69 cells+ 1/3
+30m  Sweep                 net   -54071 trades   71 win%  38 avgW/avgL 0.58 cells+ 0/3
+5m   SMA 50/200            net   -54597 trades   45 win%  31 avgW/avgL 0.96 cells+ 0/3
+15m  Sweep                 net   -55024 trades  131 win%  44 avgW/avgL 0.68 cells+ 1/3
+15m  EMA touch             net   -57927 trades  106 win%  35 avgW/avgL 0.58 cells+ 0/3
+30m  Wick                  net   -58927 trades   87 win%  38 avgW/avgL 0.63 cells+ 1/3
+5m   SMA 9/21              net   -68576 trades  183 win%  43 avgW/avgL 0.87 cells+ 1/3
+60m  FIB                   net   -68626 trades   31 win%  35 avgW/avgL 0.36 cells+ 1/3
+15m  Donchian              net   -69207 trades  139 win%  42 avgW/avgL 0.89 cells+ 1/3
+15m  SMA 9/21              net   -69925 trades  106 win%  42 avgW/avgL 0.70 cells+ 1/3
+30m  VWAP                  net   -81047 trades  168 win%  40 avgW/avgL 0.55 cells+ 0/3
+15m  Wick                  net   -85673 trades  199 win%  31 avgW/avgL 1.09 cells+ 0/3
+60m  FVG                   net   -87506 trades  117 win%  33 avgW/avgL 1.06 cells+ 0/3
+5m   FIB                   net   -97095 trades  181 win%  36 avgW/avgL 0.85 cells+ 0/3
+1m   VWAP                  net   -97718 trades  167 win%  19 avgW/avgL 0.82 cells+ 0/3
+30m  FVG                   net  -113524 trades  178 win%  40 avgW/avgL 0.88 cells+ 0/3
+15m  VWAP                  net  -123080 trades  248 win%  35 avgW/avgL 0.55 cells+ 0/3
+5m   EMA touch             net  -134435 trades  231 win%  34 avgW/avgL 0.61 cells+ 0/3
+5m   Donchian              net  -137505 trades  275 win%  39 avgW/avgL 0.99 cells+ 1/3
+1m   SMA 9/21              net  -140585 trades  294 win%  28 avgW/avgL 0.46 cells+ 0/3
+1m   Supertrend            net  -149043 trades  276 win%  27 avgW/avgL 0.95 cells+ 0/3
+1m   FIB                   net  -149538 trades  265 win%  23 avgW/avgL 0.66 cells+ 0/3
+1m   Donchian              net  -175284 trades  359 win%  32 avgW/avgL 0.74 cells+ 0/3
+1m   EMA touch             net  -186193 trades  342 win%  26 avgW/avgL 0.23 cells+ 0/3
+5m   VWAP                  net  -202033 trades  317 win%  26 avgW/avgL 0.79 cells+ 0/3
+15m  FVG                   net  -204807 trades  267 win%  33 avgW/avgL 0.92 cells+ 1/3
+5m   Sweep                 net  -234910 trades  397 win%  37 avgW/avgL 0.54 cells+ 0/3
+5m   FVG                   net  -238347 trades  511 win%  34 avgW/avgL 0.97 cells+ 0/3
+1m   FVG                   net  -250620 trades  663 win%  28 avgW/avgL 0.49 cells+ 0/3
+5m   Wick                  net  -255638 trades  448 win%  31 avgW/avgL 0.70 cells+ 0/3
+1m   Sweep                 net  -274194 trades  488 win%  24 avgW/avgL 0.29 cells+ 0/3
+1m   Wick                  net  -302733 trades  615 win%  21 avgW/avgL 0.26 cells+ 0/3
+
+== by symbol ==
+CRUDEOILM1!                net   -10106 trades 3844 win%  41 avgW/avgL 1.42 cells+ 22/50
+NIFTY1!                    net -2169135 trades 2489 win%  26 avgW/avgL 0.96 cells+ 5/50
+BANKNIFTY1!                net -2520332 trades 2618 win%  27 avgW/avgL 1.07 cells+ 2/50
+
+== top 12 cells ==
+BANKNIFTY1!            15m  FIB            net    20195 tr  21 win%  62 PF 1.84 DD%  39
+BANKNIFTY1!            15m  Supertrend     net    18136 tr  22 win%  50 PF 1.34 DD%  60
+MCX:CRUDEOILM1!        15m  SMA 9/21       net    13722 tr  53 win%  55 PF 2.28 DD%  16
+MCX:CRUDEOILM1!        30m  Supertrend     net    13406 tr  24 win%  71 PF 2.86 DD%  10
+MCX:CRUDEOILM1!        30m  Donchian       net    12888 tr  48 win%  56 PF 1.53 DD%  25
+MCX:CRUDEOILM1!        60m  Donchian       net    12286 tr  31 win%  55 PF 1.80 DD%  20
+MCX:CRUDEOILM1!        15m  Supertrend     net    10420 tr  49 win%  49 PF 1.56 DD%  30
+MCX:CRUDEOILM1!        5m   Supertrend     net    10008 tr  59 win%  51 PF 1.62 DD%  23
+MCX:CRUDEOILM1!        60m  Supertrend     net     9237 tr  12 win%  75 PF 8.52 DD%   9
+MCX:CRUDEOILM1!        30m  SMA 9/21       net     8685 tr  26 win%  54 PF 2.61 DD%  15
+MCX:CRUDEOILM1!        15m  FIB            net     6991 tr  39 win%  54 PF 1.74 DD%  11
+MCX:CRUDEOILM1!        15m  Donchian       net     5461 tr  80 win%  46 PF 1.15 DD%  27
+
+== bottom 6 cells ==
+BANKNIFTY1!            1m   Wick           net  -157903 tr 191 win%  13 DD% 794
+NIFTY1!                5m   Wick           net  -145279 tr 152 win%  22 DD% 717
+BANKNIFTY1!            1m   FVG            net  -141460 tr 186 win%  19 DD% 614
+BANKNIFTY1!            1m   Sweep          net  -137840 tr 153 win%  16 DD% 689
+NIFTY1!                1m   Wick           net  -133304 tr 179 win%   9 DD% 667
+BANKNIFTY1!            5m   FVG            net  -130409 tr 174 win%  30 DD% 705
+
+TOTAL -4699574 trades 8951
