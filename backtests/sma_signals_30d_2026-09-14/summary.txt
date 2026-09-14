@@ -1,0 +1,220 @@
+
+=== options ===
+symbol                     tf   config               tr   win%     PF      net      DD
+NSE:NIFTY260929C23500      5    SMA 50/200            6     50   0.52    -5829   13383
+NSE:NIFTY260929C23500      5    SMA 9/21             36     31   0.75    -8474   21521
+NSE:NIFTY260929C23500      5    SMA 9/21 + 50/200    50     38   1.24     7689   10169
+NSE:NIFTY260929C23500      5    FIB only             15     33   0.24   -17017   18752
+NSE:NIFTY260929C23500      5    SMA 50/200 + FIB     30     30   0.33   -29795   31429
+NSE:NIFTY260929C23500      15   SMA 50/200            2     50   1.45     1077    2910
+NSE:NIFTY260929C23500      15   SMA 9/21             16     38   0.38   -20925   25599
+NSE:NIFTY260929C23500      15   SMA 9/21 + 50/200    23     30   0.33   -27065   30441
+NSE:NIFTY260929C23500      15   FIB only              8     75   3.23    14952   10637
+NSE:NIFTY260929C23500      15   SMA 50/200 + FIB     11     55   1.15     1692   10043
+NSE:NIFTY260929C23500      30   SMA 50/200            0      -      -        0       0
+NSE:NIFTY260929C23500      30   SMA 9/21              4    100      -    15249    1342
+NSE:NIFTY260929C23500      30   SMA 9/21 + 50/200     6     83   9.60    15005    1754
+NSE:NIFTY260929C23500      30   FIB only              4    100      -    14726    7568
+NSE:NIFTY260929C23500      30   SMA 50/200 + FIB      4     75   6.55    11763    7568
+NSE:NIFTY260929C23500      60   SMA 50/200            1      0   0.00        0    3058
+NSE:NIFTY260929C23500      60   SMA 9/21              4     50   0.78    -1554    9384
+NSE:NIFTY260929C23500      60   SMA 9/21 + 50/200     6     33   0.70    -2437    9385
+NSE:NIFTY260929C23500      60   FIB only              0      -      -        0       0
+NSE:NIFTY260929C23500      60   SMA 50/200 + FIB      2     50 8936.55     2728    3058
+NSE:NIFTY260929P23400      5    SMA 50/200           10     30   0.18    -7584   10447
+NSE:NIFTY260929P23400      5    SMA 9/21             33     39   1.03      450    8033
+NSE:NIFTY260929P23400      5    SMA 9/21 + 50/200    60     38   1.12     2783    7734
+NSE:NIFTY260929P23400      5    FIB only             17     35   0.37    -9358   12254
+NSE:NIFTY260929P23400      5    SMA 50/200 + FIB     37     41   0.47   -13151   16058
+NSE:NIFTY260929P23400      15   SMA 50/200            5     40   1.57      682    2629
+NSE:NIFTY260929P23400      15   SMA 9/21             18     33   0.18   -12801   15769
+NSE:NIFTY260929P23400      15   SMA 9/21 + 50/200    25     24   0.14   -17771   19163
+NSE:NIFTY260929P23400      15   FIB only             10     50   0.48    -8049   13164
+NSE:NIFTY260929P23400      15   SMA 50/200 + FIB     15     47   0.47   -10286   15305
+NSE:NIFTY260929P23400      30   SMA 50/200            0      -      -        0       0
+NSE:NIFTY260929P23400      30   SMA 9/21              8     25   0.12    -9270   12133
+NSE:NIFTY260929P23400      30   SMA 9/21 + 50/200    10     30   0.30    -7686   10549
+NSE:NIFTY260929P23400      30   FIB only              4     50   0.35    -3317    8744
+NSE:NIFTY260929P23400      30   SMA 50/200 + FIB      9     67   1.19     1964   11681
+NSE:NIFTY260929P23400      60   SMA 50/200            1    100      -       28     470
+NSE:NIFTY260929P23400      60   SMA 9/21              4     50   1.65     1252    2126
+NSE:NIFTY260929P23400      60   SMA 9/21 + 50/200     6     67   2.28     2482    2126
+NSE:NIFTY260929P23400      60   FIB only              3     67   0.13    -4146    7600
+NSE:NIFTY260929P23400      60   SMA 50/200 + FIB      6     50   0.45    -3548    7550
+NSE:BANKNIFTY260929P56300  5    SMA 50/200            8     13   0.09    -9440   12457
+NSE:BANKNIFTY260929P56300  5    SMA 9/21             28     36   0.91    -1803    9853
+NSE:BANKNIFTY260929P56300  5    SMA 9/21 + 50/200    57     39   0.86    -4038    8647
+NSE:BANKNIFTY260929P56300  5    FIB only             16     19   0.36   -11455   11455
+NSE:BANKNIFTY260929P56300  5    SMA 50/200 + FIB     29     31   0.64    -7929    8134
+NSE:BANKNIFTY260929P56300  15   SMA 50/200            4     25   0.12    -7343    9112
+NSE:BANKNIFTY260929P56300  15   SMA 9/21             16     31   0.21    -9197   10584
+NSE:BANKNIFTY260929P56300  15   SMA 9/21 + 50/200    25     36   0.32   -15596   20549
+NSE:BANKNIFTY260929P56300  15   FIB only              7     86   3.29     6395    3232
+NSE:BANKNIFTY260929P56300  15   SMA 50/200 + FIB     12     67   0.91     -961    9233
+NSE:BANKNIFTY260929P56300  30   SMA 50/200            1    100      -     2325    3205
+NSE:BANKNIFTY260929P56300  30   SMA 9/21              6     50   0.26    -3973    7943
+NSE:BANKNIFTY260929P56300  30   SMA 9/21 + 50/200     9     56   0.56    -3065    9548
+NSE:BANKNIFTY260929P56300  30   FIB only              2      0   0.00    -1189    3246
+NSE:BANKNIFTY260929P56300  30   SMA 50/200 + FIB      7     43   0.61    -3194    9169
+NSE:BANKNIFTY260929P56300  60   SMA 50/200            1      0   0.00     -839     948
+NSE:BANKNIFTY260929P56300  60   SMA 9/21              8      0   0.00   -12648   13084
+NSE:BANKNIFTY260929P56300  60   SMA 9/21 + 50/200    12      8   0.04   -15467   15575
+NSE:BANKNIFTY260929P56300  60   FIB only              0      -      -        0       0
+NSE:BANKNIFTY260929P56300  60   SMA 50/200 + FIB      6     50   0.15   -14038   16638
+NSE:RELIANCE260929C1280    5    SMA 50/200            7     43   1.02       99    5631
+NSE:RELIANCE260929C1280    5    SMA 9/21             31     61   1.54     8124    4804
+NSE:RELIANCE260929C1280    5    SMA 9/21 + 50/200    47     51   1.24     5508    4513
+NSE:RELIANCE260929C1280    5    FIB only             15     53   1.61     5106    6826
+NSE:RELIANCE260929C1280    5    SMA 50/200 + FIB     29     55   1.30     4686   12340
+NSE:RELIANCE260929C1280    15   SMA 50/200            5     60   1.75     1201    2210
+NSE:RELIANCE260929C1280    15   SMA 9/21             11     45   0.94     -414    6392
+NSE:RELIANCE260929C1280    15   SMA 9/21 + 50/200    21     38   0.79    -2893    7841
+NSE:RELIANCE260929C1280    15   FIB only              6     67   3.31     5275    5784
+NSE:RELIANCE260929C1280    15   SMA 50/200 + FIB     12     58   1.93     6245    7200
+NSE:RELIANCE260929C1280    30   SMA 50/200            3      0   0.00    -1659    1926
+NSE:RELIANCE260929C1280    30   SMA 9/21              6     50   3.00     3426    2508
+NSE:RELIANCE260929C1280    30   SMA 9/21 + 50/200    10     50   4.14     7002    2508
+NSE:RELIANCE260929C1280    30   FIB only              2    100      -     5665     585
+NSE:RELIANCE260929C1280    30   SMA 50/200 + FIB      6     33   2.20     3087    1755
+NSE:RELIANCE260929C1280    60   SMA 50/200            0      -      -        0       0
+NSE:RELIANCE260929C1280    60   SMA 9/21              4     25   0.20    -2754    5127
+NSE:RELIANCE260929C1280    60   SMA 9/21 + 50/200     4     25   0.20    -2754    5127
+NSE:RELIANCE260929C1280    60   FIB only              0      -      -        0       0
+NSE:RELIANCE260929C1280    60   SMA 50/200 + FIB      2      0   0.00    -3521    3759
+NSE:SBIN260929C1000        5    SMA 50/200            4     50   0.27    -1458    2015
+NSE:SBIN260929C1000        5    SMA 9/21             24     38   0.83    -3236   13284
+NSE:SBIN260929C1000        5    SMA 9/21 + 50/200    39     38   0.88    -2479    7443
+NSE:SBIN260929C1000        5    FIB only             12     33   0.99      -64    4895
+NSE:SBIN260929C1000        5    SMA 50/200 + FIB     27     30   0.79    -4272    8518
+NSE:SBIN260929C1000        15   SMA 50/200            0      -      -        0       0
+NSE:SBIN260929C1000        15   SMA 9/21             12     50   1.67     3914    2995
+NSE:SBIN260929C1000        15   SMA 9/21 + 50/200    21     38   0.94     -782    6603
+NSE:SBIN260929C1000        15   FIB only              3     67   1.04      122    4155
+NSE:SBIN260929C1000        15   SMA 50/200 + FIB      9     22   0.21   -13019   14621
+NSE:SBIN260929C1000        30   SMA 50/200            0      -      -        0       0
+NSE:SBIN260929C1000        30   SMA 9/21              5     60   2.93     4103    2126
+NSE:SBIN260929C1000        30   SMA 9/21 + 50/200     9     44   1.66     3515    4501
+NSE:SBIN260929C1000        30   FIB only              3     67   4.18     5318    1672
+NSE:SBIN260929C1000        30   SMA 50/200 + FIB      4     50   2.27     3909    4684
+NSE:SBIN260929C1000        60   SMA 50/200            0      -      -        0       0
+NSE:SBIN260929C1000        60   SMA 9/21              1      0   0.00    -3859    3880
+NSE:SBIN260929C1000        60   SMA 9/21 + 50/200     1      0   0.00    -3859    3880
+NSE:SBIN260929C1000        60   FIB only              0      -      -        0       0
+NSE:SBIN260929C1000        60   SMA 50/200 + FIB      1    100      -     2068     766
+NSE:TATASTEEL260929C190    5    SMA 50/200           15     33   0.50    -6749   12884
+NSE:TATASTEEL260929C190    5    SMA 9/21             32     31   0.45   -12438   17651
+NSE:TATASTEEL260929C190    5    SMA 9/21 + 50/200    59     31   0.49   -17312   17860
+NSE:TATASTEEL260929C190    5    FIB only             21     19   0.32   -15814   16547
+NSE:TATASTEEL260929C190    5    SMA 50/200 + FIB     45     29   0.63   -13737   18936
+NSE:TATASTEEL260929C190    15   SMA 50/200           13     46   1.09     1043    5701
+NSE:TATASTEEL260929C190    15   SMA 9/21             20     40   0.77    -4080   12241
+NSE:TATASTEEL260929C190    15   SMA 9/21 + 50/200    25     40   0.71    -5983   13312
+NSE:TATASTEEL260929C190    15   FIB only              6     33   0.23   -13658   15883
+NSE:TATASTEEL260929C190    15   SMA 50/200 + FIB     13     46   1.09     1043    5701
+NSE:TATASTEEL260929C190    30   SMA 50/200            2      0   0.00    -2265    2317
+NSE:TATASTEEL260929C190    30   SMA 9/21             11     36   0.64    -2323    4731
+NSE:TATASTEEL260929C190    30   SMA 9/21 + 50/200    14     36   0.45    -6713    9050
+NSE:TATASTEEL260929C190    30   FIB only              2     50   5.08     3837    3359
+NSE:TATASTEEL260929C190    30   SMA 50/200 + FIB      6     33   0.69    -2205    7059
+NSE:TATASTEEL260929C190    60   SMA 50/200            0      -      -        0       0
+NSE:TATASTEEL260929C190    60   SMA 9/21              7     14   0.15    -5103    6058
+NSE:TATASTEEL260929C190    60   SMA 9/21 + 50/200     8     25   0.75    -1479    4036
+NSE:TATASTEEL260929C190    60   FIB only              0      -      -        0       0
+NSE:TATASTEEL260929C190    60   SMA 50/200 + FIB      7      0   0.00   -15305   15936
+-- totals by config --
+SMA 50/200         trades   88 win%  36 net   -36712 cells + 7/24
+SMA 9/21           trades  345 win%  39 net   -78334 cells + 7/24
+SMA 9/21 + 50/200  trades  547 win%  38 net   -93396 cells + 7/24
+FIB only           trades  156 win%  44 net   -22670 cells + 9/24
+SMA 50/200 + FIB   trades  329 win%  40 net   -95776 cells + 10/24
+-- by tf x config --
+5 SMA 50/200           trades   50 net   -30961
+5 SMA 9/21             trades  184 net   -17378
+5 SMA 9/21 + 50/200    trades  312 net    -7849
+5 FIB only             trades   96 net   -48602
+5 SMA 50/200 + FIB     trades  197 net   -64199
+15 SMA 50/200          trades   29 net    -3341
+15 SMA 9/21            trades   93 net   -43502
+15 SMA 9/21 + 50/200   trades  140 net   -70090
+15 FIB only            trades   40 net     5037
+15 SMA 50/200 + FIB    trades   72 net   -15285
+30 SMA 50/200          trades    6 net    -1599
+30 SMA 9/21            trades   40 net     7212
+30 SMA 9/21 + 50/200   trades   58 net     8058
+30 FIB only            trades   17 net    25041
+30 SMA 50/200 + FIB    trades   36 net    15324
+60 SMA 50/200          trades    3 net     -812
+60 SMA 9/21            trades   28 net   -24666
+60 SMA 9/21 + 50/200   trades   37 net   -23514
+60 FIB only            trades    3 net    -4146
+60 SMA 50/200 + FIB    trades   24 net   -31616
+
+=== futures ===
+symbol                     tf   config               tr   win%     PF      net      DD
+NSE:NIFTY1!                15   SMA 50/200            2      0   0.00    -5738    5738
+NSE:NIFTY1!                15   SMA 9/21             18     39   0.45   -20290   21152
+NSE:NIFTY1!                15   SMA 9/21 + 50/200    24     29   0.35   -30631   31319
+NSE:NIFTY1!                15   FIB only              9     67   1.52     5727   15495
+NSE:NIFTY1!                15   SMA 50/200 + FIB     10     50   1.03      457   15929
+NSE:NIFTY1!                30   SMA 50/200            1      0   0.00    -5261    9201
+NSE:NIFTY1!                30   SMA 9/21              1    100      -     2661     746
+NSE:NIFTY1!                30   SMA 9/21 + 50/200     5     60   0.63    -3331    9201
+NSE:NIFTY1!                30   FIB only              4     50   3.95     7257    5613
+NSE:NIFTY1!                30   SMA 50/200 + FIB      9     11   0.34   -18100   27134
+NSE:NIFTY1!                60   SMA 50/200            1    100      -     1100     588
+NSE:NIFTY1!                60   SMA 9/21              4     25   0.14   -12042   15450
+NSE:NIFTY1!                60   SMA 9/21 + 50/200     6     33   0.17   -14964   18372
+NSE:NIFTY1!                60   FIB only              1      0   0.00    -1036    7148
+NSE:NIFTY1!                60   SMA 50/200 + FIB      3     67   5.26     4417    7148
+NSE:BANKNIFTY1!            15   SMA 50/200            7     14   0.25   -14514   20750
+NSE:BANKNIFTY1!            15   SMA 9/21             18     39   0.37   -30863   42493
+NSE:BANKNIFTY1!            15   SMA 9/21 + 50/200    29     38   0.46   -34216   49528
+NSE:BANKNIFTY1!            15   FIB only             11     45   0.59    -7201   11725
+NSE:BANKNIFTY1!            15   SMA 50/200 + FIB     18     50   0.49   -16765   16765
+NSE:BANKNIFTY1!            30   SMA 50/200            3     33   0.70     -336    5705
+NSE:BANKNIFTY1!            30   SMA 9/21              8     50   0.10   -21889   26940
+NSE:BANKNIFTY1!            30   SMA 9/21 + 50/200    12     50   0.19   -23619   28670
+NSE:BANKNIFTY1!            30   FIB only              5     40   0.44    -6750   14723
+NSE:BANKNIFTY1!            30   SMA 50/200 + FIB      8     38   1.08     1032   14864
+NSE:BANKNIFTY1!            60   SMA 50/200            2      0   0.00    -9684   10528
+NSE:BANKNIFTY1!            60   SMA 9/21              6     33   0.09   -14942   19517
+NSE:BANKNIFTY1!            60   SMA 9/21 + 50/200     7     29   0.07   -19991   24567
+NSE:BANKNIFTY1!            60   FIB only              5     20   0.03   -28700   28700
+NSE:BANKNIFTY1!            60   SMA 50/200 + FIB      8     13   0.02   -45948   45948
+MCX:CRUDEOILM1!            15   SMA 50/200            4     25   0.39    -1921    3139
+MCX:CRUDEOILM1!            15   SMA 9/21             31     45   2.35     8577    2347
+MCX:CRUDEOILM1!            15   SMA 9/21 + 50/200    46     39   1.44     5320    3794
+MCX:CRUDEOILM1!            15   FIB only             16     44   1.06      309    2344
+MCX:CRUDEOILM1!            15   SMA 50/200 + FIB     27     41   0.95     -491    4395
+MCX:CRUDEOILM1!            30   SMA 50/200            2     50   0.12     -774    1136
+MCX:CRUDEOILM1!            30   SMA 9/21             13     38   1.03      111    3315
+MCX:CRUDEOILM1!            30   SMA 9/21 + 50/200    21     48   0.99      -36    4794
+MCX:CRUDEOILM1!            30   FIB only              6     67   3.97     1445    1364
+MCX:CRUDEOILM1!            30   SMA 50/200 + FIB     15     47   1.13      664    3407
+MCX:CRUDEOILM1!            60   SMA 50/200            2     50   0.95      -95    2518
+MCX:CRUDEOILM1!            60   SMA 9/21              5     60   1.79     1071     992
+MCX:CRUDEOILM1!            60   SMA 9/21 + 50/200    12     42   1.09      444    3202
+MCX:CRUDEOILM1!            60   FIB only              2     50   0.76     -168    1980
+MCX:CRUDEOILM1!            60   SMA 50/200 + FIB      4     50   0.90     -263    3221
+-- totals by config --
+SMA 50/200         trades   24 win%  25 net   -37223 cells + 1/9
+SMA 9/21           trades  104 win%  42 net   -87605 cells + 4/9
+SMA 9/21 + 50/200  trades  162 win%  40 net  -121023 cells + 2/9
+FIB only           trades   59 win%  47 net   -29116 cells + 4/9
+SMA 50/200 + FIB   trades  102 win%  40 net   -74996 cells + 4/9
+-- by tf x config --
+15 SMA 50/200          trades   13 net   -22173
+15 SMA 9/21            trades   67 net   -42575
+15 SMA 9/21 + 50/200   trades   99 net   -59526
+15 FIB only            trades   36 net    -1165
+15 SMA 50/200 + FIB    trades   55 net   -16799
+30 SMA 50/200          trades    6 net    -6371
+30 SMA 9/21            trades   22 net   -19116
+30 SMA 9/21 + 50/200   trades   38 net   -26986
+30 FIB only            trades   15 net     1952
+30 SMA 50/200 + FIB    trades   32 net   -16404
+60 SMA 50/200          trades    5 net    -8679
+60 SMA 9/21            trades   15 net   -25913
+60 SMA 9/21 + 50/200   trades   25 net   -34511
+60 FIB only            trades    8 net   -29903
+60 SMA 50/200 + FIB    trades   15 net   -41794
