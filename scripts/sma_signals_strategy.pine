@@ -10,7 +10,7 @@ strategy("SMA Signals BT", overlay = true, initial_capital = 20000,
      margin_long = 0, margin_short = 0, max_lines_count = 60)
 
 // ── Inputs (ids in_0.. in order) ───────────────────────────────────────────
-mode       = input.string("SMA", "Entries", options = ["SMA", "FIB", "Both"])                       // in_0
+mode       = input.string("SMA", "Entries", options = ["SMA", "FIB", "Both", "Sweep"])                       // in_0
 fastLen    = input.int(9,   "Fast SMA", minval = 1)                                                  // in_1
 slowLen    = input.int(21,  "Slow SMA", minval = 2)                                                  // in_2
 useTrend   = input.bool(true, "Only trade with trend SMA")                                           // in_3
@@ -37,6 +37,8 @@ usePair2   = input.bool(false, "Second SMA pair also signals")                  
 fast2Len   = input.int(9,  "Second pair fast", minval = 1)                                           // in_24
 slow2Len   = input.int(21, "Second pair slow", minval = 2)                                           // in_25
 longOnly   = input.bool(true, "Buy only (never short; SELL signal while long = stop loss)")          // in_26  user rule 2026-09-14
+smcPiv     = input.int(5, "Sweep: structure pivot length", minval = 2)                                // in_27
+sweepTr    = input.bool(false, "Sweep: only with trend SMA")                                          // in_28
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -92,10 +94,24 @@ fibSell0 = not upLeg and touchedS[1] and close < f500 and close < open and (not 
 fibBuy   = fibBuy0 and not fibBuy0[1]
 fibSell  = fibSell0 and not fibSell0[1]
 
+// ── Liquidity sweep (same rule as the indicator v12): wick through the last confirmed swing
+// low/high, close back inside. Stop = the sweep wick, target = rr x that distance.
+sPh = ta.pivothigh(high, smcPiv, smcPiv)
+sPl = ta.pivotlow(low,  smcPiv, smcPiv)
+var float sH = na, var int sHbar = na, var float sL = na, var int sLbar = na
+if not na(sPh)
+    sH := sPh, sHbar := bar_index - smcPiv
+if not na(sPl)
+    sL := sPl, sLbar := bar_index - smcPiv
+swTrL = not sweepTr or na(trend) or close > trend
+swTrS = not sweepTr or na(trend) or close < trend
+sweepLo = not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+useSweep = mode == "Sweep"
 useSma = mode == "SMA" or mode == "Both"
 useFib = mode == "FIB" or mode == "Both"
-sigL = (useSma and smaBuy)  or (useFib and fibBuy)
-sigS = (useSma and smaSell) or (useFib and fibSell)
+sigL = (useSma and smaBuy)  or (useFib and fibBuy)  or (useSweep and sweepLo)
+sigS = (useSma and smaSell) or (useFib and fibSell) or (useSweep and sweepHi)
 plotshape(sigL, "L", shape.triangleup,   location.belowbar, color = color.new(#00c853, 0), size = size.tiny)
 plotshape(sigS, "S", shape.triangledown, location.abovebar, color = color.new(#ff1744, 0), size = size.tiny)
 
@@ -105,8 +121,8 @@ atr14 = ta.atr(14)
 // Swing mode keeps the old lowest-low / highest-high stop. All floored at minStopAtr from entry.
 isFibL = useFib and fibBuy  and not (useSma and smaBuy)
 isFibS = useFib and fibSell and not (useSma and smaSell)
-rawL   = stopMode == "Swing" ? ta.lowest(low, swingLen)   : (isFibL ? f786 : smaStopL)
-rawS   = stopMode == "Swing" ? ta.highest(high, swingLen) : (isFibS ? f786 : smaStopS)
+rawL   = useSweep ? low  : stopMode == "Swing" ? ta.lowest(low, swingLen)   : (isFibL ? f786 : smaStopL)
+rawS   = useSweep ? high : stopMode == "Swing" ? ta.highest(high, swingLen) : (isFibS ? f786 : smaStopS)
 stopL  = math.min(rawL, close - atr14 * minStopAtr)
 stopS  = math.max(rawS, close + atr14 * minStopAtr)
 flat  = strategy.position_size == 0
