@@ -73,8 +73,13 @@ for (const sym of SYMBOLS) {
   await ev(`TradingViewApi.activeChart().setSymbol(${JSON.stringify(sym)}); true`);
   await sleep(4000);
   // Skip symbols TradingView could not resolve (the chart keeps the previous symbol).
-  const shown = await ev(`(function(){try{var si=TradingViewApi.activeChart()._chartWidget.model().model().mainSeries().symbolInfo();return si?(si.full_name||si.name):''}catch(e){return ''}})()`);
   const want = sym.split(':').pop().replace('1!', '').toUpperCase();
+  let shown = '';
+  for (let k = 0; k < 8; k++) {   // symbol switches can take >4 s the first time; retry up to ~20 s
+    shown = await ev(`(function(){try{var si=TradingViewApi.activeChart()._chartWidget.model().model().mainSeries().symbolInfo();return si?(si.full_name||si.name):''}catch(e){return ''}})()`);
+    if (String(shown).toUpperCase().includes(want)) break;
+    await sleep(2000);
+  }
   if (!String(shown).toUpperCase().includes(want)) { console.log(sym, 'DID NOT RESOLVE (chart shows', shown + ') - skipped'); continue; }
   for (const tf of TFS) {
     await ev(`TradingViewApi.activeChart().setResolution(${JSON.stringify(tf)}); true`);
