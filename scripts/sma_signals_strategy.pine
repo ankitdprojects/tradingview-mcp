@@ -36,6 +36,7 @@ maxHoldD   = input.int(15, "Daily: max hold in bars (0 = no limit)", minval = 0)
 usePair2   = input.bool(false, "Second SMA pair also signals")                                       // in_23  user: "9/21 and 50/200 both together"
 fast2Len   = input.int(9,  "Second pair fast", minval = 1)                                           // in_24
 slow2Len   = input.int(21, "Second pair slow", minval = 2)                                           // in_25
+longOnly   = input.bool(false, "Long only (options: never short premium; SELL = buy the put on its own chart)") // in_26
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -128,7 +129,7 @@ if oppExit and not flat
         strategy.close("S", comment = "OPP")
 
 goLong  = sigL and not sigS and flat and close > stopL and inWindow and not lastBar
-goShort = sigS and not sigL and flat and close < stopS and inWindow and not lastBar
+goShort = sigS and not sigL and flat and close < stopS and inWindow and not lastBar and not longOnly
 capQty  = capNotion ? strategy.equity / (close * syminfo.pointvalue) : 1e12
 // Whole contracts / shares only (TradingView rejects fractional option lots); never below 1.
 sizeFor(float dist) =>
