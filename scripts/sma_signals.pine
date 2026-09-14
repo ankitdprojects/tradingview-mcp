@@ -125,7 +125,7 @@ alertcondition(fibSell, "FIB SELL", "SMA Signals: FIB SELL {{ticker}} @ {{close}
 // FIB trade: stop = invalidation ratio (0.786) level; target = 1.272 extension.
 // Lines are dotted, extend to the right while live, and get ✓ / ✗ when hit.
 showTS     = input.bool(true, "Mark target & stop",              group="Targets")
-tgtR       = input.float(2, "SMA target (R multiple)", step=0.5, group="Targets")
+tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
 maxLive    = input.int(4, "Max live trades shown", minval=1, maxval=20, group="Targets")
 

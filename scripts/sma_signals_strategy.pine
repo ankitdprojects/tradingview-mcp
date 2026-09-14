@@ -17,7 +17,7 @@ useTrend   = input.bool(true, "Only trade with trend SMA")                      
 trendLen   = input.int(50,  "Trend SMA", minval = 5)                                                 // in_4
 confirm    = input.bool(true, "Close must be on the right side of both SMAs")                       // in_5
 riskCash   = input.float(1000, "Risk per trade (Rs = 1R)", minval = 1)                               // in_6
-rr         = input.float(2, "Target (R multiple)", minval = 0.5, step = 0.5)                         // in_7
+rr         = input.float(1.5, "Target (R multiple; recommended 1.5 intraday, 3 daily)", minval = 0.5, step = 0.5) // in_7
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", minval = 0, step = 0.1)                     // in_8
 swingLen   = input.int(10, "Stop = lowest low / highest high of N bars", minval = 1)                 // in_9
 hardStop   = input.bool(true, "Price stop on")                                                       // in_10
@@ -36,7 +36,7 @@ maxHoldD   = input.int(15, "Daily: max hold in bars (0 = no limit)", minval = 0)
 usePair2   = input.bool(false, "Second SMA pair also signals")                                       // in_23  user: "9/21 and 50/200 both together"
 fast2Len   = input.int(9,  "Second pair fast", minval = 1)                                           // in_24
 slow2Len   = input.int(21, "Second pair slow", minval = 2)                                           // in_25
-longOnly   = input.bool(false, "Long only (options: never short premium; SELL = buy the put on its own chart)") // in_26
+longOnly   = input.bool(true, "Buy only (never short; SELL signal while long = stop loss)")          // in_26  user rule 2026-09-14
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
