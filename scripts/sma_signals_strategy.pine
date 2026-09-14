@@ -32,6 +32,7 @@ fibTarget  = input.bool(false, "FIB target = 1.272 extension instead of R multip
 fixedQty   = input.float(0, "Fixed qty in contracts / lots (0 = risk-sized)", minval = 0)            // in_19  (options: 1 = one lot)
 capPerTrade = input.float(20000, "Capital per trade (Rs, 0 = use risk sizing)", minval = 0)        // in_20  user rule 2026-09-14: whole 20k every trade
 stopMode   = input.string("Signal", "Stop / target", options = ["Signal", "Swing"])                  // in_21  Signal = SMA stop at slow SMA / FIB stop at 0.786 + 1.272 target
+maxHoldD   = input.int(15, "Daily: max hold in bars (0 = no limit)", minval = 0)                     // in_22  user rule 2026-09-14: hold a stock max 15 trading days on D
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -101,6 +102,11 @@ flat  = strategy.position_size == 0
 lastBar = eodClose and timeframe.isintraday and session.islastbar_regular
 if lastBar and not flat
     strategy.close_all(comment = "EOD")
+
+// Daily time stop: close after maxHoldD bars if neither target nor stop was hit
+barsHeld = flat ? 0 : bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
+if maxHoldD > 0 and timeframe.isdaily and not flat and barsHeld >= maxHoldD
+    strategy.close_all(comment = "TIME")
 
 // Opposite signal closes an open trade
 if oppExit and not flat
