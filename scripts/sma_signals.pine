@@ -727,12 +727,12 @@ m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 m5Buy   = m5Fresh and m5B and blkL and rsiL
 m5Sell  = m5Fresh and m5S and blkS and rsiS
 if m5Buy
-    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY")
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY\nSMA", style = label.style_label_up, color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY")
     if showTS
         sp = math.min(m5SlowV, m5Px - atr14 * minStopAtr)
         newTrade(true, sp, m5Px + (m5Px - sp) * tgtR)
 if m5Sell
-    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(m5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL")
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL\nSMA", style = label.style_label_down, color = color.new(m5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL")
     if showTS
         sp = math.max(m5SlowV, m5Px + atr14 * minStopAtr)
         newTrade(false, sp, m5Px - (sp - m5Px) * tgtR)
@@ -764,11 +764,11 @@ w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 w5Buy   = w5Fresh and w5B and blkL and rsiL
 w5Sell  = w5Fresh and w5S and blkS and rsiS
 if w5Buy
-    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\nwick")
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY\nwick", style = label.style_label_up, color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\nwick")
     if showTS
         newTrade(true,  math.min(w5Low,  w5Px - w5Atr * minStopAtr), w5Mean)
 if w5Sell
-    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(w5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL\nwick")
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL\nwick", style = label.style_label_down, color = color.new(w5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL\nwick")
     if showTS
         newTrade(false, math.max(w5High, w5Px + w5Atr * minStopAtr), w5Mean)
 alertcondition(w5Buy,  "5MIN WICK BUY",  "SMA Signals: 5-minute wick rejection BUY {{ticker}} @ {{close}}")
@@ -901,11 +901,11 @@ k5Fresh = k5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
 k5Buy   = k5Fresh and k5B and blkL and rsiL
 k5Sell  = k5Fresh and k5S and blkS and rsiS
 if k5Buy
-    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(k5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\n" + k5Tb)
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY\n" + k5Tb, style = label.style_label_up, color = color.new(k5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\n" + k5Tb)
     if showTS
         newTrade(true, k5StopB, k5Px + (k5Px - k5StopB) * tgtR)
 if k5Sell
-    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(k5SellC, 0), textcolor = color.black, size = size.normal, tooltip = "5min SELL\n" + k5Ts)
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL\n" + k5Ts, style = label.style_label_down, color = color.new(k5SellC, 0), textcolor = color.black, size = size.normal, tooltip = "5min SELL\n" + k5Ts)
     if showTS
         newTrade(false, k5StopS, k5Px - (k5StopS - k5Px) * tgtR)
 alertcondition(k5Buy,  "5MIN SET BUY",  "SMA Signals: 5-minute set BUY {{ticker}} @ {{close}}")
