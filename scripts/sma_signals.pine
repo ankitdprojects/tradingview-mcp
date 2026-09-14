@@ -1,0 +1,46 @@
+//@version=6
+indicator("SMA Signals", overlay=true, max_labels_count=200)
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+fastLen   = input.int(9,  "Fast SMA", minval=1)
+slowLen   = input.int(21, "Slow SMA", minval=2)
+useTrend  = input.bool(true, "Only trade with 50 SMA trend")
+trendLen  = input.int(50, "Trend SMA", minval=5)
+confirm   = input.bool(true, "Close must be on the right side of both SMAs")
+showLbl   = input.bool(true, "Show BUY / SELL labels")
+alerts    = input.bool(true, "Enable alerts")
+
+// ── SMAs ──────────────────────────────────────────────────────────────────
+fast  = ta.sma(close, fastLen)
+slow  = ta.sma(close, slowLen)
+trend = ta.sma(close, trendLen)
+
+plot(fast,  "Fast SMA",  color=color.new(#26a69a, 0), linewidth=2)
+plot(slow,  "Slow SMA",  color=color.new(#ef5350, 0), linewidth=2)
+plot(trend, "Trend SMA", color=color.new(#ff9800, 30), linewidth=1)
+
+// ── Signals ───────────────────────────────────────────────────────────────
+upCross   = ta.crossover(fast, slow)
+downCross = ta.crossunder(fast, slow)
+trendOK_L = not useTrend or close > trend
+trendOK_S = not useTrend or close < trend
+confOK_L  = not confirm or (close > fast and close > slow)
+confOK_S  = not confirm or (close < fast and close < slow)
+
+buy  = upCross   and trendOK_L and confOK_L
+sell = downCross and trendOK_S and confOK_S
+
+plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
+plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
+
+if showLbl and buy
+    label.new(bar_index, low,  "BUY",  style=label.style_label_up,   color=color.new(#00c853, 100), textcolor=#00c853, size=size.small)
+if showLbl and sell
+    label.new(bar_index, high, "SELL", style=label.style_label_down, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small)
+
+// Soft background so the current regime is visible at a glance
+bgcolor(fast > slow ? color.new(#00c853, 94) : color.new(#ff1744, 94))
+
+// ── Alerts ────────────────────────────────────────────────────────────────
+alertcondition(buy,  "SMA BUY",  "SMA Signals: BUY {{ticker}} @ {{close}}")
+alertcondition(sell, "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
