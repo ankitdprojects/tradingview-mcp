@@ -594,7 +594,7 @@ plotshape(wkSell, "WICK SELL", shape.triangledown, location.abovebar, color = co
 if showLbl and wkBuy
     label.new(bar_index, low,  "BUY\nwick",  style = label.style_label_up,   color = color.new(wkCol, 100), textcolor = wkCol, size = size.small)
 if showLbl and wkSell
-    label.new(bar_index, high, "SELL\nwick", style = label.style_label_down, color = color.new(wkCol, 100), textcolor = wkCol, size = size.small)
+    label.new(bar_index, high, "SELL\nwick", style = label.style_label_down, color = color.new(wkColS, 100), textcolor = wkColS, size = size.small)
 if showTS and wkBuy
     newTrade(true,  math.min(low, close - atr14 * minStopAtr), wkMean)
 if showTS and wkSell
