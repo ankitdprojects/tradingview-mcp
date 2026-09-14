@@ -1,5 +1,5 @@
 //@version=6
-indicator("SMA Signals", overlay=true, max_labels_count=300, max_lines_count=200, max_boxes_count=60)
+indicator("SMA Signals", overlay=true, max_labels_count=500, max_lines_count=200, max_boxes_count=100)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 fastLen   = input.int(50,  "Fast SMA", minval=1)
@@ -332,8 +332,10 @@ dcTrendL = not dcTrendG or na(trend) or close > trend
 dcTrendS = not dcTrendG or na(trend) or close < trend
 dcBuy  = dcOn and dcSigOn and close > dcUpper and close[1] <= dcUpper[1] and close > open and dcTrendL
 dcSell = dcOn and dcSigOn and close < dcLower and close[1] >= dcLower[1] and close < open and dcTrendS
-plotshape(dcBuy,  "DC BUY",  shape.triangleup,   location.belowbar, color = color.new(dcCol, 0), size = size.small)
-plotshape(dcSell, "DC SELL", shape.triangledown, location.abovebar, color = color.new(dcCol, 0), size = size.small)
+if dcBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(dcCol, 0), size = size.small, tooltip = "DC BUY")
+if dcSell
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(dcCol, 0), size = size.small, tooltip = "DC SELL")
 if showLbl and dcBuy
     label.new(bar_index, low,  "BUY",  style = label.style_label_up,   color = color.new(dcCol, 100), textcolor = dcCol, size = size.small)
 if showLbl and dcSell
@@ -389,10 +391,14 @@ newA = htfOn and secs < timeframe.in_seconds(htfA) and ta.change(time(htfA)) != 
 newB = htfOn and secs < timeframe.in_seconds(htfB) and ta.change(time(htfB)) != 0
 hAb = newA and hA_b,  hAs = newA and hA_s
 hBb = newB and hB_b,  hBs = newB and hB_s
-plotshape(hAb, "FIB 15m BUY",  shape.diamond, location.belowbar, color = color.new(#ff6d00, 0), size = size.small)
-plotshape(hAs, "FIB 15m SELL", shape.diamond, location.abovebar, color = color.new(#ff6d00, 0), size = size.small)
-plotshape(hBb, "FIB 30m BUY",  shape.diamond, location.belowbar, color = color.new(#d500f9, 0), size = size.small)
-plotshape(hBs, "FIB 30m SELL", shape.diamond, location.abovebar, color = color.new(#d500f9, 0), size = size.small)
+if hAb
+    label.new(bar_index, low, "", style = label.style_diamond, color = color.new(#ff6d00, 0), size = size.small, tooltip = "FIB 15m BUY")
+if hAs
+    label.new(bar_index, high, "", style = label.style_diamond, color = color.new(#ff6d00, 0), size = size.small, tooltip = "FIB 15m SELL")
+if hBb
+    label.new(bar_index, low, "", style = label.style_diamond, color = color.new(#d500f9, 0), size = size.small, tooltip = "FIB 30m BUY")
+if hBs
+    label.new(bar_index, high, "", style = label.style_diamond, color = color.new(#d500f9, 0), size = size.small, tooltip = "FIB 30m SELL")
 if showLbl and hAb
     label.new(bar_index, low,  "FIB " + htfA + "m BUY\nT " + str.tostring(hA_t, format.mintick),  style = label.style_label_up,   color = color.new(#ff6d00, 100), textcolor = #ff6d00, size = size.small)
 if showLbl and hAs
@@ -489,8 +495,10 @@ swTrL = not sweepTr or na(trend) or close > trend
 swTrS = not sweepTr or na(trend) or close < trend
 sweepLo = sweepOn and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
 sweepHi = sweepOn and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
-plotshape(sweepLo, "SWEEP BUY",  shape.triangleup,   location.belowbar, color = color.new(smcBull, 0), size = size.small)
-plotshape(sweepHi, "SWEEP SELL", shape.triangledown, location.abovebar, color = color.new(smcBear, 0), size = size.small)
+if sweepLo
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(smcBull, 0), size = size.small, tooltip = "SWEEP BUY")
+if sweepHi
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(smcBear, 0), size = size.small, tooltip = "SWEEP SELL")
 if showLbl and sweepLo
     label.new(bar_index, low,  "BUY\nsweep",  style = label.style_label_up,   color = color.new(smcBull, 100), textcolor = smcBull, size = size.small)
 if showLbl and sweepHi
@@ -552,8 +560,10 @@ if vwBuy or close > vwap
     vwBelow := false, vwExtLo := na
 if vwSell or close < vwap
     vwAbove := false, vwExtHi := na
-plotshape(vwBuy,  "VWAP BUY",  shape.triangleup,   location.belowbar, color = color.new(vwCol, 0), size = size.small)
-plotshape(vwSell, "VWAP SELL", shape.triangledown, location.abovebar, color = color.new(vwCol, 0), size = size.small)
+if vwBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(vwCol, 0), size = size.small, tooltip = "VWAP BUY")
+if vwSell
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(vwCol, 0), size = size.small, tooltip = "VWAP SELL")
 if showLbl and vwBuy
     label.new(bar_index, low,  "BUY\nvwap",  style = label.style_label_up,   color = color.new(vwCol, 100), textcolor = vwCol, size = size.small)
 if showLbl and vwSell
@@ -589,8 +599,10 @@ wkTrL    = not wkTrendG or na(trend) or close > trend
 wkTrS    = not wkTrendG or na(trend) or close < trend
 wkBuy  = wkOn and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean and wkTrL
 wkSell = wkOn and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean and wkTrS
-plotshape(wkBuy,  "WICK BUY",  shape.triangleup,   location.belowbar, color = color.new(wkCol, 0), size = size.small)
-plotshape(wkSell, "WICK SELL", shape.triangledown, location.abovebar, color = color.new(wkColS, 0), size = size.small)
+if wkBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(wkCol, 0), size = size.small, tooltip = "WICK BUY")
+if wkSell
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(wkColS, 0), size = size.small, tooltip = "WICK SELL")
 if showLbl and wkBuy
     label.new(bar_index, low,  "BUY\nwick",  style = label.style_label_up,   color = color.new(wkCol, 100), textcolor = wkCol, size = size.small)
 if showLbl and wkSell
@@ -601,3 +613,72 @@ if showTS and wkSell
     newTrade(false, math.max(high, close + atr14 * minStopAtr), wkMean)
 alertcondition(wkBuy,  "WICK BUY",  "SMA Signals: wick rejection BUY {{ticker}} @ {{close}}")
 alertcondition(wkSell, "WICK SELL", "SMA Signals: wick rejection SELL {{ticker}} @ {{close}}")
+
+// ── ICT Fair Value Gaps (v17) ────────────────────────────────────────────
+// The most-used ICT tool. Bullish FVG = a 3-candle imbalance where candle 1's high < candle 3's low
+// (price jumped, leaving a gap). Drawn as a box extended right until price fills it.
+// Signal = the retest: price trades back INTO an unfilled bullish gap and closes above the gap top
+// with a green candle → BUY. Bearish gap retest → SELL. Stop = far edge of the gap, target 1.5R.
+// Kill zone = the first hour of the NSE session (09:15–10:15 IST), tinted, where ICT setups are taken.
+grpICT   = "ICT Fair Value Gaps"
+fvgOn    = input.bool(true,  "Show Fair Value Gaps",             group = grpICT)
+fvgMinAtr= input.float(0.2,  "Min gap size (ATR x)", step = 0.05, minval = 0, group = grpICT)
+fvgMax   = input.int(8,      "Max open gaps kept", minval = 1, maxval = 30, group = grpICT)
+fvgSigOn = input.bool(true,  "FVG BUY / SELL on retest",         group = grpICT)
+fvgTrendG= input.bool(true,  "Retest signals only with trend SMA (ignored while the SMA has no data)", group = grpICT)
+kzOn     = input.bool(true,  "Highlight opening kill zone",      group = grpICT)
+kzSess   = input.session("0915-1015", "Kill zone (exchange time)", group = grpICT)
+fvgBullC = input.color(#00e676, "Bullish gap colour", group = grpICT)
+fvgBearC = input.color(#ff5252, "Bearish gap colour", group = grpICT)
+
+bgcolor(kzOn and not na(time(timeframe.period, kzSess)) and timeframe.isintraday ? color.new(#ffab00, 92) : na, title = "Kill zone")
+
+var box[]   fvgB   = array.new_box()
+var bool[]  fvgUp  = array.new_bool()
+var float[] fvgTop = array.new_float(), var float[] fvgBot = array.new_float()
+bullGap = fvgOn and low > high[2] and (low - high[2]) >= atr14 * fvgMinAtr
+bearGap = fvgOn and high < low[2] and (low[2] - high) >= atr14 * fvgMinAtr
+if bullGap
+    array.push(fvgB, box.new(bar_index - 2, low, bar_index + 1, high[2], border_color = color.new(fvgBullC, 70), bgcolor = color.new(fvgBullC, 85), extend = extend.right))
+    array.push(fvgUp, true), array.push(fvgTop, low), array.push(fvgBot, high[2])
+if bearGap
+    array.push(fvgB, box.new(bar_index - 2, low[2], bar_index + 1, high, border_color = color.new(fvgBearC, 70), bgcolor = color.new(fvgBearC, 85), extend = extend.right))
+    array.push(fvgUp, false), array.push(fvgTop, low[2]), array.push(fvgBot, high)
+
+// retest signal + fill management (a gap is "filled" once price closes through its far edge)
+fvgTrL = not fvgTrendG or na(trend) or close > trend
+fvgTrS = not fvgTrendG or na(trend) or close < trend
+bool fvgBuy = false, bool fvgSell = false
+float fvgStopL = na, float fvgStopS = na
+if array.size(fvgB) > 0
+    for i = array.size(fvgB) - 1 to 0
+        up = array.get(fvgUp, i), top = array.get(fvgTop, i), bot = array.get(fvgBot, i)
+        isNew = bar_index - box.get_left(array.get(fvgB, i)) <= 2
+        if not isNew
+            if up and low <= top and low > bot and close > top and close > open and fvgSigOn and fvgTrL and not fvgBuy
+                fvgBuy := true, fvgStopL := bot
+            if not up and high >= bot and high < top and close < bot and close < open and fvgSigOn and fvgTrS and not fvgSell
+                fvgSell := true, fvgStopS := top
+        filled = up ? close < bot : close > top
+        if filled
+            box.delete(array.remove(fvgB, i)), array.remove(fvgUp, i), array.remove(fvgTop, i), array.remove(fvgBot, i)
+    while array.size(fvgB) > fvgMax
+        box.delete(array.shift(fvgB)), array.shift(fvgUp), array.shift(fvgTop), array.shift(fvgBot)
+
+if fvgBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(fvgBullC, 0), size = size.small, tooltip = "FVG BUY")
+if fvgSell
+    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(fvgBearC, 0), size = size.small, tooltip = "FVG SELL")
+if showLbl and fvgBuy
+    label.new(bar_index, low,  "BUY\nFVG",  style = label.style_label_up,   color = color.new(fvgBullC, 100), textcolor = fvgBullC, size = size.small)
+if showLbl and fvgSell
+    label.new(bar_index, high, "SELL\nFVG", style = label.style_label_down, color = color.new(fvgBearC, 100), textcolor = fvgBearC, size = size.small)
+if showTS and fvgBuy
+    sp = math.min(fvgStopL, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and fvgSell
+    sp = math.max(fvgStopS, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(bullGap or bearGap, "FVG formed", "SMA Signals: new Fair Value Gap on {{ticker}}")
+alertcondition(fvgBuy,  "FVG BUY",  "SMA Signals: FVG retest BUY {{ticker}} @ {{close}}")
+alertcondition(fvgSell, "FVG SELL", "SMA Signals: FVG retest SELL {{ticker}} @ {{close}}")
