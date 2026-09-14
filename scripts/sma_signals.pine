@@ -7,9 +7,10 @@ slowLen   = input.int(200, "Slow SMA", minval=2)
 useTrend  = input.bool(false, "Only trade with trend SMA")
 trendLen  = input.int(200, "Trend SMA", minval=5)
 confirm   = input.bool(true, "Close must be on the right side of both SMAs")
-showLbl   = input.bool(false, "Show text labels (off = compact markers only)")
-sigMinTf  = input.int(15, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
-trendAll  = input.bool(true, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
+showLbl   = input.bool(true, "Show BUY / SELL text labels")
+sigMinTf  = input.int(0, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
+lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, minval = 0, group = "Display")
+trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
 sigOK     = sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60
 alerts    = input.bool(true, "Enable alerts")
 
@@ -39,9 +40,9 @@ plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
 
 if showLbl and buy
-    label.new(bar_index, low,  "BUY",  style=label.style_label_up,   color=color.new(#00c853, 100), textcolor=#00c853, size=size.small)
+    label.new(bar_index, low - ta.atr(14) * lblGap,  "BUY\nSMA",  style=label.style_label_up,   color=color.new(#00c853, 0), textcolor=color.black, size=size.small)
 if showLbl and sell
-    label.new(bar_index, high, "SELL", style=label.style_label_down, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small)
+    label.new(bar_index, high + ta.atr(14) * lblGap, "SELL\nSMA", style=label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small)
 
 // Soft background so the current regime is visible at a glance
 bgcolor(fast > slow ? color.new(#00c853, 94) : color.new(#ff1744, 94))
@@ -310,14 +311,10 @@ swTrL = not sweepTr or na(trend) or close > trend
 swTrS = not sweepTr or na(trend) or close < trend
 sweepLo = sweepOn and gateL and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
 sweepHi = sweepOn and gateS and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
-if sweepLo
-    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(smcBull, 0), size = size.small, tooltip = "SWEEP BUY")
-if sweepHi
-    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(smcBear, 0), size = size.small, tooltip = "SWEEP SELL")
 if showLbl and sweepLo
-    label.new(bar_index, low,  "BUY\nsweep",  style = label.style_label_up,   color = color.new(smcBull, 100), textcolor = smcBull, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nsweep",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
 if showLbl and sweepHi
-    label.new(bar_index, high, "SELL\nsweep", style = label.style_label_down, color = color.new(smcBear, 100), textcolor = smcBear, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nsweep", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
 if showTS and sweepLo
     sp = math.min(low, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -387,14 +384,10 @@ if srOn and barstate.islast
 plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
 stFlipUp = stOn and stSigOn and gateL and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
 stFlipDn = stOn and stSigOn and gateS and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
-if stFlipUp
-    label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(#00c853, 0), size = size.small, tooltip = "Supertrend BUY")
-if stFlipDn
-    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(#ff1744, 0), size = size.small, tooltip = "Supertrend SELL")
 if showLbl and stFlipUp
-    label.new(bar_index, low,  "BUY\nST",  style = label.style_label_up,   color = color.new(#00c853, 100), textcolor = #00c853, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nST",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
 if showLbl and stFlipDn
-    label.new(bar_index, high, "SELL\nST", style = label.style_label_down, color = color.new(#ff1744, 100), textcolor = #ff1744, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nST", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
 if showTS and stFlipUp
     sp = math.min(stLine, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
@@ -442,14 +435,10 @@ emBuy  = emOn and emSigOn and gateL and emUp and emTouchL and close > ema50 and 
 emSell = emOn and emSigOn and gateS and emDn and emTouchS and close < ema50 and close < open and close[1] < ema50[1]
 emBuy  := emBuy  and not emBuy[1]
 emSell := emSell and not emSell[1]
-if emBuy
-    label.new(bar_index, low,  "", style = label.style_triangleup,   color = color.new(emCol, 0), size = size.small, tooltip = "EMA 50 touch BUY")
-if emSell
-    label.new(bar_index, high, "", style = label.style_triangledown, color = color.new(#ff1744, 0), size = size.small, tooltip = "EMA 50 touch SELL")
 if showLbl and emBuy
-    label.new(bar_index, low,  "BUY\nEMA",  style = label.style_label_up,   color = color.new(emCol, 100), textcolor = emCol, size = size.small)
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nEMA",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
 if showLbl and emSell
-    label.new(bar_index, high, "SELL\nEMA", style = label.style_label_down, color = color.new(#ff1744, 100), textcolor = #ff1744, size = size.small)
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nEMA", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
 if showTS and emBuy
     sp = math.min(low, close - atr14 * minStopAtr)
     newTrade(true, sp, close + (close - sp) * tgtR)
