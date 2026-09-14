@@ -33,6 +33,9 @@ fixedQty   = input.float(0, "Fixed qty in contracts / lots (0 = risk-sized)", mi
 capPerTrade = input.float(20000, "Capital per trade (Rs, 0 = use risk sizing)", minval = 0)        // in_20  user rule 2026-09-14: whole 20k every trade
 stopMode   = input.string("Signal", "Stop / target", options = ["Signal", "Swing"])                  // in_21  Signal = SMA stop at slow SMA / FIB stop at 0.786 + 1.272 target
 maxHoldD   = input.int(15, "Daily: max hold in bars (0 = no limit)", minval = 0)                     // in_22  user rule 2026-09-14: hold a stock max 15 trading days on D
+usePair2   = input.bool(false, "Second SMA pair also signals")                                       // in_23  user: "9/21 and 50/200 both together"
+fast2Len   = input.int(9,  "Second pair fast", minval = 1)                                           // in_24
+slow2Len   = input.int(21, "Second pair slow", minval = 2)                                           // in_25
 
 // ── Date window ───────────────────────────────────────────────────────────
 ymd      = year * 10000 + month * 100 + dayofmonth
@@ -51,8 +54,17 @@ trendOK_L = not useTrend or close > trend
 trendOK_S = not useTrend or close < trend
 confOK_L  = not confirm or (close > fast and close > slow)
 confOK_S  = not confirm or (close < fast and close < slow)
-smaBuy  = upCross   and trendOK_L and confOK_L
-smaSell = downCross and trendOK_S and confOK_S
+smaBuy1  = upCross   and trendOK_L and confOK_L
+smaSell1 = downCross and trendOK_S and confOK_S
+// Second pair (e.g. 9/21) fires alongside the first; stop for its trades = its own slow SMA
+fast2 = ta.sma(close, fast2Len)
+slow2 = ta.sma(close, slow2Len)
+smaBuy2  = usePair2 and ta.crossover(fast2, slow2)  and trendOK_L and (not confirm or (close > fast2 and close > slow2))
+smaSell2 = usePair2 and ta.crossunder(fast2, slow2) and trendOK_S and (not confirm or (close < fast2 and close < slow2))
+smaBuy  = smaBuy1  or smaBuy2
+smaSell = smaSell1 or smaSell2
+smaStopL = smaBuy1  ? slow : slow2
+smaStopS = smaSell1 ? slow : slow2
 
 // ── Fibonacci golden-zone bounce (same as indicator v3) ──────────────────
 ph = ta.pivothigh(high, pivLen, pivLen)
@@ -92,8 +104,8 @@ atr14 = ta.atr(14)
 // Swing mode keeps the old lowest-low / highest-high stop. All floored at minStopAtr from entry.
 isFibL = useFib and fibBuy  and not (useSma and smaBuy)
 isFibS = useFib and fibSell and not (useSma and smaSell)
-rawL   = stopMode == "Swing" ? ta.lowest(low, swingLen)   : (isFibL ? f786 : slow)
-rawS   = stopMode == "Swing" ? ta.highest(high, swingLen) : (isFibS ? f786 : slow)
+rawL   = stopMode == "Swing" ? ta.lowest(low, swingLen)   : (isFibL ? f786 : smaStopL)
+rawS   = stopMode == "Swing" ? ta.highest(high, swingLen) : (isFibS ? f786 : smaStopS)
 stopL  = math.min(rawL, close - atr14 * minStopAtr)
 stopS  = math.max(rawS, close + atr14 * minStopAtr)
 flat  = strategy.position_size == 0
