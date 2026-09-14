@@ -15,6 +15,8 @@ sigOK     = sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60
 oneMinOnly = input.bool(true, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
 is1m      = timeframe.in_seconds() <= 60
 othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
+sma1mOnly = input.bool(true, "SMA 50/200 cross signals only on the 1-minute chart", group = "Display")
+smaTfOK   = not sma1mOnly or is1m
 alerts    = input.bool(true, "Enable alerts")
 
 // ── SMAs ──────────────────────────────────────────────────────────────────
@@ -90,8 +92,8 @@ confOK_S  = not confirm or (close < fast and close < slow)
 
 gateL = sigOK and othersOK and blkL and rsiL and (not trendAll or na(slow) or close > slow)
 gateS = sigOK and othersOK and blkS and rsiS and (not trendAll or na(slow) or close < slow)
-buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL
-sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS
+buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL and smaTfOK
+sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS and smaTfOK
 
 plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
