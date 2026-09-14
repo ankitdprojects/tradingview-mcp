@@ -564,3 +564,39 @@ if showTS and vwSell
     newTrade(false, math.max(nz(vwExtHi[1], high), close + atr14 * minStopAtr), vwap)
 alertcondition(vwBuy,  "VWAP BUY",  "SMA Signals: VWAP mean-reversion BUY {{ticker}} @ {{close}}")
 alertcondition(vwSell, "VWAP SELL", "SMA Signals: VWAP mean-reversion SELL {{ticker}} @ {{close}}")
+
+// ── Wick mean reversion (v14) ────────────────────────────────────────────
+// A long wick at a stretched price = rejection. BUY: lower wick ≥ wkRatio × body and ≥ wkPct of the
+// candle range, with the low stretched at least wkAtr ATR below the mean (20 SMA). SELL is the mirror.
+// Target = the mean it should revert to, stop = the wick tip.
+grpWK    = "Wick mean reversion"
+wkOn     = input.bool(true,  "Wick rejection BUY / SELL",          group = grpWK)
+wkLen    = input.int(20,     "Mean (SMA length)", minval = 5,       group = grpWK)
+wkAtr    = input.float(1.0,  "Stretch from mean (ATR x)", step = 0.25, minval = 0, group = grpWK)
+wkRatio  = input.float(2.0,  "Wick ≥ body x", step = 0.5, minval = 1, group = grpWK)
+wkPct    = input.float(0.6,  "Wick ≥ range x", step = 0.05, minval = 0.3, maxval = 0.9, group = grpWK)
+wkTrendG = input.bool(false, "Signals only with trend SMA",         group = grpWK)
+wkCol    = input.color(#00bfa5, "Colour",                           group = grpWK)
+
+wkMean   = ta.sma(close, wkLen)
+plot(wkOn ? wkMean : na, "Wick mean", color = color.new(wkCol, 40), linewidth = 1, style = plot.style_line)
+wkBody   = math.abs(close - open)
+wkRange  = high - low
+wkLower  = math.min(open, close) - low
+wkUpper  = high - math.max(open, close)
+wkTrL    = not wkTrendG or na(trend) or close > trend
+wkTrS    = not wkTrendG or na(trend) or close < trend
+wkBuy  = wkOn and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean and wkTrL
+wkSell = wkOn and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean and wkTrS
+plotshape(wkBuy,  "WICK BUY",  shape.triangleup,   location.belowbar, color = color.new(wkCol, 0), size = size.small)
+plotshape(wkSell, "WICK SELL", shape.triangledown, location.abovebar, color = color.new(wkCol, 0), size = size.small)
+if showLbl and wkBuy
+    label.new(bar_index, low,  "BUY\nwick",  style = label.style_label_up,   color = color.new(wkCol, 100), textcolor = wkCol, size = size.small)
+if showLbl and wkSell
+    label.new(bar_index, high, "SELL\nwick", style = label.style_label_down, color = color.new(wkCol, 100), textcolor = wkCol, size = size.small)
+if showTS and wkBuy
+    newTrade(true,  math.min(low, close - atr14 * minStopAtr), wkMean)
+if showTS and wkSell
+    newTrade(false, math.max(high, close + atr14 * minStopAtr), wkMean)
+alertcondition(wkBuy,  "WICK BUY",  "SMA Signals: wick rejection BUY {{ticker}} @ {{close}}")
+alertcondition(wkSell, "WICK SELL", "SMA Signals: wick rejection SELL {{ticker}} @ {{close}}")
