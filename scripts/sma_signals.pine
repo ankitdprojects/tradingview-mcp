@@ -13,7 +13,18 @@ lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, m
 trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
 // Signals are evaluated only on CLOSED bars (barstate.isconfirmed) so a label, once drawn, never disappears
 // when the live bar moves against it. A signal therefore appears at the close of its bar and then stays.
-sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed
+// ── Category preset (v41) ────────────────────────────────────────────────
+// Backtests split cleanly by instrument type, so the signal set follows the symbol:
+//   Options        : the timeframe flow as tested (sweep, wick, SMA crosses, Supertrend+ADX, 15min/60min sets)
+//   Commodities MCX: Supertrend + Donchian + SMA 9/21 cross on 5m-60m (sweep and wick lost on crude)
+//   Index futures  : nothing below 60m; 60m wick + Supertrend only (every faster row lost)
+catMode   = input.string("Auto", "Category preset", options = ["Auto", "Options", "Commodities", "Index futures", "All signals"], group = "Display")
+autoCat   = syminfo.type == "option" ? "Options" : syminfo.prefix == "MCX" ? "Commodities" : syminfo.type == "futures" ? "Index futures" : "Options"
+cat       = catMode == "Auto" ? autoCat : catMode
+catOpt    = cat == "Options"
+catCom    = cat == "Commodities"
+catIdx    = cat == "Index futures"
+sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed and (not catIdx or timeframe.in_seconds() >= 3600)
 oneMinOnly = input.bool(true, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
 is1m      = timeframe.in_seconds() <= 60
 othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
@@ -47,12 +58,14 @@ f15StL = not is15 or f15Adx >= 20            // Supertrend flip only with ADX �
 f15StS = f15StL
 smaSigOn  = input.bool(true, "SMA 50/200 cross BUY / SELL signals", group = "Display")
 sma1mOnly = input.bool(true, "SMA 50/200 cross signals only on the 1-minute chart", group = "Display")
-smaTfOK   = smaSigOn and (not sma1mOnly or is1m)
+smaTfOK   = smaSigOn and (catCom ? timeframe.in_seconds() >= 300 : (not sma1mOnly or is1m))
 alerts    = input.bool(true, "Enable alerts")
 
 // ── SMAs ──────────────────────────────────────────────────────────────────
-fast  = ta.sma(close, fastLen)
-slow  = ta.sma(close, slowLen)
+fastL = catCom ? 9 : fastLen
+slowL = catCom ? 21 : slowLen
+fast  = ta.sma(close, fastL)
+slow  = ta.sma(close, slowL)
 trend = ta.sma(close, trendLen)
 
 plot(fast,  "Fast SMA",  color=color.new(#26a69a, 0), linewidth=2)
@@ -429,8 +442,8 @@ if array.size(liqLl) > 0
 // Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
 swTrL = not sweepTr or na(trend) or close > trend
 swTrS = not sweepTr or na(trend) or close < trend
-sweepLo = sweepOn and gateL and f15SwL and not is60 and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
-sweepHi = sweepOn and gateS and f15SwS and not is60 and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+sweepLo = sweepOn and not catCom and gateL and f15SwL and not is60 and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = sweepOn and not catCom and gateS and f15SwS and not is60 and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
 if showLbl and sweepLo
     label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nsweep")
 if showLbl and sweepHi
@@ -502,8 +515,8 @@ if srOn and barstate.islast
 [stLine, stDir] = ta.supertrend(stMult, stLen)
 [diP, diM, adx] = ta.dmi(adxLen, adxLen)
 plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
-stFlipUp = stOn and stSigOn and gateL and f15StL and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
-stFlipDn = stOn and stSigOn and gateS and f15StS and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipUp = stOn and stSigOn and gateL and (catCom or f15StL) and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipDn = stOn and stSigOn and gateS and (catCom or f15StS) and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
 if showLbl and stFlipUp
     label.new(bar_index, low - atr14 * lblGap, "BUY", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nST")
 if showLbl and stFlipDn
@@ -518,7 +531,7 @@ alertcondition(stFlipUp, "SUPERTREND BUY",  "SMA Signals: Supertrend BUY {{ticke
 alertcondition(stFlipDn, "SUPERTREND SELL", "SMA Signals: Supertrend SELL {{ticker}} @ {{close}}")
 
 // ATR / ADX panel (table = no plot budget used)
-var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 6, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
+var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 7, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
 if axOn and barstate.islast
     adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
     adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
@@ -533,6 +546,8 @@ if axOn and barstate.islast
     table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
     table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
     rsiCol = rsi >= rsiHi ? #ff1744 : rsi <= rsiLo ? #00c853 : color.white
+    table.cell(axT, 0, 6, "Preset", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 6, cat + (catMode == "Auto" ? " (auto)" : ""), text_color = #ffd600, text_size = size.small)
     table.cell(axT, 0, 5, "RSI " + str.tostring(rsi, "#.#"), text_color = rsiCol, text_size = size.small)
     table.cell(axT, 1, 5, rsi >= rsiHi ? "overbought" : rsi <= rsiLo ? "oversold" : "neutral", text_color = rsiCol, text_size = size.small)
 
@@ -601,8 +616,8 @@ htfSig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = sweepOn and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
-    _swS = sweepOn and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    _swB = sweepOn and not catCom and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = sweepOn and not catCom and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
     // Supertrend flip + ADX
     [_stL, _stD] = ta.supertrend(stMult, stLen)
     [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
@@ -689,8 +704,8 @@ wkBody   = math.abs(close - open)
 wkRange  = high - low
 wkLower  = math.min(open, close) - low
 wkUpper  = high - math.max(open, close)
-wkTf     = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL
-wkTfS    = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS
+wkTf     = wkOn and not catCom and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL
+wkTfS    = wkOn and not catCom and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS
 wkBuy  = wkTf  and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean
 wkSell = wkTfS and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean
 if showLbl and wkBuy
@@ -723,7 +738,7 @@ m5Sig() =>
     _x = ta.crossunder(_f, _s) and (not m5Conf or (close < _f and close < _s))
     [_b, _x, _s, close]
 [m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_off)
-m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+m5Fresh = m5On and is1m and not catIdx and barstate.isconfirmed and ta.change(time("5")) != 0
 m5Buy   = m5Fresh and m5B and blkL and rsiL
 m5Sell  = m5Fresh and m5S and blkS and rsiS
 if m5Buy
@@ -760,7 +775,7 @@ w5Sig() =>
     _s = _rng > 0 and _upper >= _body * wkRatio and _upper >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
     [_b, _s, _mean, low, high, close, _atr]
 [w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_off)
-w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+w5Fresh = w5On and is1m and not catCom and not catIdx and barstate.isconfirmed and ta.change(time("5")) != 0
 w5Buy   = w5Fresh and w5B and blkL and rsiL
 w5Sell  = w5Fresh and w5S and blkS and rsiS
 if w5Buy
@@ -802,8 +817,8 @@ s15Sig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open and close > _vwap
-    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open and close < _vwap
+    _swB = not catCom and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open and close > _vwap
+    _swS = not catCom and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open and close < _vwap
     // Supertrend flip with ADX
     _stB = _stD < 0 and _stD[1] >= 0 and _adx >= 20
     _stS = _stD > 0 and _stD[1] <= 0 and _adx >= 20
@@ -828,7 +843,7 @@ s15Sig() =>
     _tgtS = _wkS and not (_swS or _stS or _emS) ? _mean : close - (_stopS - close) * tgtR
     [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
 [s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(), lookahead = barmerge.lookahead_off)
-s15Fresh = s15On and lt15 and barstate.isconfirmed and ta.change(time("15")) != 0
+s15Fresh = s15On and lt15 and not catIdx and barstate.isconfirmed and ta.change(time("15")) != 0
 s15Buy   = s15Fresh and s15B and blkL and rsiL
 s15Sell  = s15Fresh and s15S and blkS and rsiS
 if s15Buy
@@ -864,8 +879,8 @@ k5Sig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
-    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    _swB = not catCom and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = not catCom and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
     // Supertrend flip with ADX
     [_stL, _stD] = ta.supertrend(stMult, stLen)
     [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
@@ -897,7 +912,7 @@ k5Sig() =>
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high[rsiDivPv], close + _atr * minStopAtr)
     [_b, _s, _tb, _ts, _stopB, _stopS, close]
 [k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_off)
-k5Fresh = k5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+k5Fresh = k5On and is1m and not catIdx and barstate.isconfirmed and ta.change(time("5")) != 0
 k5Buy   = k5Fresh and k5B and blkL and rsiL
 k5Sell  = k5Fresh and k5S and blkS and rsiS
 if k5Buy
@@ -954,3 +969,34 @@ if s60Sell
         newTrade(false, s60StopS, s60TgtS)
 alertcondition(s60Buy,  "60MIN BUY",  "SMA Signals: 60-minute set BUY {{ticker}} @ {{close}}")
 alertcondition(s60Sell, "60MIN SELL", "SMA Signals: 60-minute set SELL {{ticker}} @ {{close}}")
+
+
+// ── Donchian channel (v41, commodities preset) ───────────────────────────
+// Second-best commodity indicator in the tests (+25k on crude, 4 of 5 timeframes). Breakout: first close
+// above the prior N-bar high = BUY, below the prior N-bar low = SELL. Stop = channel mid, target 1.5R.
+grpDC    = "Donchian (commodities)"
+dcOn     = input.bool(true, "Donchian breakout BUY / SELL",         group = grpDC)
+dcAllCat = input.bool(false, "Also on options / index futures",     group = grpDC)
+dcLen    = input.int(20,    "Length", minval = 5,                   group = grpDC)
+dcShow   = input.bool(true, "Draw the channel",                     group = grpDC)
+dcCol    = input.color(#26c6da, "Channel colour",                   group = grpDC)
+dcUpper  = ta.highest(high, dcLen)[1]
+dcLower  = ta.lowest(low, dcLen)[1]
+dcMid    = (dcUpper + dcLower) / 2
+dcUse    = dcOn and (catCom or dcAllCat)
+plot(dcUse and dcShow ? dcUpper : na, "DC Upper", color = color.new(dcCol, 20))
+plot(dcUse and dcShow ? dcLower : na, "DC Lower", color = color.new(dcCol, 20))
+dcBuy  = dcUse and sigOK and blkL and rsiL and timeframe.in_seconds() >= 300 and close > dcUpper and close[1] <= dcUpper[1] and close > open
+dcSell = dcUse and sigOK and blkS and rsiS and timeframe.in_seconds() >= 300 and close < dcLower and close[1] >= dcLower[1] and close < open
+if showLbl and dcBuy
+    label.new(bar_index, low - atr14 * lblGap,  "BUY",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY Donchian")
+if showLbl and dcSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL Donchian")
+if showTS and dcBuy
+    sp = math.min(dcMid, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and dcSell
+    sp = math.max(dcMid, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(dcBuy,  "DC BUY",  "SMA Signals: Donchian BUY {{ticker}} @ {{close}}")
+alertcondition(dcSell, "DC SELL", "SMA Signals: Donchian SELL {{ticker}} @ {{close}}")
