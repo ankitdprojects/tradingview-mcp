@@ -148,7 +148,7 @@ alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
 showTS     = input.bool(true, "Mark target & stop",              group="Targets")
 tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
-maxLive    = input.int(2, "Max live trades shown", minval=1, maxval=20, group="Targets")
+maxLive    = input.int(6, "Max trades kept on screen", minval=1, maxval=20, group="Targets")
 
 atr14 = ta.atr(14)
 var line[]  tLn = array.new_line(),  var line[]  sLn = array.new_line()
@@ -392,12 +392,13 @@ if array.size(obs) > 0
         bull = array.get(obsBull, i)
         gone = bull ? close < box.get_bottom(b) : close > box.get_top(b)
         if gone
-            box.delete(array.remove(obs, i)), array.remove(obsBull, i)
+            bx = array.remove(obs, i), array.remove(obsBull, i)
+            box.set_extend(bx, extend.none), box.set_right(bx, bar_index), box.set_bgcolor(bx, color.new(bull ? smcBull : smcBear, 96)), box.set_border_color(bx, color.new(bull ? smcBull : smcBear, 85))
     while array.size(obs) > obMax
         box.delete(array.shift(obs)), array.shift(obsBull)
 
 // Liquidity levels (v26): every confirmed swing high / low that has NOT been traded through yet is
-// where resting stops sit. Drawn as dotted lines that extend right and disappear the bar they are swept.
+// where resting stops sit. Drawn as dotted lines that extend right; once swept the line stays, stops at the sweep bar and is tagged "swept".
 liqOn    = input.bool(true, "Show resting liquidity (unswept swing highs / lows)", group = grpSMC)
 liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, maxval = 10, group = grpSMC)
 var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
@@ -416,13 +417,17 @@ if liqOn and not na(sPl)
 if array.size(liqHl) > 0
     for i = array.size(liqHl) - 1 to 0
         if high > line.get_y1(array.get(liqHl, i)) and bar_index > line.get_x1(array.get(liqHl, i)) + smcPiv
-            line.delete(array.remove(liqHl, i)), label.delete(array.remove(liqHb, i))
+            ln = array.remove(liqHl, i), lb = array.remove(liqHb, i)
+            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBear, 65))
+            label.set_text(lb, "swept ▲ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBear, 40))
         else
             label.set_x(array.get(liqHb, i), bar_index + 1)
 if array.size(liqLl) > 0
     for i = array.size(liqLl) - 1 to 0
         if low < line.get_y1(array.get(liqLl, i)) and bar_index > line.get_x1(array.get(liqLl, i)) + smcPiv
-            line.delete(array.remove(liqLl, i)), label.delete(array.remove(liqLb, i))
+            ln = array.remove(liqLl, i), lb = array.remove(liqLb, i)
+            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBull, 65))
+            label.set_text(lb, "swept ▼ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBull, 40))
         else
             label.set_x(array.get(liqLb, i), bar_index + 1)
 
