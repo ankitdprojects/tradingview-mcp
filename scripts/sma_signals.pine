@@ -148,7 +148,8 @@ alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
 showTS     = input.bool(true, "Mark target & stop",              group="Targets")
 tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
-maxLive    = input.int(6, "Max trades kept on screen", minval=1, maxval=20, group="Targets")
+maxLive    = input.int(2, "Max trades kept on screen", minval=1, maxval=20, group="Targets")
+sellTS     = input.bool(false, "Also mark target / stop for SELL signals (off = buy-only trading)", group="Targets")
 
 atr14 = ta.atr(14)
 var line[]  tLn = array.new_line(),  var line[]  sLn = array.new_line()
@@ -158,14 +159,15 @@ var int[]   tDir = array.new_int()
 
 newTrade(bool isLong, float stopPx, float tgtPx) =>
     col = isLong ? #00c853 : #ff1744
-    array.push(tLn, line.new(bar_index, tgtPx, bar_index + 1, tgtPx, color=color.new(col, 0), style=line.style_dotted, width=2))
-    array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
-    array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
-    array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
-    array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
-    if array.size(tPx) > maxLive
-        line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
-        array.shift(tPx), array.shift(sPx), array.shift(tDir)
+    if isLong or sellTS
+        array.push(tLn, line.new(bar_index, tgtPx, bar_index + 1, tgtPx, color=color.new(col, 0), style=line.style_dotted, width=2))
+        array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
+        array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
+        array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
+        array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
+        if array.size(tPx) > maxLive
+            line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
+            array.shift(tPx), array.shift(sPx), array.shift(tDir)
 
 if showTS
     if buy
