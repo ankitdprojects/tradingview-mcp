@@ -162,7 +162,13 @@ showBars  = input.bool(true, "Show strike bars on the price pane",
 
 // Bars currently on screen. Scripts that read these recalculate when the
 // chart is scrolled or zoomed, so the profile re-fits itself.
-visBars = math.max(20, math.round((chart.right_visible_bar_time - chart.left_visible_bar_time) / (timeframe.in_seconds() * 1000)))
+// Count real bars, not time span / timeframe: across a weekend or session gap
+// the time span over-counts by thousands of bars and the margin bars then
+// spanned the whole chart.
+var int visLeftIdx = na
+if na(visLeftIdx) and time >= chart.left_visible_bar_time
+    visLeftIdx := bar_index
+visBars = math.max(20, na(visLeftIdx) ? 20 : bar_index - visLeftIdx + 1)
 lblX    = bar_index - math.max(10, math.round(visBars * 0.45))   // wall / max-pain labels stay on screen
 
 // ── OI profile ──────────────────────────────────────────────────────────
