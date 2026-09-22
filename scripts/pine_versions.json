@@ -1,0 +1,56 @@
+{
+  "OI Profile": {
+    "file": "oi_profile.pine",
+    "id": "USER;1668bb101d304ef386f71ef4dbd36e34",
+    "version": "30.0",
+    "modified": 1789968275
+  },
+  "Pullback Retest BT": {
+    "file": "pullback_retest_strategy.pine",
+    "id": "USER;7e62a80a99334d8ead50d5efa5230b96",
+    "version": "18.0",
+    "modified": 1789179410
+  },
+  "Quad Stack": {
+    "file": "quad_stack.pine",
+    "id": "USER;4de29176d89f4aa19052ef423d4f90be",
+    "version": "3.0",
+    "modified": 1788164696
+  },
+  "Screener": {
+    "file": "screener_tv.pine",
+    "id": "USER;4624c915b2b849aa8b16c58c1c3c38c8",
+    "version": "1.0",
+    "modified": 1786692705
+  },
+  "Screener ATR / ADX": {
+    "file": "screener_atr_adx.pine",
+    "id": "USER;677180d5f8904442bb4cbf5a22027682",
+    "version": "1.0",
+    "modified": 1787645075
+  },
+  "Screener ATR / ADX (on chart)": {
+    "file": "screener_atr_adx_on_chart.pine",
+    "id": "USER;7d359d4115e341fe896024838fc2c813",
+    "version": "3.0",
+    "modified": 1787652479
+  },
+  "SMA Signals": {
+    "file": "sma_signals.pine",
+    "id": "USER;f686f1a3397144a4bc31ea731b015e2b",
+    "version": "45.0",
+    "modified": 1789704667
+  },
+  "SMA Signals BT": {
+    "file": "sma_signals_strategy.pine",
+    "id": "USER;c0f252c7eb62426e8a607a3498385c1f",
+    "version": "9.0",
+    "modified": 1789370661
+  },
+  "Swing Pullback Console": {
+    "file": "swing_pullback_console.pine",
+    "id": "USER;ad5ec9f07f2b4daeb989326e14cc13b8",
+    "version": "116.0",
+    "modified": 1789213005
+  }
+}
