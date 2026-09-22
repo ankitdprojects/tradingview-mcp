@@ -81,6 +81,9 @@ for (const sym of SYMBOLS) {
     await sleep(2000);
   }
   if (!String(shown).toUpperCase().includes(want)) { console.log(sym, 'DID NOT RESOLVE (chart shows', shown + ') - skipped'); continue; }
+  // BT_SYMBOL_INPUTS: JSON {symbol: [{id,value},...]} applied right after the symbol switch (e.g. signal symbol + CE/PE side)
+  const SYM_INPUTS = process.env.BT_SYMBOL_INPUTS ? JSON.parse(process.env.BT_SYMBOL_INPUTS) : {};
+  if (SYM_INPUTS[sym]) { await ev(`TradingViewApi.activeChart().getStudyById('${stratId}').setInputValues(${JSON.stringify(SYM_INPUTS[sym])}); true`); await sleep(1500); console.log(sym, 'symbol inputs applied'); }
   for (const tf of TFS) {
     await ev(`TradingViewApi.activeChart().setResolution(${JSON.stringify(tf)}); true`);
     await sleep(4000);
