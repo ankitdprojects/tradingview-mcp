@@ -1,0 +1,288 @@
+########## 1m
+
+== family x side (TFs 1) ==
+FVG         PE (sell side)         net    58117 trades  958 win%  49 avgW/avgL 1.35 cells+ 6/6
+Donchian    PE (sell side)         net    49393 trades  822 win%  48 avgW/avgL 1.42 cells+ 5/6
+Donchian    CE (buy side)          net    30599 trades  576 win%  47 avgW/avgL 1.39 cells+ 4/6
+VWAP        PE (sell side)         net    22196 trades  238 win%  50 avgW/avgL 1.40 cells+ 5/6
+Sweep       PE (sell side)         net    18074 trades  472 win%  44 avgW/avgL 1.50 cells+ 3/6
+Fib         CE (buy side)          net    16568 trades  337 win%  44 avgW/avgL 1.60 cells+ 5/6
+Fib         PE (sell side)         net    15256 trades  441 win%  47 avgW/avgL 1.34 cells+ 4/6
+Supertrend  CE (buy side)          net    14200 trades  151 win%  47 avgW/avgL 1.67 cells+ 5/6
+Supertrend  PE (sell side)         net    12989 trades  160 win%  50 avgW/avgL 1.36 cells+ 4/6
+VWAP        CE (buy side)          net    12734 trades  196 win%  42 avgW/avgL 1.69 cells+ 4/6
+FVG         CE (buy side)          net     9659 trades  747 win%  44 avgW/avgL 1.34 cells+ 3/6
+SMA 9/21    PE (sell side)         net     4705 trades  545 win%  45 avgW/avgL 1.27 cells+ 3/6
+EMA touch   CE (buy side)          net     1819 trades  302 win%  43 avgW/avgL 1.35 cells+ 3/6
+EMA touch   PE (sell side)         net      332 trades  443 win%  43 avgW/avgL 1.31 cells+ 3/6
+SMA 9/21    CE (buy side)          net     -883 trades  336 win%  40 avgW/avgL 1.51 cells+ 2/6
+RSI div     PE (sell side)         net    -1259 trades  141 win%  44 avgW/avgL 1.23 cells+ 2/6
+SMA 50/200  CE (buy side)          net    -5270 trades   81 win%  32 avgW/avgL 1.55 cells+ 2/6
+RSI div     CE (buy side)          net    -5440 trades  136 win%  41 avgW/avgL 1.23 cells+ 1/6
+Sweep       CE (buy side)          net    -6293 trades  422 win%  41 avgW/avgL 1.37 cells+ 2/6
+Wick        PE (sell side)         net   -14203 trades  614 win%  42 avgW/avgL 1.23 cells+ 3/6
+SMA 50/200  PE (sell side)         net   -23778 trades  249 win%  36 avgW/avgL 1.09 cells+ 2/6
+Wick        CE (buy side)          net   -35757 trades  551 win%  40 avgW/avgL 1.18 cells+ 0/6
+
+== family ==
+Donchian                           net    79992 trades 1398 win%  48 avgW/avgL 1.41 cells+ 9/12
+FVG                                net    67777 trades 1705 win%  47 avgW/avgL 1.35 cells+ 9/12
+VWAP                               net    34930 trades  434 win%  46 avgW/avgL 1.52 cells+ 9/12
+Fib                                net    31824 trades  778 win%  46 avgW/avgL 1.45 cells+ 9/12
+Supertrend                         net    27188 trades  311 win%  49 avgW/avgL 1.50 cells+ 9/12
+Sweep                              net    11781 trades  894 win%  42 avgW/avgL 1.44 cells+ 5/12
+SMA 9/21                           net     3822 trades  881 win%  43 avgW/avgL 1.35 cells+ 5/12
+EMA touch                          net     2150 trades  745 win%  43 avgW/avgL 1.33 cells+ 6/12
+RSI div                            net    -6699 trades  277 win%  43 avgW/avgL 1.22 cells+ 3/12
+SMA 50/200                         net   -29048 trades  330 win%  35 avgW/avgL 1.19 cells+ 4/12
+Wick                               net   -49960 trades 1165 win%  41 avgW/avgL 1.20 cells+ 3/12
+
+== underlying ==
+RELIANCE                           net    68663 trades 1793 win%  48 avgW/avgL 1.27 cells+ 15/22
+SBIN                               net    61818 trades 1871 win%  47 avgW/avgL 1.30 cells+ 15/22
+MIDCPNIFTY                         net    47806 trades  751 win%  50 avgW/avgL 1.23 cells+ 16/22
+NIFTY                              net    19633 trades 2014 win%  42 avgW/avgL 1.44 cells+ 10/22
+FINNIFTY                           net    18259 trades   92 win%  43 avgW/avgL 2.05 cells+ 9/22
+BANKNIFTY                          net   -42422 trades 2397 win%  40 avgW/avgL 1.35 cells+ 6/22
+
+TOTAL 173757 cells 132
+########## 5m
+
+== family x side (TFs 5) ==
+Donchian    PE (sell side)         net    42322 trades  321 win%  49 avgW/avgL 1.48 cells+ 5/6
+FVG         PE (sell side)         net    36585 trades  408 win%  48 avgW/avgL 1.35 cells+ 6/6
+Sweep       CE (buy side)          net    30750 trades  142 win%  48 avgW/avgL 1.66 cells+ 4/6
+Fib         CE (buy side)          net    27282 trades  108 win%  51 avgW/avgL 1.62 cells+ 4/6
+FVG         CE (buy side)          net    23906 trades  260 win%  46 avgW/avgL 1.45 cells+ 4/6
+RSI div     CE (buy side)          net    21479 trades   50 win%  50 avgW/avgL 2.14 cells+ 4/6
+Sweep       PE (sell side)         net    19017 trades  151 win%  52 avgW/avgL 1.20 cells+ 5/6
+Wick        PE (sell side)         net    14594 trades  215 win%  49 avgW/avgL 1.21 cells+ 3/6
+Supertrend  PE (sell side)         net     9755 trades   67 win%  45 avgW/avgL 1.73 cells+ 5/6
+Fib         PE (sell side)         net     7429 trades  115 win%  44 avgW/avgL 1.47 cells+ 3/6
+RSI div     PE (sell side)         net     7319 trades   45 win%  51 avgW/avgL 1.35 cells+ 3/6
+VWAP        PE (sell side)         net     6098 trades  183 win%  44 avgW/avgL 1.34 cells+ 4/6
+VWAP        CE (buy side)          net     2941 trades  146 win%  41 avgW/avgL 1.48 cells+ 4/6
+SMA 9/21    PE (sell side)         net     2920 trades  192 win%  43 avgW/avgL 1.36 cells+ 4/6
+Wick        CE (buy side)          net     1331 trades  218 win%  43 avgW/avgL 1.33 cells+ 3/6
+EMA touch   CE (buy side)          net     -923 trades   97 win%  45 avgW/avgL 1.18 cells+ 3/6
+EMA touch   PE (sell side)         net    -3176 trades  156 win%  43 avgW/avgL 1.26 cells+ 2/6
+Supertrend  CE (buy side)          net    -3394 trades   76 win%  41 avgW/avgL 1.34 cells+ 4/6
+SMA 50/200  CE (buy side)          net    -5225 trades   14 win%  29 avgW/avgL 1.09 cells+ 1/6
+SMA 50/200  PE (sell side)         net   -14037 trades   65 win%  29 avgW/avgL 1.32 cells+ 1/6
+SMA 9/21    CE (buy side)          net   -19965 trades  146 win%  36 avgW/avgL 1.33 cells+ 3/6
+Donchian    CE (buy side)          net   -32389 trades  173 win%  38 avgW/avgL 1.16 cells+ 1/6
+
+== family ==
+FVG                                net    60490 trades  668 win%  47 avgW/avgL 1.39 cells+ 10/12
+Sweep                              net    49767 trades  293 win%  50 avgW/avgL 1.41 cells+ 9/12
+Fib                                net    34711 trades  223 win%  48 avgW/avgL 1.56 cells+ 7/12
+RSI div                            net    28798 trades   95 win%  51 avgW/avgL 1.75 cells+ 7/12
+Wick                               net    15925 trades  433 win%  46 avgW/avgL 1.26 cells+ 6/12
+Donchian                           net     9933 trades  494 win%  45 avgW/avgL 1.28 cells+ 6/12
+VWAP                               net     9039 trades  329 win%  43 avgW/avgL 1.40 cells+ 8/12
+Supertrend                         net     6361 trades  143 win%  43 avgW/avgL 1.47 cells+ 9/12
+EMA touch                          net    -4099 trades  253 win%  44 avgW/avgL 1.23 cells+ 5/12
+SMA 9/21                           net   -17045 trades  338 win%  40 avgW/avgL 1.34 cells+ 7/12
+SMA 50/200                         net   -19262 trades   79 win%  29 avgW/avgL 1.27 cells+ 2/12
+
+== underlying ==
+RELIANCE                           net    57366 trades  721 win%  48 avgW/avgL 1.29 cells+ 14/22
+SBIN                               net    50061 trades  598 win%  47 avgW/avgL 1.34 cells+ 14/22
+NIFTY                              net    24921 trades  718 win%  43 avgW/avgL 1.41 cells+ 14/22
+BANKNIFTY                          net    22229 trades  832 win%  43 avgW/avgL 1.41 cells+ 14/22
+MIDCPNIFTY                         net    12215 trades  392 win%  45 avgW/avgL 1.30 cells+ 11/22
+FINNIFTY                           net     7826 trades   87 win%  41 avgW/avgL 1.68 cells+ 9/22
+
+TOTAL 174617 cells 132
+########## 15m
+
+== family x side (TFs 15) ==
+SMA 9/21    PE (sell side)         net    29286 trades   71 win%  59 avgW/avgL 1.24 cells+ 6/6
+FVG         PE (sell side)         net    22043 trades  180 win%  44 avgW/avgL 1.53 cells+ 4/6
+Donchian    PE (sell side)         net    20249 trades  143 win%  47 avgW/avgL 1.42 cells+ 4/6
+Fib         PE (sell side)         net    17549 trades   42 win%  50 avgW/avgL 1.78 cells+ 5/6
+Wick        PE (sell side)         net    17093 trades   64 win%  52 avgW/avgL 1.27 cells+ 3/6
+Supertrend  CE (buy side)          net    16663 trades   28 win%  50 avgW/avgL 2.04 cells+ 4/6
+Wick        CE (buy side)          net    16319 trades   85 win%  42 avgW/avgL 1.72 cells+ 5/6
+Sweep       CE (buy side)          net    15686 trades   55 win%  49 avgW/avgL 1.48 cells+ 5/6
+Fib         CE (buy side)          net    14458 trades   51 win%  53 avgW/avgL 1.26 cells+ 4/6
+Supertrend  PE (sell side)         net    13474 trades   28 win%  64 avgW/avgL 1.04 cells+ 4/6
+EMA touch   PE (sell side)         net     4995 trades   60 win%  40 avgW/avgL 1.68 cells+ 3/6
+RSI div     PE (sell side)         net      809 trades   12 win%  58 avgW/avgL 0.78 cells+ 4/6
+Donchian    CE (buy side)          net    -1051 trades   62 win%  42 avgW/avgL 1.36 cells+ 3/6
+SMA 50/200  CE (buy side)          net    -1390 trades    6 win%  33 avgW/avgL 1.49 cells+ 1/6
+Sweep       PE (sell side)         net    -2831 trades   61 win%  41 avgW/avgL 1.36 cells+ 4/6
+RSI div     CE (buy side)          net    -3021 trades   18 win%  44 avgW/avgL 1.02 cells+ 3/6
+SMA 50/200  PE (sell side)         net    -4410 trades    9 win%  22 avgW/avgL 1.40 cells+ 1/6
+FVG         CE (buy side)          net    -8087 trades   88 win%  45 avgW/avgL 1.04 cells+ 3/6
+VWAP        CE (buy side)          net   -15355 trades  102 win%  37 avgW/avgL 1.40 cells+ 2/6
+VWAP        PE (sell side)         net   -16867 trades  120 win%  44 avgW/avgL 1.06 cells+ 2/6
+EMA touch   CE (buy side)          net   -19240 trades   31 win%  42 avgW/avgL 0.70 cells+ 3/6
+SMA 9/21    CE (buy side)          net   -23522 trades   57 win%  39 avgW/avgL 0.98 cells+ 4/6
+
+== family ==
+Wick                               net    33412 trades  149 win%  46 avgW/avgL 1.51 cells+ 8/12
+Fib                                net    32007 trades   93 win%  52 avgW/avgL 1.46 cells+ 9/12
+Supertrend                         net    30137 trades   56 win%  57 avgW/avgL 1.47 cells+ 8/12
+Donchian                           net    19198 trades  205 win%  45 avgW/avgL 1.38 cells+ 7/12
+FVG                                net    13955 trades  268 win%  44 avgW/avgL 1.35 cells+ 7/12
+Sweep                              net    12856 trades  116 win%  45 avgW/avgL 1.42 cells+ 9/12
+SMA 9/21                           net     5765 trades  128 win%  50 avgW/avgL 1.06 cells+ 10/12
+RSI div                            net    -2213 trades   30 win%  50 avgW/avgL 0.91 cells+ 7/12
+SMA 50/200                         net    -5800 trades   15 win%  27 avgW/avgL 1.50 cells+ 2/12
+EMA touch                          net   -14245 trades   91 win%  41 avgW/avgL 1.20 cells+ 6/12
+VWAP                               net   -32223 trades  222 win%  41 avgW/avgL 1.20 cells+ 4/12
+
+== underlying ==
+SBIN                               net    51405 trades  244 win%  49 avgW/avgL 1.37 cells+ 16/22
+RELIANCE                           net    40865 trades  315 win%  47 avgW/avgL 1.35 cells+ 15/22
+MIDCPNIFTY                         net    20271 trades  152 win%  47 avgW/avgL 1.34 cells+ 14/22
+FINNIFTY                           net      166 trades   62 win%  40 avgW/avgL 1.48 cells+ 8/22
+NIFTY                              net    -2354 trades  279 win%  46 avgW/avgL 1.17 cells+ 13/22
+BANKNIFTY                          net   -17504 trades  321 win%  41 avgW/avgL 1.30 cells+ 11/22
+
+TOTAL 92849 cells 132
+########## 30m
+
+== family x side (TFs 30) ==
+Supertrend  PE (sell side)         net    21835 trades   15 win%  67 avgW/avgL 1.83 cells+ 6/6
+SMA 9/21    PE (sell side)         net    20469 trades   33 win%  55 avgW/avgL 1.61 cells+ 5/6
+Fib         PE (sell side)         net    19111 trades   27 win%  59 avgW/avgL 1.28 cells+ 4/6
+Sweep       CE (buy side)          net    10021 trades   28 win%  50 avgW/avgL 1.41 cells+ 4/6
+Sweep       PE (sell side)         net     9898 trades   36 win%  47 avgW/avgL 1.39 cells+ 4/6
+SMA 9/21    CE (buy side)          net     7295 trades   25 win%  48 avgW/avgL 1.54 cells+ 2/6
+VWAP        PE (sell side)         net     6846 trades   71 win%  51 avgW/avgL 1.08 cells+ 4/6
+Donchian    PE (sell side)         net     6667 trades   74 win%  42 avgW/avgL 1.55 cells+ 4/6
+FVG         PE (sell side)         net     6529 trades   92 win%  39 avgW/avgL 1.69 cells+ 3/6
+Supertrend  CE (buy side)          net     2631 trades   14 win%  57 avgW/avgL 0.88 cells+ 5/6
+SMA 50/200  PE (sell side)         net      959 trades    6 win%  50 avgW/avgL 1.32 cells+ 1/6
+EMA touch   CE (buy side)          net     -224 trades   15 win%  47 avgW/avgL 1.13 cells+ 3/6
+SMA 50/200  CE (buy side)          net    -1659 trades    1 win%   0 avgW/avgL - cells+ 0/6
+RSI div     PE (sell side)         net    -2354 trades    8 win%  38 avgW/avgL 1.18 cells+ 3/6
+Wick        PE (sell side)         net    -5558 trades   27 win%  44 avgW/avgL 0.96 cells+ 1/6
+RSI div     CE (buy side)          net    -7689 trades   15 win%  40 avgW/avgL 0.85 cells+ 2/6
+EMA touch   PE (sell side)         net    -8775 trades   30 win%  40 avgW/avgL 1.09 cells+ 1/6
+VWAP        CE (buy side)          net   -11642 trades   72 win%  39 avgW/avgL 1.36 cells+ 2/6
+Wick        CE (buy side)          net   -15104 trades   48 win%  33 avgW/avgL 1.46 cells+ 2/6
+FVG         CE (buy side)          net   -18306 trades   57 win%  37 avgW/avgL 1.24 cells+ 4/6
+Donchian    CE (buy side)          net   -26064 trades   32 win%  28 avgW/avgL 0.95 cells+ 1/6
+Fib         CE (buy side)          net   -32662 trades   19 win%  16 avgW/avgL 0.49 cells+ 0/6
+
+== family ==
+SMA 9/21                           net    27764 trades   58 win%  52 avgW/avgL 1.59 cells+ 7/12
+Supertrend                         net    24466 trades   29 win%  62 avgW/avgL 1.27 cells+ 11/12
+Sweep                              net    19919 trades   64 win%  48 avgW/avgL 1.39 cells+ 8/12
+SMA 50/200                         net     -700 trades    7 win%  43 avgW/avgL 1.13 cells+ 1/12
+VWAP                               net    -4796 trades  143 win%  45 avgW/avgL 1.19 cells+ 6/12
+EMA touch                          net    -8999 trades   45 win%  42 avgW/avgL 1.11 cells+ 4/12
+RSI div                            net   -10043 trades   23 win%  39 avgW/avgL 0.95 cells+ 5/12
+FVG                                net   -11777 trades  149 win%  38 avgW/avgL 1.48 cells+ 7/12
+Fib                                net   -13551 trades   46 win%  41 avgW/avgL 1.09 cells+ 4/12
+Donchian                           net   -19397 trades  106 win%  38 avgW/avgL 1.32 cells+ 5/12
+Wick                               net   -20662 trades   75 win%  37 avgW/avgL 1.24 cells+ 3/12
+
+== underlying ==
+MIDCPNIFTY                         net    21229 trades   82 win%  51 avgW/avgL 1.20 cells+ 13/22
+NIFTY                              net     5706 trades  149 win%  42 avgW/avgL 1.46 cells+ 11/22
+SBIN                               net     4063 trades  140 win%  42 avgW/avgL 1.41 cells+ 12/22
+FINNIFTY                           net     1900 trades   37 win%  38 avgW/avgL 1.73 cells+ 6/22
+RELIANCE                           net    -2357 trades  167 win%  44 avgW/avgL 1.24 cells+ 10/22
+BANKNIFTY                          net   -48315 trades  170 win%  39 avgW/avgL 1.10 cells+ 9/22
+
+TOTAL -17775 cells 132
+########## 60m
+
+== family x side (TFs 60) ==
+FVG         PE (sell side)         net    42173 trades   68 win%  53 avgW/avgL 1.65 cells+ 4/6
+Sweep       PE (sell side)         net    30896 trades   13 win%  77 avgW/avgL 2.24 cells+ 6/6
+EMA touch   PE (sell side)         net    27508 trades   19 win%  68 avgW/avgL 1.50 cells+ 5/6
+SMA 50/200  PE (sell side)         net    20044 trades   12 win%  67 avgW/avgL 4.95 cells+ 4/6
+Supertrend  PE (sell side)         net    15096 trades    7 win%  71 avgW/avgL 1.94 cells+ 4/6
+VWAP        CE (buy side)          net     9528 trades   37 win%  46 avgW/avgL 1.41 cells+ 4/6
+VWAP        PE (sell side)         net     7190 trades   46 win%  48 avgW/avgL 1.30 cells+ 3/6
+Sweep       CE (buy side)          net     3842 trades   18 win%  56 avgW/avgL 0.97 cells+ 3/6
+Fib         PE (sell side)         net     2733 trades   11 win%  64 avgW/avgL 0.81 cells+ 4/6
+Donchian    PE (sell side)         net     2330 trades   44 win%  39 avgW/avgL 1.69 cells+ 3/6
+Wick        PE (sell side)         net      971 trades   19 win%  47 avgW/avgL 1.18 cells+ 4/6
+RSI div     PE (sell side)         net       -1 trades    1 win%   0 avgW/avgL - cells+ 0/6
+RSI div     CE (buy side)          net     -983 trades    7 win%  57 avgW/avgL 0.60 cells+ 2/6
+Supertrend  CE (buy side)          net    -2513 trades    9 win%  44 avgW/avgL 0.93 cells+ 1/6
+EMA touch   CE (buy side)          net    -6492 trades    8 win%  25 avgW/avgL 1.28 cells+ 1/6
+SMA 50/200  CE (buy side)          net    -6756 trades    3 win%   0 avgW/avgL - cells+ 0/6
+SMA 9/21    PE (sell side)         net    -8714 trades    8 win%  13 avgW/avgL 1.04 cells+ 0/6
+Wick        CE (buy side)          net    -9606 trades   36 win%  44 avgW/avgL 0.98 cells+ 2/6
+Donchian    CE (buy side)          net   -17890 trades   11 win%  18 avgW/avgL 0.16 cells+ 0/6
+FVG         CE (buy side)          net   -18713 trades   26 win%  31 avgW/avgL 1.07 cells+ 3/6
+SMA 9/21    CE (buy side)          net   -27549 trades   12 win%   8 avgW/avgL 0.07 cells+ 0/6
+Fib         CE (buy side)          net   -35762 trades   21 win%  33 avgW/avgL 0.41 cells+ 0/6
+
+== family ==
+Sweep                              net    34739 trades   31 win%  65 avgW/avgL 1.39 cells+ 9/12
+FVG                                net    23460 trades   94 win%  47 avgW/avgL 1.45 cells+ 7/12
+EMA touch                          net    21015 trades   27 win%  56 avgW/avgL 1.51 cells+ 6/12
+VWAP                               net    16719 trades   83 win%  47 avgW/avgL 1.35 cells+ 7/12
+SMA 50/200                         net    13289 trades   15 win%  53 avgW/avgL 2.17 cells+ 4/12
+Supertrend                         net    12584 trades   16 win%  56 avgW/avgL 1.49 cells+ 5/12
+RSI div                            net     -984 trades    8 win%  50 avgW/avgL 0.79 cells+ 2/12
+Wick                               net    -8634 trades   55 win%  45 avgW/avgL 1.03 cells+ 6/12
+Donchian                           net   -15560 trades   55 win%  35 avgW/avgL 1.35 cells+ 3/12
+Fib                                net   -33029 trades   32 win%  44 avgW/avgL 0.46 cells+ 4/12
+SMA 9/21                           net   -36262 trades   20 win%  10 avgW/avgL 0.40 cells+ 0/12
+
+== underlying ==
+SBIN                               net    34345 trades   69 win%  52 avgW/avgL 1.42 cells+ 10/22
+MIDCPNIFTY                         net    21617 trades   40 win%  58 avgW/avgL 1.07 cells+ 12/22
+RELIANCE                           net     6457 trades   92 win%  48 avgW/avgL 1.17 cells+ 8/22
+FINNIFTY                           net     3666 trades   23 win%  48 avgW/avgL 1.27 cells+ 7/22
+NIFTY                              net    -3003 trades   98 win%  40 avgW/avgL 1.46 cells+ 8/22
+BANKNIFTY                          net   -35748 trades  114 win%  40 avgW/avgL 1.06 cells+ 8/22
+
+TOTAL 27334 cells 132
+########## ALL
+
+== family x side (TFs 1,5,15,30,60) ==
+FVG         PE (sell side)         net   165447 trades 1706 win%  48 avgW/avgL 1.40 cells+ 23/30
+Donchian    PE (sell side)         net   120961 trades 1404 win%  47 avgW/avgL 1.41 cells+ 21/30
+Sweep       PE (sell side)         net    75054 trades  733 win%  46 avgW/avgL 1.51 cells+ 22/30
+Supertrend  PE (sell side)         net    73150 trades  277 win%  52 avgW/avgL 1.72 cells+ 23/30
+Fib         PE (sell side)         net    62078 trades  636 win%  47 avgW/avgL 1.50 cells+ 20/30
+Sweep       CE (buy side)          net    54006 trades  665 win%  44 avgW/avgL 1.59 cells+ 18/30
+SMA 9/21    PE (sell side)         net    48667 trades  849 win%  46 avgW/avgL 1.40 cells+ 18/30
+Supertrend  CE (buy side)          net    27586 trades  278 win%  46 avgW/avgL 1.46 cells+ 19/30
+VWAP        PE (sell side)         net    25464 trades  658 win%  47 avgW/avgL 1.20 cells+ 18/30
+EMA touch   PE (sell side)         net    20883 trades  708 win%  44 avgW/avgL 1.42 cells+ 14/30
+Wick        PE (sell side)         net    12897 trades  939 win%  45 avgW/avgL 1.29 cells+ 14/30
+RSI div     PE (sell side)         net     4514 trades  207 win%  46 avgW/avgL 1.26 cells+ 12/30
+RSI div     CE (buy side)          net     4346 trades  226 win%  44 avgW/avgL 1.34 cells+ 12/30
+VWAP        CE (buy side)          net    -1794 trades  553 win%  41 avgW/avgL 1.44 cells+ 16/30
+Fib         CE (buy side)          net   -10116 trades  536 win%  45 avgW/avgL 1.18 cells+ 13/30
+FVG         CE (buy side)          net   -11541 trades 1178 win%  44 avgW/avgL 1.23 cells+ 17/30
+SMA 50/200  CE (buy side)          net   -20300 trades  105 win%  30 avgW/avgL 1.20 cells+ 4/30
+SMA 50/200  PE (sell side)         net   -21222 trades  341 win%  36 avgW/avgL 1.44 cells+ 9/30
+EMA touch   CE (buy side)          net   -25060 trades  453 win%  43 avgW/avgL 1.11 cells+ 13/30
+Wick        CE (buy side)          net   -42817 trades  938 win%  41 avgW/avgL 1.32 cells+ 12/30
+Donchian    CE (buy side)          net   -46795 trades  854 win%  44 avgW/avgL 1.11 cells+ 9/30
+SMA 9/21    CE (buy side)          net   -64624 trades  576 win%  38 avgW/avgL 1.22 cells+ 11/30
+
+== family ==
+FVG                                net   153905 trades 2884 win%  46 avgW/avgL 1.33 cells+ 40/60
+Sweep                              net   129061 trades 1398 win%  45 avgW/avgL 1.55 cells+ 40/60
+Supertrend                         net   100736 trades  555 win%  49 avgW/avgL 1.57 cells+ 42/60
+Donchian                           net    74166 trades 2258 win%  46 avgW/avgL 1.28 cells+ 30/60
+Fib                                net    51962 trades 1172 win%  46 avgW/avgL 1.31 cells+ 33/60
+VWAP                               net    23670 trades 1211 win%  44 avgW/avgL 1.30 cells+ 34/60
+RSI div                            net     8859 trades  433 win%  45 avgW/avgL 1.30 cells+ 24/60
+EMA touch                          net    -4177 trades 1161 win%  43 avgW/avgL 1.29 cells+ 27/60
+SMA 9/21                           net   -15957 trades 1425 win%  43 avgW/avgL 1.29 cells+ 29/60
+Wick                               net   -29920 trades 1877 win%  43 avgW/avgL 1.30 cells+ 26/60
+SMA 50/200                         net   -41522 trades  446 win%  35 avgW/avgL 1.37 cells+ 13/60
+
+== underlying ==
+SBIN                               net   201692 trades 2922 win%  47 avgW/avgL 1.34 cells+ 67/110
+RELIANCE                           net   170994 trades 3088 win%  48 avgW/avgL 1.26 cells+ 62/110
+MIDCPNIFTY                         net   123138 trades 1417 win%  48 avgW/avgL 1.27 cells+ 66/110
+NIFTY                              net    44903 trades 3258 win%  43 avgW/avgL 1.39 cells+ 56/110
+FINNIFTY                           net    31816 trades  301 win%  42 avgW/avgL 1.62 cells+ 39/110
+BANKNIFTY                          net  -121760 trades 3834 win%  41 avgW/avgL 1.31 cells+ 48/110
+
+TOTAL 450783 cells 660
