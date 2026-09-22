@@ -1,0 +1,498 @@
+{
+  "symbol": "NSE:NIFTY",
+  "resolution": "1",
+  "studies": [
+    {
+      "id": "o5nTHr",
+      "name": "SMA Signals",
+      "pineId": "USER;f686f1a3397144a4bc31ea731b015e2b",
+      "pineVersion": "45.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": 50
+        },
+        {
+          "id": "in_1",
+          "value": 200
+        },
+        {
+          "id": "in_2",
+          "value": false
+        },
+        {
+          "id": "in_3",
+          "value": 200
+        },
+        {
+          "id": "in_4",
+          "value": true
+        },
+        {
+          "id": "in_5",
+          "value": true
+        },
+        {
+          "id": "in_6",
+          "value": 0
+        },
+        {
+          "id": "in_7",
+          "value": 0.8
+        },
+        {
+          "id": "in_8",
+          "value": false
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": true
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": true
+        },
+        {
+          "id": "in_14",
+          "value": 30
+        },
+        {
+          "id": "in_15",
+          "value": 0.75
+        },
+        {
+          "id": "in_16",
+          "value": 5
+        },
+        {
+          "id": "in_17",
+          "value": 14
+        },
+        {
+          "id": "in_18",
+          "value": true
+        },
+        {
+          "id": "in_19",
+          "value": 70
+        },
+        {
+          "id": "in_20",
+          "value": 30
+        },
+        {
+          "id": "in_21",
+          "value": false
+        },
+        {
+          "id": "in_22",
+          "value": 5
+        },
+        {
+          "id": "in_23",
+          "value": true
+        },
+        {
+          "id": "in_24",
+          "value": 1.5
+        },
+        {
+          "id": "in_25",
+          "value": 0.5
+        },
+        {
+          "id": "in_26",
+          "value": 2
+        },
+        {
+          "id": "in_27",
+          "value": false
+        },
+        {
+          "id": "in_28",
+          "value": true
+        },
+        {
+          "id": "in_29",
+          "value": 10
+        },
+        {
+          "id": "in_30",
+          "value": true
+        },
+        {
+          "id": "in_31",
+          "value": 4280723455
+        },
+        {
+          "id": "in_32",
+          "value": 1
+        },
+        {
+          "id": "in_33",
+          "value": true
+        },
+        {
+          "id": "in_34",
+          "value": 1
+        },
+        {
+          "id": "in_35",
+          "value": 0.15
+        },
+        {
+          "id": "in_36",
+          "value": false
+        },
+        {
+          "id": "in_37",
+          "value": 5
+        },
+        {
+          "id": "in_38",
+          "value": true
+        },
+        {
+          "id": "in_39",
+          "value": 3
+        },
+        {
+          "id": "in_40",
+          "value": true
+        },
+        {
+          "id": "in_41",
+          "value": false
+        },
+        {
+          "id": "in_42",
+          "value": 4294960384
+        },
+        {
+          "id": "in_43",
+          "value": 4286660863
+        },
+        {
+          "id": "in_44",
+          "value": true
+        },
+        {
+          "id": "in_45",
+          "value": 3
+        },
+        {
+          "id": "in_46",
+          "value": true
+        },
+        {
+          "id": "in_47",
+          "value": 15
+        },
+        {
+          "id": "in_48",
+          "value": 3
+        },
+        {
+          "id": "in_49",
+          "value": 0.3
+        },
+        {
+          "id": "in_50",
+          "value": 4283454447
+        },
+        {
+          "id": "in_51",
+          "value": 4288325158
+        },
+        {
+          "id": "in_52",
+          "value": true
+        },
+        {
+          "id": "in_53",
+          "value": 10
+        },
+        {
+          "id": "in_54",
+          "value": 3
+        },
+        {
+          "id": "in_55",
+          "value": true
+        },
+        {
+          "id": "in_56",
+          "value": 20
+        },
+        {
+          "id": "in_57",
+          "value": true
+        },
+        {
+          "id": "in_58",
+          "value": 14
+        },
+        {
+          "id": "in_59",
+          "value": "Top right"
+        },
+        {
+          "id": "in_60",
+          "value": true
+        },
+        {
+          "id": "in_61",
+          "value": 50
+        },
+        {
+          "id": "in_62",
+          "value": false
+        },
+        {
+          "id": "in_63",
+          "value": 5
+        },
+        {
+          "id": "in_64",
+          "value": 0.1
+        },
+        {
+          "id": "in_65",
+          "value": 4282117119
+        },
+        {
+          "id": "in_66",
+          "value": true
+        },
+        {
+          "id": "in_67",
+          "value": "30"
+        },
+        {
+          "id": "in_68",
+          "value": "240"
+        },
+        {
+          "id": "in_69",
+          "value": "D"
+        },
+        {
+          "id": "in_70",
+          "value": 4278236159
+        },
+        {
+          "id": "in_71",
+          "value": 4294936755
+        },
+        {
+          "id": "in_72",
+          "value": 4294967295
+        },
+        {
+          "id": "in_73",
+          "value": 1
+        },
+        {
+          "id": "in_74",
+          "value": true
+        },
+        {
+          "id": "in_75",
+          "value": false
+        },
+        {
+          "id": "in_76",
+          "value": 20
+        },
+        {
+          "id": "in_77",
+          "value": 1
+        },
+        {
+          "id": "in_78",
+          "value": 2
+        },
+        {
+          "id": "in_79",
+          "value": 0.6
+        },
+        {
+          "id": "in_80",
+          "value": true
+        },
+        {
+          "id": "in_81",
+          "value": 9
+        },
+        {
+          "id": "in_82",
+          "value": 21
+        },
+        {
+          "id": "in_83",
+          "value": true
+        },
+        {
+          "id": "in_84",
+          "value": 4285982208
+        },
+        {
+          "id": "in_85",
+          "value": 4283585279
+        },
+        {
+          "id": "in_86",
+          "value": true
+        },
+        {
+          "id": "in_87",
+          "value": 4289052416
+        },
+        {
+          "id": "in_88",
+          "value": 4278190293
+        },
+        {
+          "id": "in_89",
+          "value": true
+        },
+        {
+          "id": "in_90",
+          "value": 4278236159
+        },
+        {
+          "id": "in_91",
+          "value": 4278218239
+        },
+        {
+          "id": "in_92",
+          "value": true
+        },
+        {
+          "id": "in_93",
+          "value": 4289654889
+        },
+        {
+          "id": "in_94",
+          "value": 4286614271
+        },
+        {
+          "id": "in_95",
+          "value": true
+        },
+        {
+          "id": "in_96",
+          "value": 4294967295
+        },
+        {
+          "id": "in_97",
+          "value": 4292927712
+        }
+      ]
+    },
+    {
+      "id": "1UghGn",
+      "name": "OI Profile",
+      "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+      "pineVersion": "29.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "NIFTY"
+        },
+        {
+          "id": "in_1",
+          "value": "22-Sep-2026"
+        },
+        {
+          "id": "in_2",
+          "value": 50
+        },
+        {
+          "id": "in_3",
+          "value": 4
+        },
+        {
+          "id": "in_4",
+          "value": 60
+        },
+        {
+          "id": "in_5",
+          "value": "23000:10580:205855:1014:36714,23200:51271:243939:10263:96218,23250:45234:167482:17361:67625,23300:157947:359251:43798:164073,23350:173722:271921:97482:192797,23400:377745:311474:242849:237823,23450:196122:75050:136739:64333,23500:271581:90674:129640:53670,23600:177925:17099:56248:5718,spot:23385.25,pcr:1.14,mp:23400"
+        },
+        {
+          "id": "in_6",
+          "value": true
+        },
+        {
+          "id": "in_7",
+          "value": 10
+        },
+        {
+          "id": "in_8",
+          "value": 3
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": "Middle right"
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": 15
+        },
+        {
+          "id": "in_14",
+          "value": true
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": true
+        },
+        {
+          "id": "in_17",
+          "value": true
+        },
+        {
+          "id": "in_18",
+          "value": 6
+        },
+        {
+          "id": "in_19",
+          "value": 12
+        },
+        {
+          "id": "in_20",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

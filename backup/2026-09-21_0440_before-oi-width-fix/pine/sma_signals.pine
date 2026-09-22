@@ -1,0 +1,963 @@
+//@version=6
+indicator("SMA Signals", overlay=true, max_labels_count=500, max_lines_count=200, max_boxes_count=100)
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+fastLen   = input.int(50,  "Fast SMA", minval=1)
+slowLen   = input.int(200, "Slow SMA", minval=2)
+useTrend  = input.bool(false, "Only trade with trend SMA")
+trendLen  = input.int(200, "Trend SMA", minval=5)
+confirm   = input.bool(true, "Close must be on the right side of both SMAs")
+showLbl   = input.bool(true, "Show BUY / SELL text labels")
+sigMinTf  = input.int(0, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
+lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, minval = 0, group = "Display")
+trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
+// Signals are evaluated only on CLOSED bars (barstate.isconfirmed) so a label, once drawn, never disappears
+// when the live bar moves against it. A signal therefore appears at the close of its bar and then stays.
+sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed
+oneMinOnly = input.bool(true, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
+is1m      = timeframe.in_seconds() <= 60
+othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
+// ── Timeframe flow (v34) ─────────────────────────────────────────────────
+//   1m  : SMA 50/200 cross, 1m wick, "5min" 9/21 cross + wick, "15min" set below
+//   5m  : keep-list families + "15min" set labels
+//   15m : ONLY the 15-minute set = EMA touch (Supertrend agreeing), Supertrend flip (ADX ≥ 20),
+//         sweep (VWAP side only), sweep + wick, sweep + EMA touch — i.e. sweep, wick, EMA, Supertrend with those filters
+//   30m+: keep-list families, none of the 15-minute filters, no 15m labels
+is15      = timeframe.in_seconds() == 900
+lt15      = timeframe.in_seconds() < 900
+//   60m : ONLY wick rejection + Supertrend flip (ADX ≥ 20); that set is labelled "60min BUY/SELL" on every smaller chart
+is60      = timeframe.in_seconds() == 3600
+lt60      = timeframe.in_seconds() < 3600
+// early Supertrend / ADX / session VWAP (same settings as the blocks further down) for the 15-minute filters
+[f15StLine, f15StDir] = ta.supertrend(3.0, 10)
+[f15DiP, f15DiM, f15Adx] = ta.dmi(14, 14)
+f15NewSess = ta.change(time("D")) != 0
+var float f15PV = 0.0, var float f15V = 0.0
+if f15NewSess
+    f15PV := 0.0, f15V := 0.0
+f15Vol = nz(volume) > 0 ? volume : 1.0
+f15PV += hlc3 * f15Vol, f15V += f15Vol
+f15Vwap = f15PV / f15V
+// filters that apply ONLY on the 15-minute chart
+f15SwL = not is15 or close > f15Vwap         // sweep BUY only above VWAP
+f15SwS = not is15 or close < f15Vwap
+f15EmL = not is15 or f15StDir < 0            // EMA touch BUY only while Supertrend is up
+f15EmS = not is15 or f15StDir > 0
+f15StL = not is15 or f15Adx >= 20            // Supertrend flip only with ADX ≥ 20 (default already 20)
+f15StS = f15StL
+smaSigOn  = input.bool(true, "SMA 50/200 cross BUY / SELL signals", group = "Display")
+sma1mOnly = input.bool(true, "SMA 50/200 cross signals only on the 1-minute chart", group = "Display")
+smaTfOK   = smaSigOn and (not sma1mOnly or is1m)
+alerts    = input.bool(true, "Enable alerts")
+
+// ── SMAs ──────────────────────────────────────────────────────────────────
+fast  = ta.sma(close, fastLen)
+slow  = ta.sma(close, slowLen)
+trend = ta.sma(close, trendLen)
+
+plot(fast,  "Fast SMA",  color=color.new(#26a69a, 0), linewidth=2)
+plot(slow,  "Slow SMA",  color=color.new(#ef5350, 0), linewidth=2)
+plot(trend, "Trend SMA", color=color.new(#ff9800, 30), linewidth=1)
+
+// ── Major support / resistance block (v26) ───────────────────────────────
+// Major levels = confirmed pivot highs / lows on a long pivot (default 30 bars). A BUY is
+// suppressed when a major resistance sits within srBlockAtr ATR above the close (no room to run);
+// a SELL is suppressed when a major support sits within that distance below. Levels are
+// consumed once price closes through them.
+grpBlk    = "Major level block"
+blkOn     = input.bool(true, "No BUY under major resistance / no SELL on major support", group = grpBlk)
+blkPiv    = input.int(30,   "Major pivot length", minval = 5,               group = grpBlk)
+blkAtr    = input.float(0.75, "Block distance (ATR x)", step = 0.25, minval = 0, group = grpBlk)
+blkKeep   = input.int(5,    "Major levels remembered (each side)", minval = 1, maxval = 20, group = grpBlk)
+blkPh = ta.pivothigh(high, blkPiv, blkPiv)
+blkPl = ta.pivotlow(low,  blkPiv, blkPiv)
+var float[] majR = array.new_float(), var float[] majS = array.new_float()
+if not na(blkPh)
+    array.push(majR, blkPh)
+    if array.size(majR) > blkKeep
+        array.shift(majR)
+if not na(blkPl)
+    array.push(majS, blkPl)
+    if array.size(majS) > blkKeep
+        array.shift(majS)
+blkAtrV = ta.atr(14)
+bool nearRes = false, bool nearSup = false
+if array.size(majR) > 0
+    for i = array.size(majR) - 1 to 0
+        r = array.get(majR, i)
+        if close > r                        // broken: drop it
+            array.remove(majR, i)
+        else if r - close <= blkAtrV * blkAtr
+            nearRes := true
+if array.size(majS) > 0
+    for i = array.size(majS) - 1 to 0
+        sp = array.get(majS, i)
+        if close < sp
+            array.remove(majS, i)
+        else if close - sp <= blkAtrV * blkAtr
+            nearSup := true
+blkL = not blkOn or not nearRes
+blkS = not blkOn or not nearSup
+
+// ── RSI (v27) ────────────────────────────────────────────────────────────
+// Guard: no BUY while RSI is overbought, no SELL while oversold. Reading shown in the panel.
+// Divergence signals further down: price makes a lower low but RSI a higher low = BUY, mirror = SELL.
+grpRSI   = "RSI"
+rsiLen   = input.int(14,  "RSI length", minval = 2,                 group = grpRSI)
+rsiGuard = input.bool(true, "Guard: no BUY above / no SELL below",  group = grpRSI)
+rsiHi    = input.int(70,  "Overbought", minval = 50, maxval = 100,  group = grpRSI)
+rsiLo    = input.int(30,  "Oversold",   minval = 0,  maxval = 50,   group = grpRSI)
+rsiDivOn = input.bool(false, "RSI divergence BUY / SELL",           group = grpRSI)
+rsiDivPv = input.int(5,   "Divergence pivot length", minval = 2,    group = grpRSI)
+rsi      = ta.rsi(close, rsiLen)
+rsiL     = not rsiGuard or rsi < rsiHi
+rsiS     = not rsiGuard or rsi > rsiLo
+
+// ── Signals ───────────────────────────────────────────────────────────────
+upCross   = ta.crossover(fast, slow)
+downCross = ta.crossunder(fast, slow)
+trendOK_L = not useTrend or close > trend
+trendOK_S = not useTrend or close < trend
+confOK_L  = not confirm or (close > fast and close > slow)
+confOK_S  = not confirm or (close < fast and close < slow)
+
+gateL = sigOK and othersOK and blkL and rsiL and (not trendAll or na(slow) or close > slow)
+gateS = sigOK and othersOK and blkS and rsiS and (not trendAll or na(slow) or close < slow)
+buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL and smaTfOK
+sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS and smaTfOK
+
+plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
+plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
+
+if showLbl and buy
+    label.new(bar_index, low - ta.atr(14) * lblGap, "BUY\nSMA", style = label.style_label_up, color=color.new(#00c853, 0), textcolor=color.black, size=size.small, tooltip = "BUY\nSMA")
+if showLbl and sell
+    label.new(bar_index, high + ta.atr(14) * lblGap, "SELL\nSMA", style = label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small, tooltip = "SELL\nSMA")
+
+// Soft background so the current regime is visible at a glance
+bgcolor(fast > slow ? color.new(#00c853, 94) : color.new(#ff1744, 94))
+
+// ── Alerts ────────────────────────────────────────────────────────────────
+alertcondition(buy,     "SMA BUY",  "SMA Signals: BUY {{ticker}} @ {{close}}")
+alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
+
+// ── Target & stop marks (v5) ──────────────────────────────────────────────
+// SMA trade: stop = slow SMA level (trend failed), floored at minStopAtr below/above entry;
+//            target = entry ± tgtR × stop distance.
+// Lines are dotted, extend to the right while live, and get ✓ / ✗ when hit.
+showTS     = input.bool(true, "Mark target & stop",              group="Targets")
+tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
+minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
+maxLive    = input.int(2, "Max trades kept on screen", minval=1, maxval=20, group="Targets")
+sellTS     = input.bool(false, "Also mark target / stop for SELL signals (off = buy-only trading)", group="Targets")
+
+atr14 = ta.atr(14)
+var line[]  tLn = array.new_line(),  var line[]  sLn = array.new_line()
+var label[] tLb = array.new_label(), var label[] sLb = array.new_label()
+var float[] tPx = array.new_float(), var float[] sPx = array.new_float()
+var int[]   tDir = array.new_int()
+
+newTrade(bool isLong, float stopPx, float tgtPx) =>
+    col = isLong ? #00c853 : #ff1744
+    if isLong or sellTS
+        array.push(tLn, line.new(bar_index, tgtPx, bar_index + 1, tgtPx, color=color.new(col, 0), style=line.style_dotted, width=2))
+        array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
+        array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
+        array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
+        array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
+        if array.size(tPx) > maxLive
+            line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
+            array.shift(tPx), array.shift(sPx), array.shift(tDir)
+
+if showTS
+    if buy
+        sp = math.min(slow, close - atr14 * minStopAtr)
+        newTrade(true, sp, close + (close - sp) * tgtR)
+    if sell
+        sp = math.max(slow, close + atr14 * minStopAtr)
+        newTrade(false, sp, close - (sp - close) * tgtR)
+    // track live trades
+    for i = array.size(tPx) - 1 to 0
+        if i >= 0 and i < array.size(tPx) and array.get(tDir, i) != 0
+            d  = array.get(tDir, i)
+            tp = array.get(tPx, i), sp = array.get(sPx, i)
+            hitT = d == 1 ? high >= tp : low <= tp
+            hitS = d == 1 ? low <= sp  : high >= sp
+            line.set_x2(array.get(tLn, i), bar_index + 1), line.set_x2(array.get(sLn, i), bar_index + 1)
+            label.set_x(array.get(tLb, i), bar_index + 1), label.set_x(array.get(sLb, i), bar_index + 1)
+            if hitS and not (buy or sell)
+                label.set_text(array.get(sLb, i), "Stop " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
+            else if hitT and not (buy or sell)
+                label.set_text(array.get(tLb, i), "Target " + str.tostring(tp, format.mintick) + " ✓"), array.set(tDir, i, 0)
+
+// ── Fib channel (auto-anchored) ────────────────────────────────────────────
+// Like TradingView's Fib Channel drawing: a base trendline through two swing
+// points plus a width, with Fibonacci ratios drawn as parallel lines. Anchors
+// follow the trend: uptrend = base through the last two confirmed pivot lows,
+// width up to the highest high between them; downtrend = mirror. Rebuilt
+// whenever a new pivot confirms. Appended after the OB/OS block; inputs
+// earlier input ids stay stable. Costs drawings only, not an indicator slot.
+grpFC     = "Fib channel"
+showFib   = input.bool(true, "Show auto Fib channel", group = grpFC)
+fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval = 50, group = grpFC,
+    tooltip = "Larger = bigger swings and a wider, slower channel. Same idea as the S/R pivot length.")
+fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
+fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
+fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+fibOnlyOK = input.bool(true, "Show only while price respects the channel", group = grpFC,
+    tooltip = "Hidden until a ratio line has been touched and held at least N times, and " +
+            "hidden again once price closes outside the channel band or the trend flips.")
+fibMinT   = input.int(1, "Touches required before showing", minval = 1, maxval = 5, group = grpFC)
+fibTol    = input.float(0.15, "Touch tolerance (ATR x)", minval = 0.05, maxval = 1, step = 0.05, group = grpFC)
+
+fPh = ta.pivothigh(high, fibPvt, fibPvt)
+fPl = ta.pivotlow(low,  fibPvt, fibPvt)
+
+// Last two confirmed pivot lows / highs with their bar indexes.
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na   // pl2 = most recent
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na
+if not na(fPl)
+    pl1 := pl2, pl1i := pl2i
+    pl2 := fPl, pl2i := bar_index - fibPvt
+if not na(fPh)
+    ph1 := ph2, ph1i := ph2i
+    ph2 := fPh, ph2i := bar_index - fibPvt
+
+var line[]  fibLn = array.new_line()
+var label[] fibLb = array.new_label()
+fibUp = close > trend            // channel direction follows the 200 SMA
+// Channel geometry kept for the per-bar "is it being respected" test.
+var float fcX1 = na, var float fcY1 = na, var float fcSlope = na, var float fcWid = na
+var bool  fcUp = false
+var int   fcTouches = 0
+var bool  fcShown = false
+
+if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
+    // Base line: two most recent pivots on the trend side. Width: the extreme
+    // of the opposite side between them (highest high in an uptrend).
+    float bx1 = na, float by1 = na, float bx2 = na, float by2 = na, float wid = na
+    if fibUp and not na(pl1) and not na(pl2) and pl2i > pl1i
+        bx1 := pl1i, by1 := pl1, bx2 := pl2i, by2 := pl2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float hh = 0.0
+        for i = 0 to pl2i - pl1i
+            hh := math.max(hh, high[bar_index - pl1i - i])
+        // distance from the base line to the highest high, measured at its bar
+        int hhBar = pl1i
+        for i = 0 to pl2i - pl1i
+            if high[bar_index - pl1i - i] == hh
+                hhBar := pl1i + i
+        wid := hh - (by1 + slope * (hhBar - bx1))
+    else if not fibUp and not na(ph1) and not na(ph2) and ph2i > ph1i
+        bx1 := ph1i, by1 := ph1, bx2 := ph2i, by2 := ph2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float ll = 1.0e12
+        for i = 0 to ph2i - ph1i
+            ll := math.min(ll, low[bar_index - ph1i - i])
+        int llBar = ph1i
+        for i = 0 to ph2i - ph1i
+            if low[bar_index - ph1i - i] == ll
+                llBar := ph1i + i
+        wid := ll - (by1 + slope * (llBar - bx1))          // negative in a downtrend
+    if not na(wid) and wid != 0
+        while array.size(fibLn) > 0
+            line.delete(array.pop(fibLn))
+        while array.size(fibLb) > 0
+            label.delete(array.pop(fibLb))
+        slope = (by2 - by1) / (bx2 - bx1)
+        fcX1 := bx1, fcY1 := by1, fcSlope := slope, fcWid := wid
+        fcUp := fibUp, fcTouches := 0, fcShown := false
+        ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+        for r = 0 to array.size(ratios) - 1
+            k   = array.get(ratios, r)
+            off = wid * k
+            y1  = by1 + off
+            y2  = by2 + off
+            isEdge = k == 0.0 or k == 1.0
+            isMid  = k == 0.5 or k == 0.618
+            ln = line.new(int(bx1), y1, int(bx2), y2, extend = extend.right,
+                          color = color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55),
+                          width = isEdge ? fibWidth + 1 : fibWidth,
+                          style = isEdge ? line.style_solid : line.style_dotted, force_overlay = true)
+            array.push(fibLn, ln)
+            yNow = by1 + slope * (bar_index - bx1) + off
+            array.push(fibLb, label.new(bar_index + 2, yNow, str.tostring(k, "#.###"),
+                          style = label.style_label_left, color = color.new(fibCol, 100),
+                          textcolor = fibCol, size = size.tiny, force_overlay = true))
+
+// Is the channel being respected? Position of price inside the channel as a
+// ratio (0 = base line, 1 = far edge). A touch = a bar's extreme comes within
+// fibTol ATR of a ratio line and the bar closes back on the inside of it.
+// Respected = enough touches, price still inside the band, trend unchanged.
+fcBase   = not na(fcX1) ? fcY1 + fcSlope * (bar_index - fcX1) : na
+fcPosC   = not na(fcBase) and fcWid != 0 ? (close - fcBase) / fcWid : na
+fcPosH   = not na(fcBase) and fcWid != 0 ? (high  - fcBase) / fcWid : na
+fcPosL   = not na(fcBase) and fcWid != 0 ? (low   - fcBase) / fcWid : na
+fcTolR   = not na(fcWid) and fcWid != 0 ? atr14 * fibTol / math.abs(fcWid) : na
+if not na(fcPosC) and barstate.isconfirmed
+    lvls = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    bool touched = false
+    for i = 0 to array.size(lvls) - 1
+        k = array.get(lvls, i)
+        // wick reached the line (either side) and the close stayed on the "inside"
+        // (toward the middle of the channel) — a hold, not a break.
+        reached = math.min(math.abs(fcPosH - k), math.abs(fcPosL - k)) <= fcTolR
+        heldIn  = k <= 0.5 ? fcPosC >= k - fcTolR : fcPosC <= k + fcTolR
+        if reached and heldIn
+            touched := true
+    if touched
+        fcTouches += 1
+fcInside  = not na(fcPosC) and fcPosC >= -0.618 and fcPosC <= 1.618
+fcTrendOK = not na(fcPosC) and fcUp == fibUp
+fcRespect = not fibOnlyOK or (fcTouches >= fibMinT and fcInside and fcTrendOK)
+
+// Show / hide by colour so nothing is redrawn every bar. Labels ride along
+// with the latest bar so the ratio is readable at any zoom.
+if showFib and array.size(fibLb) > 0
+    for i = 0 to array.size(fibLb) - 1
+        lb = array.get(fibLb, i)
+        ln = array.get(fibLn, i)
+        x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
+        sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
+        label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+        kk = str.tonumber(label.get_text(lb))
+        isEdge = kk == 0.0 or kk == 1.0
+        isMid  = kk == 0.5 or kk == 0.618
+        line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
+        label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
+
+// ── Smart Money Concepts + liquidity sweeps (v12) ────────────────────────
+// Structure : swing highs/lows from a short pivot. Close above the last swing high =
+//             BOS (continuation) if the trend was up, CHoCH (reversal) if it was down. Mirror for lows.
+// Order block: on a bullish BOS/CHoCH the last bearish candle before the break becomes a
+//             bullish OB (box extended right until price closes below it). Mirror for bearish.
+// Liquidity : a wick beyond the previous swing high/low that CLOSES back inside = sweep of the
+//             stops resting there. Sweep of a swing LOW + close back above it = BUY (cyan-pink),
+//             sweep of a swing HIGH = SELL. Stop = the sweep wick, target 1.5R.
+grpSMC   = "Smart Money Concepts"
+smcOn    = input.bool(false, "Show structure (BOS / CHoCH)",       group = grpSMC)
+smcPiv   = input.int(5,     "Structure pivot length", minval = 2,  group = grpSMC)
+obOn     = input.bool(true, "Show order blocks",                   group = grpSMC)
+obMax    = input.int(3,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
+sweepOn  = input.bool(true, "Liquidity sweep BUY / SELL",         group = grpSMC)
+sweepTr  = input.bool(false, "Sweep signals only with trend SMA", group = grpSMC)
+smcBull  = input.color(#00e5ff, "Bullish colour", group = grpSMC)
+smcBear  = input.color(#ff4081, "Bearish colour", group = grpSMC)
+
+sPh = ta.pivothigh(high, smcPiv, smcPiv)
+sPl = ta.pivotlow(low,  smcPiv, smcPiv)
+var float sH = na, var int sHbar = na, var float sL = na, var int sLbar = na   // last confirmed swings
+var float prevH = na, var float prevL = na                                  // the swing before that (liquidity)
+var int   trendDir = 0                                                     // +1 after a bullish break, -1 after bearish
+if not na(sPh)
+    prevH := sH, sH := sPh, sHbar := bar_index - smcPiv
+if not na(sPl)
+    prevL := sL, sL := sPl, sLbar := bar_index - smcPiv
+
+// Structure breaks (once per swing: the swing is consumed after the break)
+var bool hUsed = false, var bool lUsed = false
+if not na(sPh)
+    hUsed := false
+if not na(sPl)
+    lUsed := false
+brkUp = not na(sH) and not hUsed and close > sH
+brkDn = not na(sL) and not lUsed and close < sL
+var box[] obs = array.new_box()
+var bool[] obsBull = array.new_bool()
+if smcOn and brkUp
+    isChoch = trendDir < 0
+    line.new(sHbar, sH, bar_index, sH, color = color.new(smcBull, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sH, isChoch ? "CHoCH" : "BOS", style = label.style_label_down, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny)
+    trendDir := 1, hUsed := true
+    // bullish OB = last bearish candle in the leg up to this break
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] < open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBull, 60), bgcolor = color.new(smcBull, 88), extend = extend.right)), array.push(obsBull, true)
+if smcOn and brkDn
+    isChoch = trendDir > 0
+    line.new(sLbar, sL, bar_index, sL, color = color.new(smcBear, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sL, isChoch ? "CHoCH" : "BOS", style = label.style_label_up, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny)
+    trendDir := -1, lUsed := true
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] > open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBear, 60), bgcolor = color.new(smcBear, 88), extend = extend.right)), array.push(obsBull, false)
+// mitigate / trim order blocks
+if array.size(obs) > 0
+    for i = array.size(obs) - 1 to 0
+        b = array.get(obs, i)
+        bull = array.get(obsBull, i)
+        gone = bull ? close < box.get_bottom(b) : close > box.get_top(b)
+        if gone
+            bx = array.remove(obs, i), array.remove(obsBull, i)
+            box.set_extend(bx, extend.none), box.set_right(bx, bar_index), box.set_bgcolor(bx, color.new(bull ? smcBull : smcBear, 96)), box.set_border_color(bx, color.new(bull ? smcBull : smcBear, 85))
+    while array.size(obs) > obMax
+        box.delete(array.shift(obs)), array.shift(obsBull)
+
+// Liquidity levels (v26): every confirmed swing high / low that has NOT been traded through yet is
+// where resting stops sit. Drawn as dotted lines that extend right; once swept the line stays, stops at the sweep bar and is tagged "swept".
+liqOn    = input.bool(true, "Show resting liquidity (unswept swing highs / lows)", group = grpSMC)
+liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, maxval = 10, group = grpSMC)
+var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
+var label[] liqHb = array.new_label(), var label[] liqLb = array.new_label()
+if liqOn and not na(sPh)
+    array.push(liqHl, line.new(bar_index - smcPiv, sPh, bar_index + 1, sPh, color = color.new(smcBear, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqHb, label.new(bar_index + 1, sPh, "liquidity ▲ " + str.tostring(sPh, format.mintick), style = label.style_label_left, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny))
+    while array.size(liqHl) > liqKeep
+        line.delete(array.shift(liqHl)), label.delete(array.shift(liqHb))
+if liqOn and not na(sPl)
+    array.push(liqLl, line.new(bar_index - smcPiv, sPl, bar_index + 1, sPl, color = color.new(smcBull, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqLb, label.new(bar_index + 1, sPl, "liquidity ▼ " + str.tostring(sPl, format.mintick), style = label.style_label_left, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny))
+    while array.size(liqLl) > liqKeep
+        line.delete(array.shift(liqLl)), label.delete(array.shift(liqLb))
+// swept = price traded through the level (that is the sweep the signal below looks for)
+if array.size(liqHl) > 0
+    for i = array.size(liqHl) - 1 to 0
+        if high > line.get_y1(array.get(liqHl, i)) and bar_index > line.get_x1(array.get(liqHl, i)) + smcPiv
+            ln = array.remove(liqHl, i), lb = array.remove(liqHb, i)
+            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBear, 65))
+            label.set_text(lb, "swept ▲ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBear, 40))
+        else
+            label.set_x(array.get(liqHb, i), bar_index + 1)
+if array.size(liqLl) > 0
+    for i = array.size(liqLl) - 1 to 0
+        if low < line.get_y1(array.get(liqLl, i)) and bar_index > line.get_x1(array.get(liqLl, i)) + smcPiv
+            ln = array.remove(liqLl, i), lb = array.remove(liqLb, i)
+            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBull, 65))
+            label.set_text(lb, "swept ▼ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBull, 40))
+        else
+            label.set_x(array.get(liqLb, i), bar_index + 1)
+
+// Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
+swTrL = not sweepTr or na(trend) or close > trend
+swTrS = not sweepTr or na(trend) or close < trend
+sweepLo = sweepOn and gateL and f15SwL and not is60 and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = sweepOn and gateS and f15SwS and not is60 and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+if showLbl and sweepLo
+    label.new(bar_index, low - atr14 * lblGap, "BUY\nsweep", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nsweep")
+if showLbl and sweepHi
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nsweep", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nsweep")
+if showTS and sweepLo
+    sp = math.min(low, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and sweepHi
+    sp = math.max(high, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(sweepLo, "SWEEP BUY",  "SMA Signals: liquidity sweep BUY {{ticker}} @ {{close}}")
+alertcondition(sweepHi, "SWEEP SELL", "SMA Signals: liquidity sweep SELL {{ticker}} @ {{close}}")
+alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "SMA Signals: structure break on {{ticker}}")
+
+// ── Support / Resistance + Supertrend + ATR / ADX (v19) ──────────────────
+grpSR    = "Support / Resistance"
+srOn     = input.bool(true, "Show S/R levels",                 group = grpSR)
+srPiv    = input.int(15,    "Pivot length", minval = 3,        group = grpSR)
+srMax    = input.int(3,     "Levels kept (each side)", minval = 1, maxval = 12, group = grpSR)
+srTol    = input.float(0.3, "Merge levels closer than (ATR x)", step = 0.1, group = grpSR)
+srResC   = input.color(#ef5350, "Resistance colour", group = grpSR)
+srSupC   = input.color(#26a69a, "Support colour",    group = grpSR)
+
+grpST    = "Supertrend"
+stOn     = input.bool(true, "Show Supertrend",                 group = grpST)
+stLen    = input.int(10,    "ATR length", minval = 1,          group = grpST)
+stMult   = input.float(3.0, "Multiplier", step = 0.5,          group = grpST)
+stSigOn  = input.bool(true, "BUY / SELL on Supertrend flip",  group = grpST)
+stAdxMin = input.float(20,  "Flip signal needs ADX above (0 = off)", step = 1, minval = 0, group = grpST)
+
+grpAX    = "ATR / ADX"
+axOn     = input.bool(true, "Show ATR / ADX panel",           group = grpAX)
+adxLen   = input.int(14,    "ADX length", minval = 1,          group = grpAX)
+axPos    = input.string("Top right", "Panel position", options = ["Top right", "Top left", "Bottom right", "Bottom left"], group = grpAX)
+
+// S/R: confirmed pivot highs become resistance, pivot lows support; nearby levels merge; lines extend right
+srPh = ta.pivothigh(high, srPiv, srPiv)
+srPl = ta.pivotlow(low,  srPiv, srPiv)
+var line[]  srRl = array.new_line(), var line[]  srSl = array.new_line()
+var label[] srRb = array.new_label(), var label[] srSb = array.new_label()
+addLevel(line[] lines, label[] labs, float px, int startBar, color col, string tag) =>
+    // drop an existing level within tolerance (it gets replaced by the fresher one)
+    if array.size(lines) > 0
+        for i = array.size(lines) - 1 to 0
+            if math.abs(line.get_y1(array.get(lines, i)) - px) <= atr14 * srTol
+                line.delete(array.remove(lines, i)), label.delete(array.remove(labs, i))
+    array.push(lines, line.new(startBar, px, bar_index + 1, px, color = color.new(col, 30), style = line.style_solid, width = 1, extend = extend.right))
+    array.push(labs, label.new(bar_index + 1, px, tag + " " + str.tostring(px, format.mintick), style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.tiny))
+    while array.size(lines) > srMax
+        line.delete(array.shift(lines)), label.delete(array.shift(labs))
+if srOn and not na(srPh)
+    addLevel(srRl, srRb, srPh, bar_index - srPiv, srResC, "R")
+if srOn and not na(srPl)
+    addLevel(srSl, srSb, srPl, bar_index - srPiv, srSupC, "S")
+// keep labels at the right edge; a broken level swaps colour (resistance below price acts as support)
+if srOn and barstate.islast
+    for i = 0 to (array.size(srRb) > 0 ? array.size(srRb) - 1 : na)
+        lb = array.get(srRb, i), ln = array.get(srRl, i)
+        label.set_x(lb, bar_index + 1)
+        c = line.get_y1(ln) > close ? srResC : srSupC
+        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
+    for i = 0 to (array.size(srSb) > 0 ? array.size(srSb) - 1 : na)
+        lb = array.get(srSb, i), ln = array.get(srSl, i)
+        label.set_x(lb, bar_index + 1)
+        c = line.get_y1(ln) < close ? srSupC : srResC
+        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
+
+// Supertrend + ADX
+[stLine, stDir] = ta.supertrend(stMult, stLen)
+[diP, diM, adx] = ta.dmi(adxLen, adxLen)
+plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
+stFlipUp = stOn and stSigOn and gateL and f15StL and stDir < 0 and stDir[1] >= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+stFlipDn = stOn and stSigOn and gateS and f15StS and stDir > 0 and stDir[1] <= 0 and (stAdxMin == 0 or adx >= stAdxMin)
+if showLbl and stFlipUp
+    label.new(bar_index, low - atr14 * lblGap, "BUY\nST", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nST")
+if showLbl and stFlipDn
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nST", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nST")
+if showTS and stFlipUp
+    sp = math.min(stLine, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and stFlipDn
+    sp = math.max(stLine, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(stFlipUp, "SUPERTREND BUY",  "SMA Signals: Supertrend BUY {{ticker}} @ {{close}}")
+alertcondition(stFlipDn, "SUPERTREND SELL", "SMA Signals: Supertrend SELL {{ticker}} @ {{close}}")
+
+// ATR / ADX panel (table = no plot budget used)
+var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 6, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
+if axOn and barstate.islast
+    adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
+    adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
+    table.cell(axT, 0, 0, "ATR " + str.tostring(atr14, format.mintick), text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 0, str.tostring(100 * atr14 / close, "#.##") + "%", text_color = #9598a1, text_size = size.small)
+    table.cell(axT, 0, 1, "ADX " + str.tostring(adx, "#.#"), text_color = adxCol, text_size = size.small)
+    table.cell(axT, 1, 1, adxTxt, text_color = adxCol, text_size = size.small)
+    table.cell(axT, 0, 2, "+DI " + str.tostring(diP, "#.#"), text_color = diP > diM ? #00c853 : #9598a1, text_size = size.small)
+    table.cell(axT, 1, 2, "-DI " + str.tostring(diM, "#.#"), text_color = diM > diP ? #ff1744 : #9598a1, text_size = size.small)
+    table.cell(axT, 0, 3, "Supertrend", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 3, stDir < 0 ? "UP" : "DOWN", text_color = stDir < 0 ? #00c853 : #ff1744, text_size = size.small)
+    table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
+    rsiCol = rsi >= rsiHi ? #ff1744 : rsi <= rsiLo ? #00c853 : color.white
+    table.cell(axT, 0, 5, "RSI " + str.tostring(rsi, "#.#"), text_color = rsiCol, text_size = size.small)
+    table.cell(axT, 1, 5, rsi >= rsiHi ? "overbought" : rsi <= rsiLo ? "oversold" : "neutral", text_color = rsiCol, text_size = size.small)
+
+// ── 50 EMA touch & go (v20) ──────────────────────────────────────────────
+// BUY: the EMA is rising and price is above it, the bar's low touches (or dips through) the EMA,
+// and the bar closes back above it with a green candle = pullback held, trend resumes.
+// SELL: mirror on a falling EMA. Stop = the touch bar's low / high, target 1.5R.
+grpEM    = "50 EMA touch"
+emOn     = input.bool(true, "Show 50 EMA",                     group = grpEM)
+emLen    = input.int(50,    "EMA length", minval = 2,          group = grpEM)
+emSigOn  = input.bool(false, "BUY / SELL on touch and go",    group = grpEM)
+emSlope  = input.int(5,     "EMA must be rising / falling over N bars", minval = 1, group = grpEM)
+emTol    = input.float(0.1, "Touch tolerance (ATR x)", step = 0.05, minval = 0, group = grpEM)
+emCol    = input.color(#ffeb3b, "EMA colour",                  group = grpEM)
+
+ema50    = ta.ema(close, emLen)
+plot(emOn ? ema50 : na, "EMA 50", color = color.new(emCol, 0), linewidth = 2)
+emUp     = ema50 > ema50[emSlope]
+emDn     = ema50 < ema50[emSlope]
+emTouchL = low  <= ema50 + atr14 * emTol
+emTouchS = high >= ema50 - atr14 * emTol
+emBuy  = emOn and emSigOn and gateL and f15EmL and not is60 and emUp and emTouchL and close > ema50 and close > open and close[1] > ema50[1]
+emSell = emOn and emSigOn and gateS and f15EmS and not is60 and emDn and emTouchS and close < ema50 and close < open and close[1] < ema50[1]
+emBuy  := emBuy  and not emBuy[1]
+emSell := emSell and not emSell[1]
+if showLbl and emBuy
+    label.new(bar_index, low - atr14 * lblGap, "BUY\nEMA", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nEMA")
+if showLbl and emSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nEMA", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nEMA")
+if showTS and emBuy
+    sp = math.min(low, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and emSell
+    sp = math.max(high, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(emBuy,  "EMA BUY",  "SMA Signals: 50 EMA touch BUY {{ticker}} @ {{close}}")
+alertcondition(emSell, "EMA SELL", "SMA Signals: 50 EMA touch SELL {{ticker}} @ {{close}}")
+
+// ── Higher-timeframe signals on a lower chart (v23) ─────────────────────
+// The four kept families (SMA 50/200 cross, liquidity sweep, Supertrend flip with ADX, 50 EMA touch)
+// recomputed on 15m / 30m / 60m bars and marked on ANY lower-timeframe chart (e.g. 1m) on the bar
+// where that higher-timeframe candle closes. Same 200 SMA trend gate. Stop = that family's stop
+// measured on the higher timeframe, target 1.5R. Colour = timeframe: 15m amber, 30m violet, 60m white.
+grpHT    = "Higher-timeframe signals"
+htOn     = input.bool(true, "Show 15m / 30m / 60m signals on lower charts", group = grpHT)
+htA      = input.timeframe("30", "Timeframe 1", group = grpHT)
+htB      = input.timeframe("240", "Timeframe 2", group = grpHT)
+htC      = input.timeframe("D", "Timeframe 3", group = grpHT)
+htColA   = input.color(#ffb300, "15m colour", group = grpHT)
+htColB   = input.color(#b388ff, "30m colour", group = grpHT)
+htColC   = input.color(#ffffff, "60m colour", group = grpHT)
+htGap    = input.float(1.0, "Label distance from candle (ATR x)", step = 0.25, minval = 0, group = grpHT)
+
+htfSig() =>
+    _atr   = ta.atr(14)
+    _fast  = ta.sma(close, fastLen), _slow = ta.sma(close, slowLen)
+    _gL    = not trendAll or na(_slow) or close > _slow
+    _gS    = not trendAll or na(_slow) or close < _slow
+    // SMA cross
+    _smaB  = ta.crossover(_fast, _slow)  and (not confirm or (close > _fast and close > _slow))
+    _smaS  = ta.crossunder(_fast, _slow) and (not confirm or (close < _fast and close < _slow))
+    // liquidity sweep
+    _ph = ta.pivothigh(high, smcPiv, smcPiv), _pl = ta.pivotlow(low, smcPiv, smcPiv)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - smcPiv
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - smcPiv
+    _swB = sweepOn and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = sweepOn and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    // Supertrend flip + ADX
+    [_stL, _stD] = ta.supertrend(stMult, stLen)
+    [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
+    _stB = stSigOn and _stD < 0 and _stD[1] >= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _stS = stSigOn and _stD > 0 and _stD[1] <= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    // 50 EMA touch & go
+    _e = ta.ema(close, emLen)
+    _emB0 = emSigOn and _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
+    _emS0 = emSigOn and _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
+    // first family that fires decides the tag and the stop
+    _b = _gL and (_smaB or _swB or _stB or _emB)
+    _s = _gS and (_smaS or _swS or _stS or _emS)
+    _tagB = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "SMA"
+    _tagS = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "SMA"
+    _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : _slow, close - _atr * minStopAtr)
+    _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : _slow, close + _atr * minStopAtr)
+    [_b, _s, _tagB, _tagS, _stopB, _stopS, close]
+
+drawHtf(bool on, string tf, color col) =>
+    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
+    fresh = on and othersOK and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
+    if fresh and b
+        label.new(bar_index, low - atr14 * htGap, "BUY " + tf + "m", style = label.style_label_up, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "BUY " + tf + "m\n" + tb + "  " + "stop " + str.tostring(spB, format.mintick))
+        if showTS
+            newTrade(true, spB, px + (px - spB) * tgtR)
+    if fresh and s
+        label.new(bar_index, high + atr14 * htGap, "SELL " + tf + "m", style = label.style_label_down, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "SELL " + tf + "m\n" + ts + "  " + "stop " + str.tostring(spS, format.mintick))
+        if showTS
+            newTrade(false, spS, px - (spS - px) * tgtR)
+    fresh and (b or s)
+
+hA = drawHtf(htOn, htA, htColA)
+hB = drawHtf(htOn, htB, htColB)
+hC = drawHtf(htOn, htC, htColC)
+alertcondition(hA or hB or hC, "HTF SIGNAL", "SMA Signals: higher-timeframe signal on {{ticker}}")
+
+
+// ── RSI divergence (v27) ─────────────────────────────────────────────────
+// Bullish: price sets a lower pivot low while RSI sets a higher pivot low (selling is losing force).
+// Bearish: price higher pivot high, RSI lower pivot high. Confirmed at the pivot, marked there.
+// Stop = the pivot extreme, target 1.5R. Same trend / level / RSI guards as every other signal.
+rPl = ta.pivotlow(low,  rsiDivPv, rsiDivPv)
+rPh = ta.pivothigh(high, rsiDivPv, rsiDivPv)
+var float dLo1 = na, var float dLoR1 = na, var float dHi1 = na, var float dHiR1 = na
+divBuy  = false
+divSell = false
+if not na(rPl)
+    rsiAt = rsi[rsiDivPv]
+    divBuy := rsiDivOn and not is15 and not is60 and not na(dLo1) and rPl < dLo1 and rsiAt > dLoR1 and rsiAt < 50 and gateL
+    dLo1 := rPl, dLoR1 := rsiAt
+if not na(rPh)
+    rsiAt = rsi[rsiDivPv]
+    divSell := rsiDivOn and not is15 and not is60 and not na(dHi1) and rPh > dHi1 and rsiAt < dHiR1 and rsiAt > 50 and gateS
+    dHi1 := rPh, dHiR1 := rsiAt
+if showLbl and divBuy
+    label.new(bar_index - rsiDivPv, low[rsiDivPv] - atr14 * lblGap, "BUY\nRSI div", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nRSI div")
+if showLbl and divSell
+    label.new(bar_index - rsiDivPv, high[rsiDivPv] + atr14 * lblGap, "SELL\nRSI div", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nRSI div")
+if showTS and divBuy
+    sp = math.min(low[rsiDivPv], close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and divSell
+    sp = math.max(high[rsiDivPv], close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(divBuy,  "RSI DIV BUY",  "SMA Signals: RSI bullish divergence {{ticker}} @ {{close}}")
+alertcondition(divSell, "RSI DIV SELL", "SMA Signals: RSI bearish divergence {{ticker}} @ {{close}}")
+
+
+// ── Wick mean reversion (v28, back for the 1-minute chart) ───────────────
+// Long wick at a stretched price = rejection. BUY: lower wick ≥ wkRatio × body and ≥ wkPct of the range,
+// low at least wkAtr ATR below the 20 SMA. SELL is the mirror. Target = the mean, stop = the wick tip.
+// Shown on the 1-minute chart by default; switch "Also on higher timeframes" to use it elsewhere.
+grpWK    = "Wick rejection"
+wkOn     = input.bool(true,  "Wick rejection BUY / SELL",          group = grpWK)
+wkAllTf  = input.bool(false, "Also on higher timeframes",           group = grpWK)
+wkLen    = input.int(20,     "Mean (SMA length)", minval = 5,       group = grpWK)
+wkAtr    = input.float(1.0,  "Stretch from mean (ATR x)", step = 0.25, minval = 0, group = grpWK)
+wkRatio  = input.float(2.0,  "Wick ≥ body x", step = 0.5, minval = 1, group = grpWK)
+wkPct    = input.float(0.6,  "Wick ≥ range x", step = 0.05, minval = 0.3, maxval = 0.9, group = grpWK)
+wkMean   = ta.sma(close, wkLen)
+wkBody   = math.abs(close - open)
+wkRange  = high - low
+wkLower  = math.min(open, close) - low
+wkUpper  = high - math.max(open, close)
+wkTf     = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL
+wkTfS    = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS
+wkBuy  = wkTf  and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean
+wkSell = wkTfS and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean
+if showLbl and wkBuy
+    label.new(bar_index, low - atr14 * lblGap, "BUY\nwick", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nwick")
+if showLbl and wkSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nwick", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "SELL\nwick")
+if showTS and wkBuy
+    newTrade(true,  math.min(low, close - atr14 * minStopAtr), wkMean)
+if showTS and wkSell
+    newTrade(false, math.max(high, close + atr14 * minStopAtr), wkMean)
+alertcondition(wkBuy,  "WICK BUY",  "SMA Signals: wick rejection BUY {{ticker}} @ {{close}}")
+alertcondition(wkSell, "WICK SELL", "SMA Signals: wick rejection SELL {{ticker}} @ {{close}}")
+
+
+// ── 5-minute SMA 9/21 cross on the 1-minute chart (v30) ─────────────────
+// The 9/21 cross computed on 5-minute bars (the one timeframe where it tested positive), marked on
+// the 1-minute chart on the bar where the 5-minute candle closes, as "5min BUY" / "5min SELL".
+// Not drawn on 5 minutes or above. Stop = the 5-minute 21 SMA (floored 0.5 ATR), target 1.5R.
+grpM5    = "5-minute SMA 9/21 on 1-minute"
+m5On     = input.bool(true, "Show 5-minute 9/21 cross on the 1-minute chart", group = grpM5)
+m5Fast   = input.int(9,  "Fast SMA (5m)", minval = 1,  group = grpM5)
+m5Slow   = input.int(21, "Slow SMA (5m)", minval = 2,  group = grpM5)
+m5Conf   = input.bool(true, "Close must be on the right side of both SMAs", group = grpM5)
+m5BuyC   = input.color(#00e676, "5min BUY colour",  group = grpM5)
+m5SellC  = input.color(#ff5252, "5min SELL colour", group = grpM5)
+
+m5Sig() =>
+    _f = ta.sma(close, m5Fast), _s = ta.sma(close, m5Slow)
+    _b = ta.crossover(_f, _s)  and (not m5Conf or (close > _f and close > _s))
+    _x = ta.crossunder(_f, _s) and (not m5Conf or (close < _f and close < _s))
+    [_b, _x, _s, close]
+[m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_off)
+m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+m5Buy   = m5Fresh and m5B and blkL and rsiL
+m5Sell  = m5Fresh and m5S and blkS and rsiS
+if m5Buy
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY")
+    if showTS
+        sp = math.min(m5SlowV, m5Px - atr14 * minStopAtr)
+        newTrade(true, sp, m5Px + (m5Px - sp) * tgtR)
+if m5Sell
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(m5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL")
+    if showTS
+        sp = math.max(m5SlowV, m5Px + atr14 * minStopAtr)
+        newTrade(false, sp, m5Px - (sp - m5Px) * tgtR)
+alertcondition(m5Buy,  "5MIN BUY",  "SMA Signals: 5-minute 9/21 BUY {{ticker}} @ {{close}}")
+alertcondition(m5Sell, "5MIN SELL", "SMA Signals: 5-minute 9/21 SELL {{ticker}} @ {{close}}")
+
+
+// ── 5-minute wick rejection on the 1-minute chart (v32) ──────────────────
+// The wick-rejection rule evaluated on 5-minute candles (same thresholds as the 1-minute block),
+// marked on the 1-minute chart on the bar where the 5-minute candle closes. Not drawn on 5m or above.
+// Target = the 5-minute 20 SMA, stop = the 5-minute wick tip (floored 0.5 ATR).
+grpW5    = "5-minute wick rejection on 1-minute"
+w5On     = input.bool(true, "Show 5-minute wick rejection on the 1-minute chart", group = grpW5)
+w5BuyC   = input.color(#00bfa5, "5min wick BUY colour",  group = grpW5)
+w5SellC  = input.color(#d50000, "5min wick SELL colour", group = grpW5)
+
+w5Sig() =>
+    _atr   = ta.atr(14)
+    _mean  = ta.sma(close, wkLen)
+    _body  = math.abs(close - open)
+    _rng   = high - low
+    _lower = math.min(open, close) - low
+    _upper = high - math.max(open, close)
+    _b = _rng > 0 and _lower >= _body * wkRatio and _lower >= _rng * wkPct and low  <= _mean - _atr * wkAtr and close < _mean
+    _s = _rng > 0 and _upper >= _body * wkRatio and _upper >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
+    [_b, _s, _mean, low, high, close, _atr]
+[w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_off)
+w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+w5Buy   = w5Fresh and w5B and blkL and rsiL
+w5Sell  = w5Fresh and w5S and blkS and rsiS
+if w5Buy
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\nwick")
+    if showTS
+        newTrade(true,  math.min(w5Low,  w5Px - w5Atr * minStopAtr), w5Mean)
+if w5Sell
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(w5SellC, 0), textcolor = color.white, size = size.normal, tooltip = "5min SELL\nwick")
+    if showTS
+        newTrade(false, math.max(w5High, w5Px + w5Atr * minStopAtr), w5Mean)
+alertcondition(w5Buy,  "5MIN WICK BUY",  "SMA Signals: 5-minute wick rejection BUY {{ticker}} @ {{close}}")
+alertcondition(w5Sell, "5MIN WICK SELL", "SMA Signals: 5-minute wick rejection SELL {{ticker}} @ {{close}}")
+
+
+// ── 15-minute set on lower charts (v34) ──────────────────────────────────
+// The 15-minute chart's signal set (EMA touch with Supertrend agreeing, Supertrend flip with ADX ≥ 20,
+// sweep on the VWAP side, wick rejection) computed on 15-minute bars and marked on 1m / 5m charts as
+// "15min BUY EMA" etc. when the 15-minute candle closes. Not drawn on 15m or above.
+grpS15   = "15-minute set on lower charts"
+s15On    = input.bool(true, "Show the 15-minute set on 1m / 5m charts", group = grpS15)
+s15BuyC  = input.color(#ffb300, "15min BUY colour",  group = grpS15)
+s15SellC = input.color(#ff6d00, "15min SELL colour", group = grpS15)
+
+s15Sig() =>
+    _atr = ta.atr(14)
+    [_stL, _stD] = ta.supertrend(3.0, 10)
+    [_dp, _dm, _adx] = ta.dmi(14, 14)
+    _ns = ta.change(time("D")) != 0
+    var float _pv = 0.0, var float _v = 0.0
+    if _ns
+        _pv := 0.0, _v := 0.0
+    _vol = nz(volume) > 0 ? volume : 1.0
+    _pv += hlc3 * _vol, _v += _vol
+    _vwap = _pv / _v
+    // sweep (VWAP side)
+    _ph = ta.pivothigh(high, smcPiv, smcPiv), _pl = ta.pivotlow(low, smcPiv, smcPiv)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - smcPiv
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - smcPiv
+    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open and close > _vwap
+    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open and close < _vwap
+    // Supertrend flip with ADX
+    _stB = _stD < 0 and _stD[1] >= 0 and _adx >= 20
+    _stS = _stD > 0 and _stD[1] <= 0 and _adx >= 20
+    // EMA touch with Supertrend agreeing
+    _e = ta.ema(close, emLen)
+    _emB0 = _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1] and _stD < 0
+    _emS0 = _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1] and _stD > 0
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
+    // wick rejection
+    _mean = ta.sma(close, wkLen)
+    _body = math.abs(close - open), _rng = high - low
+    _lo = math.min(open, close) - low, _up = high - math.max(open, close)
+    _wkB = _rng > 0 and _lo >= _body * wkRatio and _lo >= _rng * wkPct and low  <= _mean - _atr * wkAtr and close < _mean
+    _wkS = _rng > 0 and _up >= _body * wkRatio and _up >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
+    _b = _swB or _stB or _emB or _wkB
+    _s = _swS or _stS or _emS or _wkS
+    _tb = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "wick"
+    _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "wick"
+    _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low, close - _atr * minStopAtr)
+    _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high, close + _atr * minStopAtr)
+    _tgtB = _wkB and not (_swB or _stB or _emB) ? _mean : close + (close - _stopB) * tgtR
+    _tgtS = _wkS and not (_swS or _stS or _emS) ? _mean : close - (_stopS - close) * tgtR
+    [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
+[s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(), lookahead = barmerge.lookahead_off)
+s15Fresh = s15On and lt15 and barstate.isconfirmed and ta.change(time("15")) != 0
+s15Buy   = s15Fresh and s15B and blkL and rsiL
+s15Sell  = s15Fresh and s15S and blkS and rsiS
+if s15Buy
+    label.new(bar_index, low - atr14 * lblGap, "15min BUY", style = label.style_label_up, color = color.new(s15BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "15min BUY\n" + s15Tb)
+    if showTS
+        newTrade(true, s15StopB, s15TgtB)
+if s15Sell
+    label.new(bar_index, high + atr14 * lblGap, "15min SELL", style = label.style_label_down, color = color.new(s15SellC, 0), textcolor = color.black, size = size.normal, tooltip = "15min SELL\n" + s15Ts)
+    if showTS
+        newTrade(false, s15StopS, s15TgtS)
+alertcondition(s15Buy,  "15MIN BUY",  "SMA Signals: 15-minute set BUY {{ticker}} @ {{close}}")
+alertcondition(s15Sell, "15MIN SELL", "SMA Signals: 15-minute set SELL {{ticker}} @ {{close}}")
+
+
+// ── 5-minute keep-list set on the 1-minute chart (v35) ───────────────────
+// What the 5-minute chart shows (sweep, Supertrend flip with ADX, 50 EMA touch, RSI divergence)
+// computed on 5-minute bars and marked on the 1-minute chart as "5min BUY sweep", "5min BUY EMA",
+// "5min BUY ST", "5min BUY RSI div" (and SELL) when the 5-minute candle closes. 1-minute chart only.
+grpK5    = "5-minute set on the 1-minute chart"
+k5On     = input.bool(true, "Show 5-minute sweep / ST / EMA / RSI-div on the 1-minute chart", group = grpK5)
+k5BuyC   = input.color(#69f0ae, "5min set BUY colour",  group = grpK5)
+k5SellC  = input.color(#ff8a80, "5min set SELL colour", group = grpK5)
+
+k5Sig() =>
+    _atr = ta.atr(14)
+    _slow = ta.sma(close, slowLen)
+    _gL = not trendAll or na(_slow) or close > _slow
+    _gS = not trendAll or na(_slow) or close < _slow
+    // sweep
+    _ph = ta.pivothigh(high, smcPiv, smcPiv), _pl = ta.pivotlow(low, smcPiv, smcPiv)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - smcPiv
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - smcPiv
+    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    // Supertrend flip with ADX
+    [_stL, _stD] = ta.supertrend(stMult, stLen)
+    [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
+    _stB = _stD < 0 and _stD[1] >= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _stS = _stD > 0 and _stD[1] <= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    // EMA touch
+    _e = ta.ema(close, emLen)
+    _emB0 = _e > _e[emSlope] and low  <= _e + _atr * emTol and close > _e and close > open and close[1] > _e[1]
+    _emS0 = _e < _e[emSlope] and high >= _e - _atr * emTol and close < _e and close < open and close[1] < _e[1]
+    _emB = emSigOn and _emB0 and not _emB0[1], _emS = emSigOn and _emS0 and not _emS0[1]
+    // RSI divergence (confirmed at the pivot)
+    _rsi = ta.rsi(close, rsiLen)
+    _rPl = ta.pivotlow(low, rsiDivPv, rsiDivPv), _rPh = ta.pivothigh(high, rsiDivPv, rsiDivPv)
+    var float _dLo = na, var float _dLoR = na, var float _dHi = na, var float _dHiR = na
+    _dvB = false, _dvS = false
+    if not na(_rPl)
+        _r = _rsi[rsiDivPv]
+        _dvB := not na(_dLo) and _rPl < _dLo and _r > _dLoR and _r < 50
+        _dLo := _rPl, _dLoR := _r
+    if not na(_rPh)
+        _r = _rsi[rsiDivPv]
+        _dvS := not na(_dHi) and _rPh > _dHi and _r < _dHiR and _r > 50
+        _dHi := _rPh, _dHiR := _r
+    _b = _gL and (_swB or _stB or _emB or (rsiDivOn and _dvB))
+    _s = _gS and (_swS or _stS or _emS or (rsiDivOn and _dvS))
+    _tb = _swB ? "sweep" : _stB ? "ST" : _emB ? "EMA" : "RSI div"
+    _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "RSI div"
+    _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low[rsiDivPv], close - _atr * minStopAtr)
+    _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high[rsiDivPv], close + _atr * minStopAtr)
+    [_b, _s, _tb, _ts, _stopB, _stopS, close]
+[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_off)
+k5Fresh = k5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
+k5Buy   = k5Fresh and k5B and blkL and rsiL
+k5Sell  = k5Fresh and k5S and blkS and rsiS
+if k5Buy
+    label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(k5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\n" + k5Tb)
+    if showTS
+        newTrade(true, k5StopB, k5Px + (k5Px - k5StopB) * tgtR)
+if k5Sell
+    label.new(bar_index, high + atr14 * lblGap, "5min SELL", style = label.style_label_down, color = color.new(k5SellC, 0), textcolor = color.black, size = size.normal, tooltip = "5min SELL\n" + k5Ts)
+    if showTS
+        newTrade(false, k5StopS, k5Px - (k5StopS - k5Px) * tgtR)
+alertcondition(k5Buy,  "5MIN SET BUY",  "SMA Signals: 5-minute set BUY {{ticker}} @ {{close}}")
+alertcondition(k5Sell, "5MIN SET SELL", "SMA Signals: 5-minute set SELL {{ticker}} @ {{close}}")
+
+
+// ── 60-minute set on smaller charts (v38) ────────────────────────────────
+// The 60-minute chart's signal set (wick rejection + Supertrend flip with ADX ≥ 20) computed on
+// 60-minute bars and marked on every smaller chart as "60min BUY" / "60min SELL" when the hour closes.
+grpS60   = "60-minute set on smaller charts"
+s60On    = input.bool(true, "Show the 60-minute set on smaller charts", group = grpS60)
+s60BuyC  = input.color(#ffffff, "60min BUY colour",  group = grpS60)
+s60SellC = input.color(#e0e0e0, "60min SELL colour", group = grpS60)
+
+s60Sig() =>
+    _atr = ta.atr(14)
+    [_stL, _stD] = ta.supertrend(stMult, stLen)
+    [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
+    _stB = _stD < 0 and _stD[1] >= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _stS = _stD > 0 and _stD[1] <= 0 and (stAdxMin == 0 or _adx >= stAdxMin)
+    _mean = ta.sma(close, wkLen)
+    _body = math.abs(close - open), _rng = high - low
+    _lo = math.min(open, close) - low, _up = high - math.max(open, close)
+    _wkB = _rng > 0 and _lo >= _body * wkRatio and _lo >= _rng * wkPct and low  <= _mean - _atr * wkAtr and close < _mean
+    _wkS = _rng > 0 and _up >= _body * wkRatio and _up >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
+    _b = _stB or _wkB
+    _s = _stS or _wkS
+    _tb = _stB ? "ST" : "wick"
+    _ts = _stS ? "ST" : "wick"
+    _stopB = math.min(_stB ? _stL : low,  close - _atr * minStopAtr)
+    _stopS = math.max(_stS ? _stL : high, close + _atr * minStopAtr)
+    _tgtB = _stB ? close + (close - _stopB) * tgtR : _mean
+    _tgtS = _stS ? close - (_stopS - close) * tgtR : _mean
+    [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
+[s60B, s60S, s60Tb, s60Ts, s60StopB, s60StopS, s60TgtB, s60TgtS] = request.security(syminfo.tickerid, "60", s60Sig(), lookahead = barmerge.lookahead_off)
+s60Fresh = s60On and lt60 and barstate.isconfirmed and ta.change(time("60")) != 0
+s60Buy   = s60Fresh and s60B and blkL and rsiL
+s60Sell  = s60Fresh and s60S and blkS and rsiS
+if s60Buy
+    label.new(bar_index, low - atr14 * lblGap,  "60min BUY",  style = label.style_label_up,   color = color.new(s60BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "60min BUY " + s60Tb)
+    if showTS
+        newTrade(true, s60StopB, s60TgtB)
+if s60Sell
+    label.new(bar_index, high + atr14 * lblGap, "60min SELL", style = label.style_label_down, color = color.new(s60SellC, 0), textcolor = color.black, size = size.normal, tooltip = "60min SELL " + s60Ts)
+    if showTS
+        newTrade(false, s60StopS, s60TgtS)
+alertcondition(s60Buy,  "60MIN BUY",  "SMA Signals: 60-minute set BUY {{ticker}} @ {{close}}")
+alertcondition(s60Sell, "60MIN SELL", "SMA Signals: 60-minute set SELL {{ticker}} @ {{close}}")

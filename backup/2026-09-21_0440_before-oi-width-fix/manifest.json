@@ -1,0 +1,89 @@
+{
+  "created": "2026-09-21T04:40:26.664Z",
+  "label": "before-oi-width-fix",
+  "copied": {
+    "pine": [
+      "oi_profile.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "screener.pine",
+      "sma_signals.pine",
+      "sma_signals_strategy.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "refresh_oi.mjs"
+    ],
+    "scratchpad": [
+      "agg_any.mjs",
+      "agg_crypto.mjs",
+      "agg_rel.mjs",
+      "agg_sma.mjs",
+      "agg_sma30.mjs",
+      "agg_swing.mjs",
+      "bt_sweep2.mjs",
+      "insert_study.mjs",
+      "new_web_indicator.mjs",
+      "patch_labels_v25.mjs",
+      "patch_strategy_v9.mjs",
+      "patch_v26.mjs",
+      "patch_v27_rsi.mjs",
+      "patch_v28_1m.mjs",
+      "patch_v30_5m921.mjs",
+      "patch_v32_5mwick.mjs",
+      "patch_v34_15m.mjs",
+      "patch_v35_5mset.mjs",
+      "patch_v36_short.mjs",
+      "patch_v37_tf.mjs",
+      "patch_v38_60m.mjs",
+      "patch_v39_5mname.mjs",
+      "patch_v40_noema.mjs",
+      "patch_v43_names.mjs",
+      "patch_v44_persist.mjs",
+      "probe_delta.mjs",
+      "probe_symbols.mjs",
+      "read_warn.mjs",
+      "remove_all.mjs",
+      "report_daily.mjs",
+      "run_combos.ps1",
+      "run_combos_niftyce.ps1",
+      "run_families.ps1",
+      "run_flow.ps1",
+      "run_rules_crypto.ps1",
+      "run_rules_rel.ps1",
+      "run_rules_swing.ps1",
+      "run_sma.ps1",
+      "run_sma30.ps1",
+      "run_sma30_long.ps1",
+      "run_sma30_rec.ps1",
+      "run_sweep.ps1",
+      "run_swema.ps1",
+      "save_layout.mjs",
+      "swap_console.mjs",
+      "try_inputs.mjs"
+    ]
+  },
+  "chart": {
+    "symbol": "NSE:NIFTY",
+    "resolution": "1",
+    "studies": [
+      {
+        "name": "SMA Signals",
+        "pineId": "USER;f686f1a3397144a4bc31ea731b015e2b",
+        "pineVersion": "45.0"
+      },
+      {
+        "name": "OI Profile",
+        "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+        "pineVersion": "29.0"
+      }
+    ]
+  }
+}

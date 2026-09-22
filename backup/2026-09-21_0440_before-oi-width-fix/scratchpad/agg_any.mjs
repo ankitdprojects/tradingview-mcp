@@ -1,0 +1,14 @@
+import { readFileSync } from 'fs';
+const all = JSON.parse(readFileSync(process.argv[2]));
+const fmt=(n)=>String(Math.round(n)).padStart(8);
+const agg=(rows,keyF)=>{const o={};for(const r of rows){const k=keyF(r);o[k]??={gp:0,gl:0,w:0,l:0,n:0,net:0,pos:0,cells:0};const v=o[k];v.gp+=r.gross_profit||0;v.gl+=r.gross_loss||0;v.w+=r.winning_trades||0;v.l+=r.losing_trades||0;v.n+=r.total_trades||0;v.net+=r.net_profit||0;v.cells++;if(r.net_profit>0)v.pos++}return o};
+const show=(title,o)=>{console.log("\n== "+title+" ==");for(const [k,v] of Object.entries(o).sort((a,b)=>b[1].net-a[1].net)) console.log(k.padEnd(26),"net",fmt(v.net),"trades",String(v.n).padStart(4),"win%",(v.n?100*v.w/v.n:0).toFixed(0).padStart(3),"avgW/avgL",v.w&&v.l?(v.gp/v.w/(v.gl/v.l)).toFixed(2):"-","cells+",v.pos+"/"+v.cells)};
+show("by config", agg(all,r=>r.mode));
+show("by timeframe", agg(all,r=>r.tf+"m"));
+show("by tf x config", agg(all,r=>(r.tf+"m ").padEnd(5)+r.mode));
+show("by symbol", agg(all,r=>r.symbol.replace("NSE:","").replace("MCX:","")));
+console.log("\n== top 12 cells ==");
+for(const r of all.filter(r=>r.total_trades>0).sort((a,b)=>b.net_profit-a.net_profit).slice(0,12)) console.log(r.symbol.replace("NSE:","").padEnd(22),(r.tf+"m").padEnd(4),r.mode.padEnd(14),"net",fmt(r.net_profit),"tr",String(r.total_trades).padStart(3),"win%",(100*r.percent_profitable).toFixed(0).padStart(3),"PF",(r.profit_factor||0).toFixed(2),"DD%",(100*r.max_drawdown_percent).toFixed(0).padStart(3));
+console.log("\n== bottom 6 cells ==");
+for(const r of all.filter(r=>r.total_trades>0).sort((a,b)=>a.net_profit-b.net_profit).slice(0,6)) console.log(r.symbol.replace("NSE:","").padEnd(22),(r.tf+"m").padEnd(4),r.mode.padEnd(14),"net",fmt(r.net_profit),"tr",String(r.total_trades).padStart(3),"win%",(100*r.percent_profitable).toFixed(0).padStart(3),"DD%",(100*r.max_drawdown_percent).toFixed(0).padStart(3));
+console.log("\nTOTAL", Math.round(all.reduce((s,r)=>s+(r.net_profit||0),0)), "trades", all.reduce((s,r)=>s+(r.total_trades||0),0));
