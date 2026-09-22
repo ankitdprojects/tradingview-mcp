@@ -50,6 +50,7 @@ Use `study_filter` parameter to target a specific indicator by name substring (e
 6. `pine_save` → save to TradingView cloud
 7. `pine_new` → create blank indicator/strategy/library
 8. `pine_open` → load a saved script by name
+9. After any script is saved or updated on TradingView, run `node scripts/pine_sync.mjs` so the repo holds the latest version of every indicator and strategy (`--check` to diff only)
 
 ### "Practice trading with replay"
 1. `replay_start` with `date: "2025-03-01"` → enter replay mode
