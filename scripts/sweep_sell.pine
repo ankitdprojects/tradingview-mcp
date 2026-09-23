@@ -32,11 +32,14 @@ fire    = own or htfNew
 
 atr14 = ta.atr(14)
 if fire
-    label.new(bar_index, high + atr14 * lblGap, isSigTf ? "SELL\nsweep" : "60min SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "Sweep of " + str.tostring(lvlHtf, format.mintick))
+    stopPx = close + atrHtf * stopAtr
+    tgtPx  = close - (stopPx - close) * rr
+    txt = isSigTf ? "SELL\nsweep\nSL " + str.tostring(stopPx, format.mintick) + "\nT " + str.tostring(tgtPx, format.mintick) : "60min SELL\nlong term trend"
+    label.new(bar_index, high + atr14 * lblGap, txt, style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "Sweep of " + str.tostring(lvlHtf, format.mintick) + "  stop " + str.tostring(stopPx, format.mintick) + "  target " + str.tostring(tgtPx, format.mintick))
     if showTS and isSigTf
-        stopPx = close + atrHtf * stopAtr
-        tgtPx  = close - (stopPx - close) * rr
-        line.new(bar_index, stopPx, bar_index + 20, stopPx, color = color.new(#ff1744, 30), style = line.style_dotted)
-        line.new(bar_index, tgtPx,  bar_index + 20, tgtPx,  color = color.new(#00c853, 30), style = line.style_dotted)
+        line.new(bar_index, stopPx, bar_index + 30, stopPx, color = color.new(#ff1744, 0), style = line.style_dashed, width = 2)
+        line.new(bar_index, tgtPx,  bar_index + 30, tgtPx,  color = color.new(#00c853, 0), style = line.style_dashed, width = 2)
+        label.new(bar_index + 30, stopPx, "Stop " + str.tostring(stopPx, format.mintick),   style = label.style_label_left, color = color.new(#ff1744, 0), textcolor = color.white, size = size.tiny)
+        label.new(bar_index + 30, tgtPx,  "Target " + str.tostring(tgtPx, format.mintick), style = label.style_label_left, color = color.new(#00c853, 0), textcolor = color.black, size = size.tiny)
 
 alertcondition(fire, "Sweep SELL 60m", "Sweep SELL (60m) on {{ticker}} @ {{close}}")

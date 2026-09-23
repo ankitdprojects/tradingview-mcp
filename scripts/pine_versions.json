@@ -56,8 +56,8 @@
   "Sweep SELL": {
     "file": "sweep_sell.pine",
     "id": "USER;18eae575e9904c6f8799afba0a27ea37",
-    "version": "1.0",
-    "modified": 1790131366
+    "version": "2.0",
+    "modified": 1790131769
   },
   "Swing Pullback Console": {
     "file": "swing_pullback_console.pine",
