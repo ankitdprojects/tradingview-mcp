@@ -1,45 +1,83 @@
 //@version=6
-// Sweep SELL (60-minute) — the one rule that was profitable on 60m futures, calls and puts in the 22 Aug–22 Sep 2026 backtest.
-// Rule (same as the backtest strategy): a 5-bar pivot high is swept (high goes above it), the bar closes back below it and is red.
-// Always evaluated on the 60-minute series. On the 60m chart the label reads "SELL / sweep"; on any other timeframe it reads "60min SELL"
-// and is drawn on the first bar after the 60-minute bar closes, so it never appears early and never disappears.
-indicator("Sweep SELL", overlay = true, max_labels_count = 500, max_lines_count = 200)
+// Sweep 60m — the one rule that was profitable on 60m futures, calls and puts in the 22 Aug–22 Sep 2026 backtest.
+// Signals are ALWAYS read from the underlying's continuous futures on the 60-minute series (as backtested), never from the option premium.
+//   Sweep SELL: a 5-bar pivot high is swept (high goes above it), the bar closes back below it and is red.
+//   Sweep BUY : a 5-bar pivot low is swept (low goes below it), the bar closes back above it and is green.
+// What is drawn depends on the chart:
+//   call chart (…C<strike>)  -> only "BUY sweep"  (buy this call)      stop/target on the call premium
+//   put chart  (…P<strike>)  -> only "SELL sweep" (buy this put)       stop/target on the put premium
+//   futures / anything else  -> both BUY and SELL
+// On the 60m chart the label carries SL / T; on lower timeframes it reads "60min BUY|SELL long term trend" and is drawn on the
+// first bar after the 60-minute bar closes, so it never appears early and never disappears.
+indicator("Sweep 60m", overlay = true, max_labels_count = 500, max_lines_count = 200)
 
-sigTf   = input.timeframe("60", "Signal timeframe")
-pivLen  = input.int(5, "Pivot length", minval = 2)
-showTS  = input.bool(true, "Draw stop / target (1 ATR stop, 1.5R)")
-stopAtr = input.float(1.0, "Stop = ATR(14) x", step = 0.25)
-rr      = input.float(1.5, "Target (R)", step = 0.5)
-lblGap  = input.float(0.8, "Label gap (ATR x)", step = 0.1)
+sigTf    = input.timeframe("60", "Signal timeframe")
+pivLen   = input.int(5, "Pivot length", minval = 2)
+sigSrc   = input.symbol("", "Signal symbol (blank = underlying futures, auto)")
+showTS   = input.bool(true, "Draw stop / target (1 ATR stop, 1.5R)")
+stopAtr  = input.float(1.0, "Stop = ATR(14) x", step = 0.25)
+rr       = input.float(1.5, "Target (R)", step = 0.5)
+lblGap   = input.float(0.8, "Label gap (ATR x)", step = 0.1)
+futBoth  = input.bool(true, "Futures / other charts: show both BUY and SELL")
 
-sweepSell() =>
+// ── which chart is this? ────────────────────────────────────────────────
+tk     = syminfo.ticker
+optM   = str.match(tk, "^[A-Z&\\-]+\\d{6}[CP]\\d+(\\.\\d+)?$")          // e.g. NIFTY260929C23400
+isOpt  = optM != ""
+isCall = isOpt and str.match(tk, "\\d{6}C") != ""
+isPut  = isOpt and str.match(tk, "\\d{6}P") != ""
+under  = isOpt ? str.match(tk, "^[A-Z&\\-]+") : tk
+futSym = sigSrc != "" ? sigSrc : isOpt ? syminfo.prefix + ":" + under + "1!" : syminfo.tickerid
+
+sweep() =>
     _ph = ta.pivothigh(high, pivLen, pivLen)
+    _pl = ta.pivotlow(low, pivLen, pivLen)
     var float _sH = na
     var int   _sHb = na
+    var float _sL = na
+    var int   _sLb = na
     if not na(_ph)
         _sH := _ph
         _sHb := bar_index - pivLen
-    _sig = not na(_sH) and bar_index > _sHb + pivLen and high > _sH and close < _sH and close < open
-    [_sig, _sH, ta.atr(14)]
+    if not na(_pl)
+        _sL := _pl
+        _sLb := bar_index - pivLen
+    _sell = not na(_sH) and bar_index > _sHb + pivLen and high > _sH and close < _sH and close < open
+    _buy  = not na(_sL) and bar_index > _sLb + pivLen and low  < _sL and close > _sL and close > open
+    [_buy, _sell, _sL, _sH]
 
-[sigHtf, lvlHtf, atrHtf] = request.security(syminfo.tickerid, sigTf, sweepSell(), lookahead = barmerge.lookahead_off)
+[buyHtf, sellHtf, lowHtf, highHtf] = request.security(futSym, sigTf, sweep(), lookahead = barmerge.lookahead_off)
 
 isSigTf = timeframe.period == sigTf
-own     = isSigTf and sigHtf and barstate.isconfirmed
-// other timeframes: fire once, on the first bar after the 60-minute bar closes (the value is confirmed)
-htfNew  = not isSigTf and timeframe.in_seconds() < timeframe.in_seconds(sigTf) and ta.change(time(sigTf)) != 0 and sigHtf[1] and barstate.isconfirmed
-fire    = own or htfNew
+newHtf  = not isSigTf and timeframe.in_seconds() < timeframe.in_seconds(sigTf) and ta.change(time(sigTf)) != 0
+// lower timeframes: request.security (lookahead off) returns the last CLOSED 60m bar's value, so on the first chart bar
+// of a new 60-minute period the value already belongs to the bar that just closed -> fire there.
+fireB   = (isSigTf and buyHtf  or newHtf and buyHtf)  and barstate.isconfirmed
+fireS   = (isSigTf and sellHtf or newHtf and sellHtf) and barstate.isconfirmed
+
+showB = isCall or (not isOpt and futBoth)
+showS = isPut  or not isOpt
 
 atr14 = ta.atr(14)
-if fire
-    stopPx = close + atrHtf * stopAtr
-    tgtPx  = close - (stopPx - close) * rr
-    txt = isSigTf ? "SELL\nsweep\nSL " + str.tostring(stopPx, format.mintick) + "\nT " + str.tostring(tgtPx, format.mintick) : "60min SELL\nlong term trend"
-    label.new(bar_index, high + atr14 * lblGap, txt, style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "Sweep of " + str.tostring(lvlHtf, format.mintick) + "  stop " + str.tostring(stopPx, format.mintick) + "  target " + str.tostring(tgtPx, format.mintick))
+drawSig(isBuy) =>
+    stopPx = isBuy ? close - atr14 * stopAtr : close + atr14 * stopAtr
+    dist   = math.abs(close - stopPx)
+    tgtPx  = isBuy ? close + dist * rr : close - dist * rr
+    word   = isBuy ? "BUY" : "SELL"
+    txt    = isSigTf ? word + "\nsweep\nSL " + str.tostring(stopPx, format.mintick) + "\nT " + str.tostring(tgtPx, format.mintick) : "60min " + word + "\nlong term trend"
+    col    = isBuy ? #00c853 : #ff1744
+    tcol   = isBuy ? color.black : color.white
+    label.new(bar_index, isBuy ? low - atr14 * lblGap : high + atr14 * lblGap, txt, style = isBuy ? label.style_label_up : label.style_label_down, color = color.new(col, 0), textcolor = tcol, size = size.small, tooltip = "Sweep on " + futSym + "  stop " + str.tostring(stopPx, format.mintick) + "  target " + str.tostring(tgtPx, format.mintick))
     if showTS and isSigTf
         line.new(bar_index, stopPx, bar_index + 30, stopPx, color = color.new(#ff1744, 0), style = line.style_dashed, width = 2)
         line.new(bar_index, tgtPx,  bar_index + 30, tgtPx,  color = color.new(#00c853, 0), style = line.style_dashed, width = 2)
         label.new(bar_index + 30, stopPx, "Stop " + str.tostring(stopPx, format.mintick),   style = label.style_label_left, color = color.new(#ff1744, 0), textcolor = color.white, size = size.tiny)
         label.new(bar_index + 30, tgtPx,  "Target " + str.tostring(tgtPx, format.mintick), style = label.style_label_left, color = color.new(#00c853, 0), textcolor = color.black, size = size.tiny)
 
-alertcondition(fire, "Sweep SELL 60m", "Sweep SELL (60m) on {{ticker}} @ {{close}}")
+if fireB and showB
+    drawSig(true)
+if fireS and showS
+    drawSig(false)
+
+alertcondition(fireB and showB, "Sweep BUY 60m",  "Sweep BUY (60m) on {{ticker}} @ {{close}}")
+alertcondition(fireS and showS, "Sweep SELL 60m", "Sweep SELL (60m) on {{ticker}} @ {{close}}")
