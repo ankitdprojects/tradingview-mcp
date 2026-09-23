@@ -1,0 +1,294 @@
+//@version=6
+// Backtest wrapper for "SMA Signals" (scripts/sma_signals.pine): SMA cross and/or
+// Fibonacci golden-zone bounce entries under the user's standing backtest rules
+// (memory: backtest-conditions). Intraday squares off at session end; D/W hold to
+// target or stop.
+strategy("SMA Signals BT", overlay = true, initial_capital = 20000,
+     default_qty_type = strategy.fixed, default_qty_value = 1,
+     commission_type = strategy.commission.percent, commission_value = 0.02,
+     slippage = 1, process_orders_on_close = true, calc_on_every_tick = false,
+     margin_long = 0, margin_short = 0, max_lines_count = 60)
+
+// ── Inputs (ids in_0.. in order) ───────────────────────────────────────────
+mode       = input.string("SMA", "Entries", options = ["SMA", "FIB", "Both", "Sweep", "Custom"])                       // in_0
+fastLen    = input.int(9,   "Fast SMA", minval = 1)                                                  // in_1
+slowLen    = input.int(21,  "Slow SMA", minval = 2)                                                  // in_2
+useTrend   = input.bool(true, "Only trade with trend SMA")                                           // in_3
+trendLen   = input.int(50,  "Trend SMA", minval = 5)                                                 // in_4
+confirm    = input.bool(true, "Close must be on the right side of both SMAs")                       // in_5
+riskCash   = input.float(1000, "Risk per trade (Rs = 1R)", minval = 1)                               // in_6
+rr         = input.float(1.5, "Target (R multiple; recommended 1.5 intraday, 3 daily)", minval = 0.5, step = 0.5) // in_7
+minStopAtr = input.float(0.5, "Min stop distance (ATR)", minval = 0, step = 0.1)                     // in_8
+swingLen   = input.int(10, "Stop = lowest low / highest high of N bars", minval = 1)                 // in_9
+hardStop   = input.bool(true, "Price stop on")                                                       // in_10
+oppExit    = input.bool(true, "Opposite signal closes the trade")                                    // in_11
+eodClose   = input.bool(true, "Square off at session end (intraday only)")                           // in_12
+fromDate   = input.int(0, "From YYYYMMDD (0 = all)", minval = 0)                                     // in_13
+toDate     = input.int(0, "To YYYYMMDD (0 = all)", minval = 0)                                       // in_14
+capNotion  = input.bool(false, "Cap position to capital (options / cash, no leverage)")              // in_15
+pivLen     = input.int(10, "Fib swing pivot length", minval = 2)                                     // in_16
+fibDeep    = input.float(0.786, "Fib invalidation ratio", step = 0.01)                               // in_17
+fibTarget  = input.bool(false, "FIB target = 1.272 extension instead of R multiple")                 // in_18
+fixedQty   = input.float(0, "Fixed qty in contracts / lots (0 = risk-sized)", minval = 0)            // in_19  (options: 1 = one lot)
+capPerTrade = input.float(20000, "Capital per trade (Rs, 0 = use risk sizing)", minval = 0)        // in_20  user rule 2026-09-14: whole 20k every trade
+stopMode   = input.string("Signal", "Stop / target", options = ["Signal", "Swing"])                  // in_21  Signal = SMA stop at slow SMA / FIB stop at 0.786 + 1.272 target
+maxHoldD   = input.int(15, "Daily: max hold in bars (0 = no limit)", minval = 0)                     // in_22  user rule 2026-09-14: hold a stock max 15 trading days on D
+usePair2   = input.bool(false, "Second SMA pair also signals")                                       // in_23  user: "9/21 and 50/200 both together"
+fast2Len   = input.int(9,  "Second pair fast", minval = 1)                                           // in_24
+slow2Len   = input.int(21, "Second pair slow", minval = 2)                                           // in_25
+longOnly   = input.bool(true, "Buy only (never short; SELL signal while long = stop loss)")          // in_26  user rule 2026-09-14
+smcPiv     = input.int(5, "Sweep: structure pivot length", minval = 2)                                // in_27
+sweepTr    = input.bool(false, "Sweep: only with trend SMA")                                          // in_28
+// Family switches (v9). mode "Custom" = use these; other modes keep the old behaviour.
+fSMA       = input.bool(false, "Family: SMA cross")                                                   // in_29
+fFIB       = input.bool(false, "Family: Fib golden-zone bounce")                                       // in_30
+fSweep     = input.bool(false, "Family: liquidity sweep")                                              // in_31
+fDC        = input.bool(false, "Family: Donchian breakout")                                            // in_32
+fVWAP      = input.bool(false, "Family: VWAP mean reversion")                                          // in_33
+fWick      = input.bool(false, "Family: wick rejection")                                               // in_34
+fFVG       = input.bool(false, "Family: FVG retest")                                                   // in_35
+fST        = input.bool(false, "Family: Supertrend flip")                                              // in_36
+fEMA       = input.bool(false, "Family: 50 EMA touch")                                                 // in_37
+filtST     = input.bool(false, "Filter: Supertrend must agree")                                        // in_38
+filtADX    = input.float(0, "Filter: ADX at least (0 = off)", minval = 0)                              // in_39
+filtVWAP   = input.bool(false, "Filter: long only above VWAP / short only below")                     // in_40
+dcLen      = input.int(20, "Donchian length", minval = 5)                                              // in_41
+stLen      = input.int(10, "Supertrend ATR length", minval = 1)                                        // in_42
+stMult     = input.float(3.0, "Supertrend multiplier", step = 0.5)                                     // in_43
+emLen      = input.int(50, "EMA length", minval = 2)                                                   // in_44
+
+// ── Date window ───────────────────────────────────────────────────────────
+ymd      = year * 10000 + month * 100 + dayofmonth
+inWindow = (fromDate == 0 or ymd >= fromDate) and (toDate == 0 or ymd <= toDate)
+
+// ── SMA signals (same as indicator v3) ───────────────────────────────────
+fast  = ta.sma(close, fastLen)
+slow  = ta.sma(close, slowLen)
+trend = ta.sma(close, trendLen)
+plot(fast,  "Fast",  color = color.new(#26a69a, 0))
+plot(slow,  "Slow",  color = color.new(#ef5350, 0))
+plot(trend, "Trend", color = color.new(#ff9800, 30))
+upCross   = ta.crossover(fast, slow)
+downCross = ta.crossunder(fast, slow)
+trendOK_L = not useTrend or close > trend
+trendOK_S = not useTrend or close < trend
+confOK_L  = not confirm or (close > fast and close > slow)
+confOK_S  = not confirm or (close < fast and close < slow)
+smaBuy1  = upCross   and trendOK_L and confOK_L
+smaSell1 = downCross and trendOK_S and confOK_S
+// Second pair (e.g. 9/21) fires alongside the first; stop for its trades = its own slow SMA
+fast2 = ta.sma(close, fast2Len)
+slow2 = ta.sma(close, slow2Len)
+smaBuy2  = usePair2 and ta.crossover(fast2, slow2)  and trendOK_L and (not confirm or (close > fast2 and close > slow2))
+smaSell2 = usePair2 and ta.crossunder(fast2, slow2) and trendOK_S and (not confirm or (close < fast2 and close < slow2))
+smaBuy  = smaBuy1  or smaBuy2
+smaSell = smaSell1 or smaSell2
+smaStopL = smaBuy1  ? slow : slow2
+smaStopS = smaSell1 ? slow : slow2
+
+// ── Fibonacci golden-zone bounce (same as indicator v3) ──────────────────
+ph = ta.pivothigh(high, pivLen, pivLen)
+pl = ta.pivotlow(low,  pivLen, pivLen)
+var float swHi = na, var float swLo = na
+var int swHiBar = na, var int swLoBar = na
+if not na(ph)
+    swHi := ph, swHiBar := bar_index - pivLen
+if not na(pl)
+    swLo := pl, swLoBar := bar_index - pivLen
+upLeg = not na(swHi) and not na(swLo) and swLoBar < swHiBar
+rng   = swHi - swLo
+f382  = upLeg ? swHi - rng * 0.382 : swLo + rng * 0.382
+f500  = upLeg ? swHi - rng * 0.500 : swLo + rng * 0.500
+f786  = upLeg ? swHi - rng * fibDeep : swLo + rng * fibDeep
+t1272 = upLeg ? swLo + rng * 1.272 : swHi - rng * 1.272
+inZoneL = upLeg and low <= f500 and low >= f786
+inZoneS = not upLeg and high >= f500 and high <= f786
+var bool touchedL = false, var bool touchedS = false
+touchedL := upLeg ? (inZoneL or (touchedL and close < f382)) : false
+touchedS := not upLeg ? (inZoneS or (touchedS and close > f382)) : false
+fibBuy0  = upLeg and touchedL[1] and close > f500 and close > open and (not useTrend or close > trend)
+fibSell0 = not upLeg and touchedS[1] and close < f500 and close < open and (not useTrend or close < trend)
+fibBuy   = fibBuy0 and not fibBuy0[1]
+fibSell  = fibSell0 and not fibSell0[1]
+
+// ── Liquidity sweep (same rule as the indicator v12): wick through the last confirmed swing
+// low/high, close back inside. Stop = the sweep wick, target = rr x that distance.
+sPh = ta.pivothigh(high, smcPiv, smcPiv)
+sPl = ta.pivotlow(low,  smcPiv, smcPiv)
+var float sH = na, var int sHbar = na, var float sL = na, var int sLbar = na
+if not na(sPh)
+    sH := sPh, sHbar := bar_index - smcPiv
+if not na(sPl)
+    sL := sPl, sLbar := bar_index - smcPiv
+swTrL = not sweepTr or na(trend) or close > trend
+swTrS = not sweepTr or na(trend) or close < trend
+sweepLo = not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+atr14 = ta.atr(14)
+custom   = mode == "Custom"
+useSweep = custom ? fSweep : mode == "Sweep"
+useSma   = custom ? fSMA   : (mode == "SMA" or mode == "Both")
+useFib   = custom ? fFIB   : (mode == "FIB" or mode == "Both")
+
+// ── Extra families (same rules as the indicator v20) ─────────────────────
+// Donchian breakout
+dcUpper = ta.highest(high, dcLen)[1], dcLower = ta.lowest(low, dcLen)[1], dcMid = (dcUpper + dcLower) / 2
+dcBuy  = close > dcUpper and close[1] <= dcUpper[1] and close > open and (not useTrend or na(trend) or close > trend)
+dcSell = close < dcLower and close[1] >= dcLower[1] and close < open and (not useTrend or na(trend) or close < trend)
+// VWAP mean reversion (session)
+newSess = ta.change(time("D")) != 0
+var float vPV = 0.0, var float vV = 0.0, var float vPV2 = 0.0
+if newSess
+    vPV := 0.0, vV := 0.0, vPV2 := 0.0
+vw = nz(volume) > 0 ? volume : 1.0
+vPV += hlc3 * vw, vV += vw, vPV2 += hlc3 * hlc3 * vw
+vwap = vPV / vV
+vwSd = math.sqrt(math.max(vPV2 / vV - vwap * vwap, 0))
+vwU2 = vwap + 2 * vwSd, vwL2 = vwap - 2 * vwSd
+var bool vwBelow = false, var bool vwAbove = false
+var float vwExtLo = na, var float vwExtHi = na
+if close < vwL2
+    vwBelow := true, vwExtLo := na(vwExtLo) ? low : math.min(vwExtLo, low)
+if close > vwU2
+    vwAbove := true, vwExtHi := na(vwExtHi) ? high : math.max(vwExtHi, high)
+vwBuy  = vwBelow and close > vwL2 and close > open and close < vwap
+vwSell = vwAbove and close < vwU2 and close < open and close > vwap
+vwStopL = nz(vwExtLo, low), vwStopS = nz(vwExtHi, high)
+if vwBuy or close > vwap
+    vwBelow := false, vwExtLo := na
+if vwSell or close < vwap
+    vwAbove := false, vwExtHi := na
+// Wick rejection
+wkMean = ta.sma(close, 20)
+wkBody = math.abs(close - open), wkRange = high - low
+wkLower = math.min(open, close) - low, wkUpper = high - math.max(open, close)
+wkBuy  = wkRange > 0 and wkLower >= wkBody * 2 and wkLower >= wkRange * 0.6 and low <= wkMean - atr14 and close < wkMean
+wkSell = wkRange > 0 and wkUpper >= wkBody * 2 and wkUpper >= wkRange * 0.6 and high >= wkMean + atr14 and close > wkMean
+// FVG retest (keeps up to 8 open gaps)
+var float[] gTop = array.new_float(), var float[] gBot = array.new_float(), var bool[] gUp = array.new_bool(), var int[] gBar = array.new_int()
+if low > high[2] and (low - high[2]) >= atr14 * 0.2
+    array.push(gTop, low), array.push(gBot, high[2]), array.push(gUp, true), array.push(gBar, bar_index)
+if high < low[2] and (low[2] - high) >= atr14 * 0.2
+    array.push(gTop, low[2]), array.push(gBot, high), array.push(gUp, false), array.push(gBar, bar_index)
+bool fvgBuy = false, bool fvgSell = false
+float fvgStopL = na, float fvgStopS = na
+if array.size(gTop) > 0
+    for i = array.size(gTop) - 1 to 0
+        up = array.get(gUp, i), top = array.get(gTop, i), bot = array.get(gBot, i)
+        if bar_index - array.get(gBar, i) > 2
+            if up and low <= top and low > bot and close > top and close > open and (not useTrend or na(trend) or close > trend) and not fvgBuy
+                fvgBuy := true, fvgStopL := bot
+            if not up and high >= bot and high < top and close < bot and close < open and (not useTrend or na(trend) or close < trend) and not fvgSell
+                fvgSell := true, fvgStopS := top
+        if up ? close < bot : close > top
+            array.remove(gTop, i), array.remove(gBot, i), array.remove(gUp, i), array.remove(gBar, i)
+    while array.size(gTop) > 8
+        array.shift(gTop), array.shift(gBot), array.shift(gUp), array.shift(gBar)
+// Supertrend flip (+ ADX)
+[stLine, stDir] = ta.supertrend(stMult, stLen)
+[diP, diM, adx] = ta.dmi(14, 14)
+stBuy  = stDir < 0 and stDir[1] >= 0
+stSell = stDir > 0 and stDir[1] <= 0
+// 50 EMA touch & go
+ema50 = ta.ema(close, emLen)
+emBuy0  = ema50 > ema50[5] and low  <= ema50 + atr14 * 0.1 and close > ema50 and close > open and close[1] > ema50[1]
+emSell0 = ema50 < ema50[5] and high >= ema50 - atr14 * 0.1 and close < ema50 and close < open and close[1] < ema50[1]
+emBuy  = emBuy0 and not emBuy0[1]
+emSell = emSell0 and not emSell0[1]
+
+// ── Pick the family that fires (priority order) and its stop / target ────
+float rawL = na, float rawS = na, float tgtLx = na, float tgtSx = na
+bool sigL = false, bool sigS = false
+smaStopRawL = stopMode == "Swing" ? ta.lowest(low, swingLen)   : smaStopL
+smaStopRawS = stopMode == "Swing" ? ta.highest(high, swingLen) : smaStopS
+if useSweep and sweepLo
+    sigL := true, rawL := low
+if useFib and fibBuy and not sigL
+    sigL := true, rawL := f786, tgtLx := (stopMode == "Signal" or fibTarget) and t1272 > close ? t1272 : na
+if useSma and smaBuy and not sigL
+    sigL := true, rawL := smaStopRawL
+if custom and fDC and dcBuy and not sigL
+    sigL := true, rawL := dcMid
+if custom and fVWAP and vwBuy and not sigL
+    sigL := true, rawL := vwStopL, tgtLx := vwap
+if custom and fWick and wkBuy and not sigL
+    sigL := true, rawL := low, tgtLx := wkMean
+if custom and fFVG and fvgBuy and not sigL
+    sigL := true, rawL := fvgStopL
+if custom and fST and stBuy and not sigL
+    sigL := true, rawL := stLine
+if custom and fEMA and emBuy and not sigL
+    sigL := true, rawL := low
+if useSweep and sweepHi
+    sigS := true, rawS := high
+if useFib and fibSell and not sigS
+    sigS := true, rawS := f786, tgtSx := (stopMode == "Signal" or fibTarget) and t1272 < close ? t1272 : na
+if useSma and smaSell and not sigS
+    sigS := true, rawS := smaStopRawS
+if custom and fDC and dcSell and not sigS
+    sigS := true, rawS := dcMid
+if custom and fVWAP and vwSell and not sigS
+    sigS := true, rawS := vwStopS, tgtSx := vwap
+if custom and fWick and wkSell and not sigS
+    sigS := true, rawS := high, tgtSx := wkMean
+if custom and fFVG and fvgSell and not sigS
+    sigS := true, rawS := fvgStopS
+if custom and fST and stSell and not sigS
+    sigS := true, rawS := stLine
+if custom and fEMA and emSell and not sigS
+    sigS := true, rawS := high
+// Filters (combination tests): Supertrend agreement, ADX floor, VWAP side
+if filtST
+    sigL := sigL and stDir < 0
+    sigS := sigS and stDir > 0
+if filtADX > 0
+    sigL := sigL and adx >= filtADX
+    sigS := sigS and adx >= filtADX
+if filtVWAP
+    sigL := sigL and close > vwap
+    sigS := sigS and close < vwap
+plotshape(sigL, "L", shape.triangleup,   location.belowbar, color = color.new(#00c853, 0), size = size.tiny)
+plotshape(sigS, "S", shape.triangledown, location.abovebar, color = color.new(#ff1744, 0), size = size.tiny)
+
+// ── Stops / sizing ────────────────────────────────────────────────────────
+stopL  = math.min(nz(rawL, low),  close - atr14 * minStopAtr)
+stopS  = math.max(nz(rawS, high), close + atr14 * minStopAtr)
+flat  = strategy.position_size == 0
+
+// Square-off: intraday only. Daily / weekly hold overnight until target or stop.
+lastBar = eodClose and timeframe.isintraday and session.islastbar_regular
+if lastBar and not flat
+    strategy.close_all(comment = "EOD")
+
+// Daily time stop: close after maxHoldD bars if neither target nor stop was hit
+barsHeld = flat ? 0 : bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
+if maxHoldD > 0 and timeframe.isdaily and not flat and barsHeld >= maxHoldD
+    strategy.close_all(comment = "TIME")
+
+// Opposite signal closes an open trade
+if oppExit and not flat
+    if strategy.position_size > 0 and sigS
+        strategy.close("L", comment = "OPP")
+    if strategy.position_size < 0 and sigL
+        strategy.close("S", comment = "OPP")
+
+goLong  = sigL and not sigS and flat and close > stopL and inWindow and not lastBar
+goShort = sigS and not sigL and flat and close < stopS and inWindow and not lastBar and not longOnly
+capQty  = capNotion ? strategy.equity / (close * syminfo.pointvalue) : 1e12
+// Whole contracts / shares only (TradingView rejects fractional option lots); never below 1.
+sizeFor(float dist) =>
+    fixedQty > 0 ? fixedQty :
+      capPerTrade > 0 ? math.max(1, math.floor(capPerTrade / (close * syminfo.pointvalue))) :
+      math.max(1, math.floor(math.min(riskCash / (dist * syminfo.pointvalue), capQty)))
+if goLong
+    dist = close - stopL
+    qty  = sizeFor(dist)
+    tgt  = not na(tgtLx) and tgtLx > close ? tgtLx : close + dist * rr
+    strategy.entry("L", strategy.long, qty = qty)
+    strategy.exit("Lx", "L", stop = hardStop ? stopL : na, limit = tgt)
+if goShort
+    dist = stopS - close
+    qty  = sizeFor(dist)
+    tgt  = not na(tgtSx) and tgtSx < close ? tgtSx : close - dist * rr
+    strategy.entry("S", strategy.short, qty = qty)
+    strategy.exit("Sx", "S", stop = hardStop ? stopS : na, limit = tgt)

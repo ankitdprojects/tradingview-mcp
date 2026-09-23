@@ -1,0 +1,38 @@
+{
+  "symbol": "MCX:NATURALGAS1!",
+  "resolution": "1",
+  "studies": [
+    {
+      "id": "TFd0CY",
+      "name": "Sweep SELL",
+      "pineId": "USER;18eae575e9904c6f8799afba0a27ea37",
+      "pineVersion": "2.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "60"
+        },
+        {
+          "id": "in_1",
+          "value": 5
+        },
+        {
+          "id": "in_2",
+          "value": true
+        },
+        {
+          "id": "in_3",
+          "value": 1
+        },
+        {
+          "id": "in_4",
+          "value": 1.5
+        },
+        {
+          "id": "in_5",
+          "value": 0.8
+        }
+      ]
+    }
+  ]
+}

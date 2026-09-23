@@ -335,7 +335,7 @@ if showFib and array.size(fibLb) > 0
 //             stops resting there. Sweep of a swing LOW + close back above it = BUY (cyan-pink),
 //             sweep of a swing HIGH = SELL. Stop = the sweep wick, target 1.5R.
 grpSMC   = "Smart Money Concepts"
-smcOn    = input.bool(true, "Show structure (BOS / CHoCH)",        group = grpSMC)
+smcOn    = input.bool(false, "Show structure (BOS / CHoCH)",       group = grpSMC)
 smcPiv   = input.int(5,     "Structure pivot length", minval = 2,  group = grpSMC)
 obOn     = input.bool(true, "Show order blocks",                   group = grpSMC)
 obMax    = input.int(3,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
@@ -961,37 +961,3 @@ if s60Sell
         newTrade(false, s60StopS, s60TgtS)
 alertcondition(s60Buy,  "60MIN BUY",  "SMA Signals: 60-minute set BUY {{ticker}} @ {{close}}")
 alertcondition(s60Sell, "60MIN SELL", "SMA Signals: 60-minute set SELL {{ticker}} @ {{close}}")
-
-// ── Fibonacci support / resistance (v48) ─────────────────────────────────
-// Retracement levels of the latest completed swing (pivot high ↔ pivot low). Drawn as horizontal
-// support / resistance lines with a tag; no signals — the levels are context for the other families.
-grpFS    = "Fib support / resistance"
-fsOn     = input.bool(true, "Show Fib retracement levels as S/R",     group = grpFS)
-fsPiv    = input.int(10, "Swing pivot length", minval = 3, maxval = 50, group = grpFS)
-fsExtend = input.int(40, "Extend lines (bars)", minval = 5, maxval = 200, group = grpFS)
-fsPh = ta.pivothigh(high, fsPiv, fsPiv)
-fsPl = ta.pivotlow(low,  fsPiv, fsPiv)
-var float fsHi = na, var float fsLo = na, var int fsHiB = na, var int fsLoB = na
-if not na(fsPh)
-    fsHi := fsPh, fsHiB := bar_index - fsPiv
-if not na(fsPl)
-    fsLo := fsPl, fsLoB := bar_index - fsPiv
-fsUp = not na(fsHi) and not na(fsLo) and fsLoB < fsHiB          // up-leg: low came first
-fsRg = fsHi - fsLo
-var line[]  fsLines = array.new_line()
-var label[] fsLabs  = array.new_label()
-fsLevel(r) => fsUp ? fsHi - fsRg * r : fsLo + fsRg * r
-if fsOn and barstate.islast and not na(fsHi) and not na(fsLo) and fsRg > 0
-    while array.size(fsLines) > 0
-        line.delete(array.pop(fsLines))
-    while array.size(fsLabs) > 0
-        label.delete(array.pop(fsLabs))
-    fsStart = math.min(fsHiB, fsLoB)
-    fsRatios = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
-    for i = 0 to array.size(fsRatios) - 1
-        r  = array.get(fsRatios, i)
-        px = fsLevel(r)
-        isSup = px < close
-        col = r == 0.5 or r == 0.618 ? color.new(#ffb300, 0) : isSup ? color.new(#26a69a, 30) : color.new(#ef5350, 30)
-        array.push(fsLines, line.new(fsStart, px, bar_index + fsExtend, px, color = col, style = r == 0.5 or r == 0.618 ? line.style_solid : line.style_dotted, width = r == 0.618 ? 2 : 1))
-        array.push(fsLabs, label.new(bar_index + fsExtend, px, "Fib " + str.tostring(r) + (isSup ? " S " : " R ") + str.tostring(px, format.mintick), style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.tiny))

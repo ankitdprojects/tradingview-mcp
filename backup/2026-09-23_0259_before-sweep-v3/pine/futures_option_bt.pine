@@ -1,0 +1,211 @@
+//@version=6
+// Futures-signal → option-execution backtest (user rules 2026-09-22):
+//   * Signals are computed on the FUTURES chart of the underlying (sigSym, same timeframe as the chart).
+//   * This strategy runs on an OPTION chart. On a CALL chart it buys when the futures say BUY;
+//     on a PUT chart it buys when the futures say SELL. Options are never shorted.
+//   * One family at a time (family input) so every indicator gets its own buy-side (CE) and sell-side (PE) score.
+//   * Stop = entry − stopAtr × ATR(14) of the option premium, target = entry + rr × stop distance. Both always defined.
+//   * 20k capital per trade (whole lots), max tradesPerDay round trips, square-off at session end, no overnight.
+strategy("Futures→Option BT", overlay = true, initial_capital = 20000,
+     default_qty_type = strategy.fixed, default_qty_value = 1,
+     commission_type = strategy.commission.cash_per_order, commission_value = 20,   // flat Rs 20 per order (Indian discount broker); percent-of-notional made futures a cost artefact
+     slippage = 1, process_orders_on_close = true, calc_on_every_tick = false,
+     margin_long = 0, margin_short = 0)
+
+// ── Inputs (in_0 ..) ─────────────────────────────────────────────────────
+sigSym     = input.symbol("NSE:NIFTY1!", "Signal symbol (futures)")                                        // in_0
+side       = input.string("CE", "This chart is a", options = ["CE", "PE", "FUT"])                           // in_1  FUT = trade the futures itself, long on BUY and short on SELL
+family     = input.string("Sweep", "Family", options = ["SMA 50/200", "SMA 9/21", "Sweep", "Wick", "Supertrend", "EMA touch", "RSI div", "Donchian", "VWAP", "FVG", "Fib"]) // in_2
+capital    = input.float(20000, "Capital per trade (Rs)", minval = 1000)                                     // in_3
+stopAtr    = input.float(1.0, "Stop = ATR(14) of premium x", minval = 0.25, step = 0.25)                     // in_4
+rr         = input.float(1.5, "Target (R multiple)", minval = 0.5, step = 0.5)                               // in_5
+tradesPerDay = input.int(15, "Max trades per day", minval = 1)                                              // in_6
+oppExit    = input.bool(true, "Opposite futures signal closes the trade")                                    // in_7
+fromDate   = input.int(0, "From YYYYMMDD (0 = all)", minval = 0)                                            // in_8
+toDate     = input.int(0, "To YYYYMMDD (0 = all)", minval = 0)                                              // in_9
+adxMin     = input.float(20, "Supertrend: ADX at least", minval = 0)                                        // in_10
+useTrend   = input.bool(false, "Gate every signal by the futures 200 SMA")                                  // in_11
+fixedQty   = input.int(0, "Fixed qty in lots (0 = size by capital)", minval = 0)                              // in_12  futures: 1 lot
+
+// ── All families, evaluated on the futures series ────────────────────────
+famSignals() =>
+    _atr  = ta.atr(14)
+    _s50  = ta.sma(close, 50),  _s200 = ta.sma(close, 200)
+    _s9   = ta.sma(close, 9),   _s21  = ta.sma(close, 21)
+    _gL   = not useTrend or na(_s200) or close > _s200
+    _gS   = not useTrend or na(_s200) or close < _s200
+    // SMA crosses
+    b1 = ta.crossover(_s50, _s200)  and close > _s50 and close > _s200
+    s1 = ta.crossunder(_s50, _s200) and close < _s50 and close < _s200
+    b2 = ta.crossover(_s9, _s21)    and close > _s9  and close > _s21
+    s2 = ta.crossunder(_s9, _s21)   and close < _s9  and close < _s21
+    // liquidity sweep (5-bar pivots)
+    _ph = ta.pivothigh(high, 5, 5), _pl = ta.pivotlow(low, 5, 5)
+    var float _sH = na, var int _sHb = na, var float _sL = na, var int _sLb = na
+    if not na(_ph)
+        _sH := _ph, _sHb := bar_index - 5
+    if not na(_pl)
+        _sL := _pl, _sLb := bar_index - 5
+    b3 = not na(_sL) and bar_index > _sLb + 5 and low < _sL and close > _sL and close > open
+    s3 = not na(_sH) and bar_index > _sHb + 5 and high > _sH and close < _sH and close < open
+    // wick rejection
+    _m20 = ta.sma(close, 20)
+    _body = math.abs(close - open), _rng = high - low
+    _lo = math.min(open, close) - low, _up = high - math.max(open, close)
+    b4 = _rng > 0 and _lo >= _body * 2 and _lo >= _rng * 0.6 and low  <= _m20 - _atr and close < _m20
+    s4 = _rng > 0 and _up >= _body * 2 and _up >= _rng * 0.6 and high >= _m20 + _atr and close > _m20
+    // Supertrend flip with ADX
+    [_stL, _stD] = ta.supertrend(3.0, 10)
+    [_dp, _dm, _adx] = ta.dmi(14, 14)
+    b5 = _stD < 0 and _stD[1] >= 0 and (adxMin == 0 or _adx >= adxMin)
+    s5 = _stD > 0 and _stD[1] <= 0 and (adxMin == 0 or _adx >= adxMin)
+    // 50 EMA touch & go
+    _e = ta.ema(close, 50)
+    b6a = _e > _e[5] and low  <= _e + _atr * 0.1 and close > _e and close > open and close[1] > _e[1]
+    s6a = _e < _e[5] and high >= _e - _atr * 0.1 and close < _e and close < open and close[1] < _e[1]
+    b6 = b6a and not b6a[1], s6 = s6a and not s6a[1]
+    // RSI divergence at the pivot
+    _rsi = ta.rsi(close, 14)
+    var float _dLo = na, var float _dLoR = na, var float _dHi = na, var float _dHiR = na
+    b7 = false, s7 = false
+    if not na(_pl)
+        _r = _rsi[5]
+        b7 := not na(_dLo) and _pl < _dLo and _r > _dLoR and _r < 50
+        _dLo := _pl, _dLoR := _r
+    if not na(_ph)
+        _r = _rsi[5]
+        s7 := not na(_dHi) and _ph > _dHi and _r < _dHiR and _r > 50
+        _dHi := _ph, _dHiR := _r
+    // Donchian breakout
+    _dU = ta.highest(high, 20)[1], _dL = ta.lowest(low, 20)[1]
+    b8 = close > _dU and close[1] <= _dU[1] and close > open
+    s8 = close < _dL and close[1] >= _dL[1] and close < open
+    // VWAP mean reversion (session)
+    _ns = ta.change(time("D")) != 0
+    var float _pv = 0.0, var float _v = 0.0, var float _pv2 = 0.0
+    if _ns
+        _pv := 0.0, _v := 0.0, _pv2 := 0.0
+    _vol = nz(volume) > 0 ? volume : 1.0
+    _pv += hlc3 * _vol, _v += _vol, _pv2 += hlc3 * hlc3 * _vol
+    _vw = _pv / _v
+    _sd = math.sqrt(math.max(_pv2 / _v - _vw * _vw, 0))
+    _u2 = _vw + 2 * _sd, _l2 = _vw - 2 * _sd
+    var bool _below = false, var bool _above = false
+    if close < _l2
+        _below := true
+    if close > _u2
+        _above := true
+    b9 = _below and close > _l2 and close > open and close < _vw
+    s9 = _above and close < _u2 and close < open and close > _vw
+    if b9 or close > _vw
+        _below := false
+    if s9 or close < _vw
+        _above := false
+    // FVG retest (up to 8 open gaps)
+    var float[] gT = array.new_float(), var float[] gB = array.new_float(), var bool[] gU = array.new_bool(), var int[] gX = array.new_int()
+    if low > high[2] and (low - high[2]) >= _atr * 0.2
+        array.push(gT, low), array.push(gB, high[2]), array.push(gU, true), array.push(gX, bar_index)
+    if high < low[2] and (low[2] - high) >= _atr * 0.2
+        array.push(gT, low[2]), array.push(gB, high), array.push(gU, false), array.push(gX, bar_index)
+    b10 = false, s10 = false
+    if array.size(gT) > 0
+        for i = array.size(gT) - 1 to 0
+            up = array.get(gU, i), top = array.get(gT, i), bot = array.get(gB, i)
+            if bar_index - array.get(gX, i) > 2
+                if up and low <= top and low > bot and close > top and close > open
+                    b10 := true
+                if not up and high >= bot and high < top and close < bot and close < open
+                    s10 := true
+            if up ? close < bot : close > top
+                array.remove(gT, i), array.remove(gB, i), array.remove(gU, i), array.remove(gX, i)
+        while array.size(gT) > 8
+            array.shift(gT), array.shift(gB), array.shift(gU), array.shift(gX)
+    // Fibonacci golden-zone bounce (10-bar pivots)
+    _fph = ta.pivothigh(high, 10, 10), _fpl = ta.pivotlow(low, 10, 10)
+    var float _hi = na, var float _lo2 = na, var int _hib = na, var int _lob = na
+    if not na(_fph)
+        _hi := _fph, _hib := bar_index - 10
+    if not na(_fpl)
+        _lo2 := _fpl, _lob := bar_index - 10
+    _upLeg = not na(_hi) and not na(_lo2) and _lob < _hib
+    _rg = _hi - _lo2
+    _f382 = _upLeg ? _hi - _rg * 0.382 : _lo2 + _rg * 0.382
+    _f500 = _upLeg ? _hi - _rg * 0.5   : _lo2 + _rg * 0.5
+    _f786 = _upLeg ? _hi - _rg * 0.786 : _lo2 + _rg * 0.786
+    var bool _tL = false, var bool _tS = false
+    _inL = _upLeg and low <= _f500 and low >= _f786
+    _inS = not _upLeg and high >= _f500 and high <= _f786
+    _tL := _upLeg ? (_inL or (_tL and close < _f382)) : false
+    _tS := not _upLeg ? (_inS or (_tS and close > _f382)) : false
+    b11a = _upLeg and _tL[1] and close > _f500 and close > open
+    s11a = not _upLeg and _tS[1] and close < _f500 and close < open
+    b11 = b11a and not b11a[1], s11 = s11a and not s11a[1]
+    [_gL and b1, _gS and s1, _gL and b2, _gS and s2, _gL and b3, _gS and s3, _gL and b4, _gS and s4, _gL and b5, _gS and s5, _gL and b6, _gS and s6, _gL and b7, _gS and s7, _gL and b8, _gS and s8, _gL and b9, _gS and s9, _gL and b10, _gS and s10, _gL and b11, _gS and s11]
+
+[fb1, fs1, fb2, fs2, fb3, fs3, fb4, fs4, fb5, fs5, fb6, fs6, fb7, fs7, fb8, fs8, fb9, fs9, fb10, fs10, fb11, fs11] = request.security(sigSym, timeframe.period, famSignals(), lookahead = barmerge.lookahead_off)
+famBuy  = family == "SMA 50/200" ? fb1 : family == "SMA 9/21" ? fb2 : family == "Sweep" ? fb3 : family == "Wick" ? fb4 : family == "Supertrend" ? fb5 : family == "EMA touch" ? fb6 : family == "RSI div" ? fb7 : family == "Donchian" ? fb8 : family == "VWAP" ? fb9 : family == "FVG" ? fb10 : fb11
+famSell = family == "SMA 50/200" ? fs1 : family == "SMA 9/21" ? fs2 : family == "Sweep" ? fs3 : family == "Wick" ? fs4 : family == "Supertrend" ? fs5 : family == "EMA touch" ? fs6 : family == "RSI div" ? fs7 : family == "Donchian" ? fs8 : family == "VWAP" ? fs9 : family == "FVG" ? fs10 : fs11
+
+// CE chart trades the futures BUY, PE chart trades the futures SELL; the opposite one is the exit.
+// FUT: long on BUY, short on SELL, each closed by the opposite signal / stop / target / session end.
+isFut    = side == "FUT"
+// v4: FUT side-specific sets — comma lists of family names; blank = use `family` for that side, "none" = no trades on that side.
+longSet  = input.string("", "FUT long families (comma list, blank = family, none = off)")   // in_13
+shortSet = input.string("", "FUT short families (comma list, blank = family, none = off)")  // in_14
+inSet(s, n) => str.contains("," + s + ",", "," + n + ",")
+anyBuy(s)  => (inSet(s, "SMA 50/200") and fb1) or (inSet(s, "SMA 9/21") and fb2) or (inSet(s, "Sweep") and fb3) or (inSet(s, "Wick") and fb4) or (inSet(s, "Supertrend") and fb5) or (inSet(s, "EMA touch") and fb6) or (inSet(s, "RSI div") and fb7) or (inSet(s, "Donchian") and fb8) or (inSet(s, "VWAP") and fb9) or (inSet(s, "FVG") and fb10) or (inSet(s, "Fib") and fb11)
+anySell(s) => (inSet(s, "SMA 50/200") and fs1) or (inSet(s, "SMA 9/21") and fs2) or (inSet(s, "Sweep") and fs3) or (inSet(s, "Wick") and fs4) or (inSet(s, "Supertrend") and fs5) or (inSet(s, "EMA touch") and fs6) or (inSet(s, "RSI div") and fs7) or (inSet(s, "Donchian") and fs8) or (inSet(s, "VWAP") and fs9) or (inSet(s, "FVG") and fs10) or (inSet(s, "Fib") and fs11)
+famBuyL  = isFut and longSet  != "" ? anyBuy(longSet)   : famBuy
+famSellS = isFut and shortSet != "" ? anySell(shortSet) : famSell
+// v5 PAIR mode (pairSym set): signals come from each option's OWN chart, not the futures.
+//   longSet  = families used on the CE chart, shortSet = families used on the PE chart.
+//   CE chart: buy the call on its own set's BUY or on the put's SELL; close on its own SELL or on the put's BUY.
+//   PE chart: buy the put  on its own set's BUY or on the call's SELL; close on its own SELL or on the call's BUY.
+//   Set in_0 (sigSym) to the chart's own symbol so fb*/fs* are the chart's own signals.
+pairSym  = input.symbol("", "PAIR mode: the other leg (blank = off)")                                            // in_15
+isPair   = pairSym != ""
+[pb1, ps1, pb2, ps2, pb3, ps3, pb4, ps4, pb5, ps5, pb6, ps6, pb7, ps7, pb8, ps8, pb9, ps9, pb10, ps10, pb11, ps11] = request.security(isPair ? pairSym : syminfo.tickerid, timeframe.period, famSignals(), lookahead = barmerge.lookahead_off)
+anyBuyP(s)  => (inSet(s, "SMA 50/200") and pb1) or (inSet(s, "SMA 9/21") and pb2) or (inSet(s, "Sweep") and pb3) or (inSet(s, "Wick") and pb4) or (inSet(s, "Supertrend") and pb5) or (inSet(s, "EMA touch") and pb6) or (inSet(s, "RSI div") and pb7) or (inSet(s, "Donchian") and pb8) or (inSet(s, "VWAP") and pb9) or (inSet(s, "FVG") and pb10) or (inSet(s, "Fib") and pb11)
+anySellP(s) => (inSet(s, "SMA 50/200") and ps1) or (inSet(s, "SMA 9/21") and ps2) or (inSet(s, "Sweep") and ps3) or (inSet(s, "Wick") and ps4) or (inSet(s, "Supertrend") and ps5) or (inSet(s, "EMA touch") and ps6) or (inSet(s, "RSI div") and ps7) or (inSet(s, "Donchian") and ps8) or (inSet(s, "VWAP") and ps9) or (inSet(s, "FVG") and ps10) or (inSet(s, "Fib") and ps11)
+ownSet   = side == "PE" ? shortSet : longSet
+othSet   = side == "PE" ? longSet  : shortSet
+pairEnter = anyBuy(ownSet)  or anySellP(othSet)
+pairExit  = anySell(ownSet) or anyBuyP(othSet)
+enterSig = isPair ? pairEnter : side == "PE" ? famSell : famBuyL
+exitSig  = isPair ? pairExit  : side == "PE" ? famBuy  : famSellS
+plotshape(enterSig, "enter", shape.triangleup,   location.belowbar, color = color.new(#00c853, 0), size = size.tiny)
+plotshape(exitSig,  "exit",  shape.triangledown, location.abovebar, color = color.new(#ff1744, 0), size = size.tiny)
+
+// ── Execution on the option premium ──────────────────────────────────────
+ymd      = year * 10000 + month * 100 + dayofmonth
+inWindow = (fromDate == 0 or ymd >= fromDate) and (toDate == 0 or ymd <= toDate)
+atrOpt   = ta.atr(14)
+flat     = strategy.position_size == 0
+lastBar  = session.islastbar_regular
+var int dayTrades = 0
+if ta.change(time("D")) != 0
+    dayTrades := 0
+
+if lastBar and not flat
+    strategy.close_all(comment = "EOD")
+if oppExit and not flat
+    if strategy.position_size > 0 and exitSig
+        strategy.close("L", comment = "OPP")
+    if strategy.position_size < 0 and enterSig
+        strategy.close("S", comment = "OPP")
+
+stopPx = close - atrOpt * stopAtr
+stopPxS = close + atrOpt * stopAtr
+qtyNow = fixedQty > 0 ? fixedQty : math.max(1, math.floor(capital / (close * syminfo.pointvalue)))
+canGo  = enterSig and flat and inWindow and not lastBar and barstate.isconfirmed and dayTrades < tradesPerDay and stopPx > 0
+if canGo
+    dist = close - stopPx
+    strategy.entry("L", strategy.long, qty = qtyNow)
+    strategy.exit("Lx", "L", stop = stopPx, limit = close + dist * rr)
+    dayTrades += 1
+canShort = isFut and exitSig and flat and inWindow and not lastBar and barstate.isconfirmed and dayTrades < tradesPerDay
+if canShort
+    distS = stopPxS - close
+    strategy.entry("S", strategy.short, qty = qtyNow)
+    strategy.exit("Sx", "S", stop = stopPxS, limit = close - distS * rr)
+    dayTrades += 1
