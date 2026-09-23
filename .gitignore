@@ -17,3 +17,5 @@ journal/
 .claude/skills/signal-postmortem/
 .claude/skills/trader-memory-core/
 .claude/skills/uptrend-analyzer/
+
+logs/

@@ -2,12 +2,25 @@
 // Refresh the "OI Profile" indicator on the active chart with live OI from
 // public exchange APIs (no broker login needed).
 //   NSE indices (NIFTY, BANKNIFTY, ...)            -> nseindia.com option-chain-v3
+//   BSE indices (SENSEX, BANKEX, SX50)             -> api.bseindia.com DerivOptionChain_IV
 //   MCX commodities (GOLD, CRUDEOIL, SILVER, ...)  -> mcxindia.com GetOptionChain
 // Usage: node scripts/refresh_oi.mjs [SYMBOL] [expiry] [strike step]
 //   expiry format: NSE "01-Sep-2026", MCX "17SEP2026"; omit for nearest.
 // Defaults: NIFTY, nearest expiry, step auto-inferred (MCX) or 50 (NSE).
 import { evaluate } from '../src/connection.js';
 import { setInputs } from '../src/core/indicators.js';
+import { spawnSync } from 'child_process';
+
+// This machine sometimes sits behind an HTTP proxy (HTTPS_PROXY / HTTP_PROXY set, e.g. a
+// hotspot at 192.168.49.1:8282). PowerShell honours it, Node's fetch does not, so every
+// exchange fetch died with ENOTFOUND while the browser worked. Re-exec with Node's env-proxy
+// support switched on, keeping CDP (localhost) direct.
+const PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+if (PROXY && !process.env.NODE_USE_ENV_PROXY) {
+  const noProxy = [process.env.NO_PROXY, 'localhost', '127.0.0.1'].filter(Boolean).join(',');
+  const r = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NO_PROXY: noProxy, no_proxy: noProxy } });
+  process.exit(r.status ?? 1);
+}
 
 let SYMBOL = (process.argv[2] || '').toUpperCase();
 const EXPIRY_ARG = process.argv[3] || null;
@@ -22,7 +35,7 @@ if (!SYMBOL) {
   // Exact contract roots first (CRUDEOILM chart -> CRUDEOILM options, not the
   // big CRUDEOIL chain), stripping a continuous "1!" or an option suffix.
   const bare = tail.replace(/\d{6}[CP]\d+(\.\d+)?$/, '').replace(/1!$/, '');
-  const EXACT = ['CRUDEOILM', 'CRUDEOIL', 'NATGASMINI', 'NATURALGAS', 'GOLDM', 'SILVERM', 'SILVERMIC', 'SILVER', 'COPPER', 'ZINC', 'ZINCMINI', 'NIFTY', 'BANKNIFTY', 'FINNIFTY'];
+  const EXACT = ['CRUDEOILM', 'CRUDEOIL', 'NATGASMINI', 'NATURALGAS', 'GOLDM', 'SILVERM', 'SILVERMIC', 'SILVER', 'COPPER', 'ZINC', 'ZINCMINI', 'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'];
   const ROOT_MAP = [
     ['BANKNIFTY', 'BANKNIFTY'], ['NIFTY', 'NIFTY'],
     ['GOLD', 'GOLDM'],                      // GOLDM carries gold's option liquidity, big GOLD is near-dead
@@ -67,6 +80,9 @@ const MCX_SYMBOLS = ['GOLD', 'GOLDM', 'SILVER', 'SILVERM', 'CRUDEOIL', 'CRUDEOIL
 const IS_MCX = MCX_SYMBOLS.includes(SYMBOL);
 const NSE_INDICES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'NIFTYNXT50'];
 const NSE_TYPE = NSE_INDICES.includes(SYMBOL) ? 'Indices' : 'Equity';
+// BSE index options (public api.bseindia.com, no login). scrip_cd from ddlUnderlyingAsset?ProductType=IO.
+const BSE_SCRIP = { SENSEX: 1, BANKEX: 12, SX50: 47 };
+const IS_BSE = SYMBOL in BSE_SCRIP;
 
 const CHART = `(window.TradingViewApi ? TradingViewApi.activeChart() : tvWidget.activeChart())`;
 const HDRS = {
@@ -87,7 +103,7 @@ async function fetchNse() {
     expiry = (await info.json()).expiryDates[0];
   }
   const res = await fetch(`https://www.nseindia.com/api/option-chain-v3?type=${NSE_TYPE}&symbol=${SYMBOL}&expiry=${expiry}`, { headers: { ...HDRS, Cookie: cookies } });
-  if (!res.ok) { console.error('NSE chain fetch failed:', res.status); process.exit(1); }
+  if (!res.ok) throw new Error(`NSE chain fetch failed: ${res.status}`);
   const data = await res.json();
   const rows = data.records.data
     .map(d => ({ strike: d.strikePrice, ce: d.CE?.openInterest ?? 0, pe: d.PE?.openInterest ?? 0, ceChg: d.CE?.changeinOpenInterest ?? 0, peChg: d.PE?.changeinOpenInterest ?? 0 }))
@@ -110,7 +126,7 @@ async function fetchMcx() {
     expiry = expiries.find(e => e !== today) || expiries[0];
   }
   const res = await fetch(`https://www.mcxindia.com/GetOptionChain?InstrumentType=OPTFUT&Symbol=${SYMBOL}&Expiry=${expiry}`, { headers: H });
-  if (!res.ok) { console.error('MCX chain fetch failed:', res.status); process.exit(1); }
+  if (!res.ok) throw new Error(`MCX chain fetch failed: ${res.status}`);
   const data = await res.json();
   const rows = (data.Data || [])
     .map(d => ({ strike: d.CE_StrikePrice, ce: d.CE_OpenInterest ?? 0, pe: d.PE_OpenInterest ?? 0, ceChg: d.CE_ChangeInOI ?? 0, peChg: d.PE_ChangeInOI ?? 0 }))
@@ -124,6 +140,29 @@ async function fetchMcx() {
     gaps[g] = (gaps[g] || 0) + 1;
   }
   const step = Number(Object.entries(gaps).sort((a, b) => b[1] - a[1])[0]?.[0]) || STEP;
+  return { expiry, spot, step, rows };
+}
+
+// BSE: DerivOptionChain_IV returns the whole chain of one expiry; an empty Expiry gives the
+// nearest one (End_TimeStamp says which). Expiry arg format "24 Sep 2026". Numbers arrive as
+// strings with thousands separators.
+async function fetchBse() {
+  const H = { ...HDRS, Referer: 'https://www.bseindia.com/', Origin: 'https://www.bseindia.com' };
+  const num = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0;
+  const q = `Expiry=${encodeURIComponent(EXPIRY_ARG || '')}&scrip_cd=${BSE_SCRIP[SYMBOL]}&strprice=0`;
+  const res = await fetch(`https://api.bseindia.com/BseIndiaAPI/api/DerivOptionChain_IV/w?${q}`, { headers: H });
+  if (!res.ok) throw new Error(`BSE chain fetch failed: ${res.status}`);
+  const tbl = (await res.json()).Table || [];
+  if (!tbl.length) throw new Error(`BSE: empty chain for ${SYMBOL}`);
+  const rows = tbl
+    .map(d => ({ strike: num(d.Strike_Price1 ?? d.Strike_Price), ce: num(d.C_Open_Interest), pe: num(d.Open_Interest), ceChg: num(d.C_Absolute_Change_OI), peChg: num(d.Absolute_Change_OI) }))
+    .filter(d => d.strike > 0)
+    .sort((a, b) => a.strike - b.strike);
+  const spot = num(tbl[0].UlaValue);
+  const expiry = tbl[0].End_TimeStamp || EXPIRY_ARG || '';
+  const gaps = {};
+  for (let i = 1; i < rows.length; i++) { const g = +(rows[i].strike - rows[i - 1].strike).toFixed(2); gaps[g] = (gaps[g] || 0) + 1; }
+  const step = Number(Object.entries(gaps).sort((a, b) => b[1] - a[1])[0]?.[0]) || 100;
   return { expiry, spot, step, rows };
 }
 
@@ -156,7 +195,24 @@ async function fetchDelta() {
   return { expiry, spot, step, rows };
 }
 
-const { expiry, spot, step, rows } = IS_MCX ? await fetchMcx() : IS_DELTA ? await fetchDelta() : await fetchNse();
+// A dead feed (proxy down, exchange site blocking, market holiday) used to crash here and leave
+// the panel showing whatever symbol was last pushed. Now it writes the failure into the panel
+// header (in_1) so the chart itself says the data is stale, and exits 1 for the watcher.
+let chain;
+try {
+  chain = IS_MCX ? await fetchMcx() : IS_BSE ? await fetchBse() : IS_DELTA ? await fetchDelta() : await fetchNse();
+} catch (e) {
+  const msg = (e?.cause?.code || e?.message || String(e)).slice(0, 60);
+  console.error(`${SYMBOL}: feed error — ${msg}`);
+  try {
+    const studies = await evaluate(`${CHART}.getAllStudies().map(function(s){return {id:s.id,name:s.name}})`);
+    const st = (studies || []).find(s => /oi profile/i.test(s.name));
+    const at = new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    if (st) await setInputs({ entity_id: st.id, inputs: { in_0: SYMBOL, in_1: `feed error ${at}: ${msg}` } });
+  } catch { /* chart unreachable too */ }
+  process.exit(1);
+}
+const { expiry, spot, step, rows } = chain;
 
 // Pick the strikes that actually carry OI instead of a blind ATM±N grid —
 // on MCX the walls sit at far round strikes (gold: 150000/160000/175000...)
@@ -194,7 +250,7 @@ for (const k of rows) {
 if (mp !== null) parts.push(`mp:${mp}`);
 
 const oiStr = parts.join(',');
-console.log(`${IS_MCX ? 'MCX' : IS_DELTA ? 'DELTA' : 'NSE'} ${SYMBOL} ${expiry} spot=${spot} chainStep=${step} drawStep=${drawStep}`);
+console.log(`${IS_MCX ? 'MCX' : IS_BSE ? 'BSE' : IS_DELTA ? 'DELTA' : 'NSE'} ${SYMBOL} ${expiry} spot=${spot} chainStep=${step} drawStep=${drawStep}`);
 console.log('OI:', oiStr);
 
 const studies = await evaluate(`${CHART}.getAllStudies().map(function(s){return {id:s.id,name:s.name}})`);
