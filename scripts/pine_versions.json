@@ -1,4 +1,10 @@
 {
+  "Futures→Option BT": {
+    "file": "futures_option_bt.pine",
+    "id": "USER;f9df4a5cb52b4d59b60c488a45e43061",
+    "version": "3.0",
+    "modified": 1790092792
+  },
   "OI Profile": {
     "file": "oi_profile.pine",
     "id": "USER;1668bb101d304ef386f71ef4dbd36e34",
@@ -38,8 +44,8 @@
   "SMA Signals": {
     "file": "sma_signals.pine",
     "id": "USER;f686f1a3397144a4bc31ea731b015e2b",
-    "version": "45.0",
-    "modified": 1789704667
+    "version": "47.0",
+    "modified": 1790127208
   },
   "SMA Signals BT": {
     "file": "sma_signals_strategy.pine",

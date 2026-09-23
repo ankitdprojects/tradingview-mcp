@@ -1,5 +1,5 @@
 //@version=6
-indicator("SMA Signals", overlay=true, max_labels_count=500, max_lines_count=200, max_boxes_count=100)
+indicator("SMA Signals", overlay=true, max_labels_count=500, max_lines_count=200, max_boxes_count=120)
 
 // ── Inputs ────────────────────────────────────────────────────────────────
 fastLen   = input.int(50,  "Fast SMA", minval=1)
@@ -107,7 +107,7 @@ rsiLen   = input.int(14,  "RSI length", minval = 2,                 group = grpR
 rsiGuard = input.bool(true, "Guard: no BUY above / no SELL below",  group = grpRSI)
 rsiHi    = input.int(70,  "Overbought", minval = 50, maxval = 100,  group = grpRSI)
 rsiLo    = input.int(30,  "Oversold",   minval = 0,  maxval = 50,   group = grpRSI)
-rsiDivOn = input.bool(false, "RSI divergence BUY / SELL",           group = grpRSI)
+rsiDivOn = input.bool(true, "RSI divergence BUY / SELL",            group = grpRSI)
 rsiDivPv = input.int(5,   "Divergence pivot length", minval = 2,    group = grpRSI)
 rsi      = ta.rsi(close, rsiLen)
 rsiL     = not rsiGuard or rsi < rsiHi
@@ -550,7 +550,7 @@ if axOn and barstate.islast
 grpEM    = "50 EMA touch"
 emOn     = input.bool(true, "Show 50 EMA",                     group = grpEM)
 emLen    = input.int(50,    "EMA length", minval = 2,          group = grpEM)
-emSigOn  = input.bool(false, "BUY / SELL on touch and go",    group = grpEM)
+emSigOn  = input.bool(true, "BUY / SELL on touch and go",     group = grpEM)
 emSlope  = input.int(5,     "EMA must be rising / falling over N bars", minval = 1, group = grpEM)
 emTol    = input.float(0.1, "Touch tolerance (ATR x)", step = 0.05, minval = 0, group = grpEM)
 emCol    = input.color(#ffeb3b, "EMA colour",                  group = grpEM)
@@ -961,3 +961,252 @@ if s60Sell
         newTrade(false, s60StopS, s60TgtS)
 alertcondition(s60Buy,  "60MIN BUY",  "SMA Signals: 60-minute set BUY {{ticker}} @ {{close}}")
 alertcondition(s60Sell, "60MIN SELL", "SMA Signals: 60-minute set SELL {{ticker}} @ {{close}}")
+
+
+// ═══ Families restored 2026-09-22 (Fibonacci retracement, Donchian, VWAP, FVG) ═══
+
+// ── Auto Fibonacci retracement (v3) ───────────────────────────────────────
+// Anchored on the last confirmed swing low → swing high (uptrend) or swing high → swing low
+// (downtrend). Retracement levels are drawn from the swing; extensions 1.272 / 1.618 act as targets.
+fibOn    = input.bool(true, "Show Fibonacci retracement",     group="Fibonacci")
+fibPivLen = input.int(10,  "Swing pivot length", minval=2,    group="Fibonacci")
+fibSig   = input.bool(true, "FIB BUY / SELL (bounce off 0.5–0.618 zone)", group="Fibonacci")
+fibTrend = input.bool(true, "FIB signals only with trend SMA (ignored while the SMA has no data)", group="Fibonacci")
+fibDeep  = input.float(0.786, "Invalidate beyond this ratio", step=0.01, group="Fibonacci")
+
+fbPh = ta.pivothigh(high, fibPivLen, fibPivLen)
+fbPl = ta.pivotlow(low,  fibPivLen, fibPivLen)
+var float swHi = na, var float swLo = na
+var int   swHiBar = na, var int swLoBar = na
+if not na(fbPh)
+    swHi := fbPh, swHiBar := bar_index - fibPivLen
+if not na(fbPl)
+    swLo := fbPl, swLoBar := bar_index - fibPivLen
+
+// Up-leg when the swing low is older than the swing high (price rose from lo to hi), else down-leg
+upLeg  = not na(swHi) and not na(swLo) and swLoBar < swHiBar
+rng    = swHi - swLo
+f382   = upLeg ? swHi - rng * 0.382 : swLo + rng * 0.382
+f500   = upLeg ? swHi - rng * 0.500 : swLo + rng * 0.500
+f618   = upLeg ? swHi - rng * 0.618 : swLo + rng * 0.618
+f786   = upLeg ? swHi - rng * fibDeep : swLo + rng * fibDeep
+t1272  = upLeg ? swLo + rng * 1.272 : swHi - rng * 1.272
+t1618  = upLeg ? swLo + rng * 1.618 : swHi - rng * 1.618
+
+var line  l0 = na, var line l382 = na, var line l500 = na, var line l618 = na, var line l786 = na, var line l100 = na, var line lt1 = na, var line lt2 = na
+var label lb0 = na, var label lb382 = na, var label lb500 = na, var label lb618 = na, var label lb786 = na, var label lb100 = na, var label lbt1 = na, var label lbt2 = na
+drawFib(line ln, label lb, float px, string txt, color col, int startBar) =>
+    line  nl = ln
+    label nb = lb
+    if na(nl)
+        nl := line.new(startBar, px, bar_index + 1, px, color=col, style=line.style_dashed, width=1)
+        nb := label.new(bar_index + 1, px, txt, style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.tiny)
+    else
+        line.set_xy1(nl, startBar, px), line.set_xy2(nl, bar_index + 1, px), line.set_color(nl, col)
+        label.set_xy(nb, bar_index + 1, px), label.set_text(nb, txt), label.set_textcolor(nb, col)
+    [nl, nb]
+
+if fibOn and not na(rng) and rng > 0 and barstate.islast
+    startBar = math.min(swHiBar, swLoBar)
+    [a0, b0]     = drawFib(l0,   lb0,   upLeg ? swHi : swLo, "0",     color.new(#787b86, 20), startBar)
+    [a1, b1]     = drawFib(l382, lb382, f382,  "0.382", color.new(#2196f3, 0),  startBar)
+    [a2, b2]     = drawFib(l500, lb500, f500,  "0.5",   color.new(#ffb300, 0),  startBar)
+    [a3, b3]     = drawFib(l618, lb618, f618,  "0.618", color.new(#ff9800, 0),  startBar)
+    [a4, b4]     = drawFib(l786, lb786, f786,  str.tostring(fibDeep), color.new(#ef5350, 0), startBar)
+    [a5, b5]     = drawFib(l100, lb100, upLeg ? swLo : swHi, "1",     color.new(#787b86, 20), startBar)
+    // an option premium can't go below 0: hide extension targets that fall under it (colour 100 = invisible)
+    [a6, b6]     = drawFib(lt1,  lbt1,  math.max(t1272, syminfo.mintick), "T 1.272", color.new(#00c853, t1272 > 0 ? 0 : 100), startBar)
+    [a7, b7]     = drawFib(lt2,  lbt2,  math.max(t1618, syminfo.mintick), "T 1.618", color.new(#00c853, t1618 > 0 ? 0 : 100), startBar)
+    l0 := a0, lb0 := b0, l382 := a1, lb382 := b1, l500 := a2, lb500 := b2, l618 := a3, lb618 := b3
+    l786 := a4, lb786 := b4, l100 := a5, lb100 := b5, lt1 := a6, lbt1 := b6, lt2 := a7, lbt2 := b7
+
+// Golden-zone bounce: price dipped into 0.5–0.618 (never past the invalidation ratio) and closes back above 0.5
+inZoneL  = upLeg and low <= f500 and low >= f786
+inZoneS  = not upLeg and high >= f500 and high <= f786
+var bool touchedL = false, var bool touchedS = false
+touchedL := upLeg ? (inZoneL or (touchedL and close < f382)) : false
+touchedS := not upLeg ? (inZoneS or (touchedS and close > f382)) : false
+fibBuy  = fibSig and upLeg and touchedL[1] and close > f500 and close > open and (not fibTrend or na(trend) or close > trend)
+fibSell = fibSig and not upLeg and touchedS[1] and close < f500 and close < open and (not fibTrend or na(trend) or close < trend)
+fibBuy  := fibBuy and not fibBuy[1]
+fibSell := fibSell and not fibSell[1]
+
+if showLbl and fibBuy
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nFib",  style=label.style_label_up,   color=color.new(#00c853, 0), textcolor=color.black, size=size.small, tooltip="target " + str.tostring(t1272, format.mintick))
+if showLbl and fibSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nFib", style=label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small, tooltip="target " + str.tostring(t1272, format.mintick))
+
+if showTS and fibBuy
+    newTrade(true,  math.min(f786, close - atr14 * minStopAtr), t1272)
+if showTS and fibSell
+    newTrade(false, math.max(f786, close + atr14 * minStopAtr), t1272)
+alertcondition(fibBuy,  "FIB BUY",  "SMA Signals: FIB BUY {{ticker}} @ {{close}}")
+alertcondition(fibSell, "FIB SELL", "SMA Signals: FIB SELL {{ticker}} @ {{close}}")
+
+
+// ── Donchian channel (v10, replaces Bollinger) ───────────────────────────
+// Upper = highest high, lower = lowest low of the last N bars (excluding the current bar),
+// mid = average. Signal = breakout: DC BUY on the first close above the upper line,
+// DC SELL on the first close below the lower line, in the direction of the trend SMA.
+// Stop = channel mid (floored 0.5 ATR), target 1.5R, drawn like every other signal.
+grpDC    = "Donchian channel"
+dcOn     = input.bool(true, "Show Donchian channel",              group = grpDC)
+dcLen    = input.int(20,    "Length", minval = 5,                 group = grpDC)
+dcSigOn  = input.bool(true, "DC BUY / SELL on breakout",          group = grpDC)
+dcTrendG = input.bool(true, "Breakout only with trend SMA (ignored while the SMA has no data)", group = grpDC)
+dcCol    = input.color(#26c6da, "Channel colour",                 group = grpDC)
+
+dcUpper  = ta.highest(high, dcLen)[1]
+dcLower  = ta.lowest(low, dcLen)[1]
+dcMid    = (dcUpper + dcLower) / 2
+dU = plot(dcOn ? dcUpper : na, "DC Upper", color = color.new(dcCol, 10), linewidth = 1)
+dL = plot(dcOn ? dcLower : na, "DC Lower", color = color.new(dcCol, 10), linewidth = 1)
+plot(dcOn ? dcMid : na, "DC Mid", color = color.new(dcCol, 55), linewidth = 1, style = plot.style_line)
+fill(dU, dL, color = color.new(dcCol, 94), title = "DC fill")
+
+dcTrendL = not dcTrendG or na(trend) or close > trend
+dcTrendS = not dcTrendG or na(trend) or close < trend
+dcBuy  = dcOn and dcSigOn and sigOK and blkL and rsiL and close > dcUpper and close[1] <= dcUpper[1] and close > open and dcTrendL
+dcSell = dcOn and dcSigOn and sigOK and blkS and rsiS and close < dcLower and close[1] >= dcLower[1] and close < open and dcTrendS
+if showLbl and dcBuy
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nDonchian",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+if showLbl and dcSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nDonchian", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+if showTS and dcBuy
+    sp = math.min(dcMid, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and dcSell
+    sp = math.max(dcMid, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(dcBuy,  "DC BUY",  "SMA Signals: DC BUY {{ticker}} @ {{close}}")
+alertcondition(dcSell, "DC SELL", "SMA Signals: DC SELL {{ticker}} @ {{close}}")
+
+
+// ── VWAP mean reversion (v13) ────────────────────────────────────────────
+// Session VWAP with ±1σ / ±2σ bands. Mean-reversion signal: price stretched beyond the outer band
+// and then CLOSES back inside it → BUY from below (blue triangle), SELL from above.
+// Target = VWAP itself (that is the reversion), stop = the extreme reached beyond the band.
+grpVW    = "VWAP mean reversion"
+vwOn     = input.bool(true,  "Show session VWAP + bands",       group = grpVW)
+vwMult1  = input.float(1.0,  "Inner band (σ)", step = 0.25,      group = grpVW)
+vwMult2  = input.float(2.0,  "Outer band (σ) = signal band", step = 0.25, group = grpVW)
+vwSigOn  = input.bool(true,  "VWAP BUY / SELL (reclaim of outer band)", group = grpVW)
+vwTrendG = input.bool(false, "Signals only with trend SMA",      group = grpVW)
+vwCol    = input.color(#2962ff, "VWAP colour",                   group = grpVW)
+
+newSess  = ta.change(time("D")) != 0
+var float vwSumPV = 0.0, var float vwSumV = 0.0, var float vwSumPV2 = 0.0
+if newSess
+    vwSumPV := 0.0, vwSumV := 0.0, vwSumPV2 := 0.0
+vwV = nz(volume) > 0 ? volume : 1.0            // symbols without volume still get a price-average line
+vwSumPV  += hlc3 * vwV
+vwSumV   += vwV
+vwSumPV2 += hlc3 * hlc3 * vwV
+vwap     = vwSumPV / vwSumV
+vwVar    = math.max(vwSumPV2 / vwSumV - vwap * vwap, 0)
+vwSd     = math.sqrt(vwVar)
+vwU1 = vwap + vwSd * vwMult1, vwL1 = vwap - vwSd * vwMult1
+vwU2 = vwap + vwSd * vwMult2, vwL2 = vwap - vwSd * vwMult2
+plot(vwOn ? vwap : na, "VWAP", color = color.new(vwCol, 0), linewidth = 2)
+pU1 = plot(vwOn ? vwU1 : na, "VWAP +1σ", color = color.new(vwCol, 60))
+pL1 = plot(vwOn ? vwL1 : na, "VWAP -1σ", color = color.new(vwCol, 60))
+pU2 = plot(vwOn ? vwU2 : na, "VWAP +2σ", color = color.new(vwCol, 35), style = plot.style_circles)
+pL2 = plot(vwOn ? vwL2 : na, "VWAP -2σ", color = color.new(vwCol, 35), style = plot.style_circles)
+fill(pU1, pL1, color = color.new(vwCol, 94), title = "VWAP 1σ fill")
+
+// stretched = a close beyond the outer band; the signal is the first close back inside
+var bool  vwBelow = false, var bool vwAbove = false
+var float vwExtLo = na, var float vwExtHi = na
+if close < vwL2
+    vwBelow := true, vwExtLo := na(vwExtLo) ? low : math.min(vwExtLo, low)
+if close > vwU2
+    vwAbove := true, vwExtHi := na(vwExtHi) ? high : math.max(vwExtHi, high)
+vwTrL = not vwTrendG or na(trend) or close > trend
+vwTrS = not vwTrendG or na(trend) or close < trend
+vwBuy  = vwOn and vwSigOn and sigOK and blkL and rsiL and vwBelow and close > vwL2 and close > open and close < vwap and vwTrL
+vwSell = vwOn and vwSigOn and sigOK and blkS and rsiS and vwAbove and close < vwU2 and close < open and close > vwap and vwTrS
+if vwBuy or close > vwap
+    vwBelow := false, vwExtLo := na
+if vwSell or close < vwap
+    vwAbove := false, vwExtHi := na
+if vwBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(vwCol, 0), size = size.small, tooltip = "VWAP BUY")
+if showLbl and vwBuy
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nVWAP",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+if showLbl and vwSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nVWAP", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+if showTS and vwBuy
+    newTrade(true,  math.min(nz(vwExtLo[1], low), close - atr14 * minStopAtr), vwap)
+if showTS and vwSell
+    newTrade(false, math.max(nz(vwExtHi[1], high), close + atr14 * minStopAtr), vwap)
+alertcondition(vwBuy,  "VWAP BUY",  "SMA Signals: VWAP mean-reversion BUY {{ticker}} @ {{close}}")
+alertcondition(vwSell, "VWAP SELL", "SMA Signals: VWAP mean-reversion SELL {{ticker}} @ {{close}}")
+
+
+// ── ICT Fair Value Gaps (v17) ────────────────────────────────────────────
+// The most-used ICT tool. Bullish FVG = a 3-candle imbalance where candle 1's high < candle 3's low
+// (price jumped, leaving a gap). Drawn as a box extended right until price fills it.
+// Signal = the retest: price trades back INTO an unfilled bullish gap and closes above the gap top
+// with a green candle → BUY. Bearish gap retest → SELL. Stop = far edge of the gap, target 1.5R.
+// Kill zone = the first hour of the NSE session (09:15–10:15 IST), tinted, where ICT setups are taken.
+grpICT   = "ICT Fair Value Gaps"
+fvgOn    = input.bool(true,  "Show Fair Value Gaps",             group = grpICT)
+fvgMinAtr= input.float(0.2,  "Min gap size (ATR x)", step = 0.05, minval = 0, group = grpICT)
+fvgMax   = input.int(8,      "Max open gaps kept", minval = 1, maxval = 30, group = grpICT)
+fvgSigOn = input.bool(true,  "FVG BUY / SELL on retest",         group = grpICT)
+fvgTrendG= input.bool(true,  "Retest signals only with trend SMA (ignored while the SMA has no data)", group = grpICT)
+kzOn     = input.bool(true,  "Highlight opening kill zone",      group = grpICT)
+kzSess   = input.session("0915-1015", "Kill zone (exchange time)", group = grpICT)
+fvgBullC = input.color(#00e676, "Bullish gap colour", group = grpICT)
+fvgBearC = input.color(#ff5252, "Bearish gap colour", group = grpICT)
+
+bgcolor(kzOn and not na(time(timeframe.period, kzSess)) and timeframe.isintraday ? color.new(#ffab00, 92) : na, title = "Kill zone")
+
+var box[]   fvgB   = array.new_box()
+var bool[]  fvgUp  = array.new_bool()
+var float[] fvgTop = array.new_float(), var float[] fvgBot = array.new_float()
+bullGap = fvgOn and low > high[2] and (low - high[2]) >= atr14 * fvgMinAtr
+bearGap = fvgOn and high < low[2] and (low[2] - high) >= atr14 * fvgMinAtr
+if bullGap
+    array.push(fvgB, box.new(bar_index - 2, low, bar_index + 1, high[2], border_color = color.new(fvgBullC, 70), bgcolor = color.new(fvgBullC, 85), extend = extend.right))
+    array.push(fvgUp, true), array.push(fvgTop, low), array.push(fvgBot, high[2])
+if bearGap
+    array.push(fvgB, box.new(bar_index - 2, low[2], bar_index + 1, high, border_color = color.new(fvgBearC, 70), bgcolor = color.new(fvgBearC, 85), extend = extend.right))
+    array.push(fvgUp, false), array.push(fvgTop, low[2]), array.push(fvgBot, high)
+
+// retest signal + fill management (a gap is "filled" once price closes through its far edge)
+fvgTrL = sigOK and blkL and rsiL and (not fvgTrendG or na(trend) or close > trend)
+fvgTrS = sigOK and blkS and rsiS and (not fvgTrendG or na(trend) or close < trend)
+bool fvgBuy = false, bool fvgSell = false
+float fvgStopL = na, float fvgStopS = na
+if array.size(fvgB) > 0
+    for i = array.size(fvgB) - 1 to 0
+        up = array.get(fvgUp, i), top = array.get(fvgTop, i), bot = array.get(fvgBot, i)
+        isNew = bar_index - box.get_left(array.get(fvgB, i)) <= 2
+        if not isNew
+            if up and low <= top and low > bot and close > top and close > open and fvgSigOn and fvgTrL and not fvgBuy
+                fvgBuy := true, fvgStopL := bot
+            if not up and high >= bot and high < top and close < bot and close < open and fvgSigOn and fvgTrS and not fvgSell
+                fvgSell := true, fvgStopS := top
+        filled = up ? close < bot : close > top
+        if filled
+            box.delete(array.remove(fvgB, i)), array.remove(fvgUp, i), array.remove(fvgTop, i), array.remove(fvgBot, i)
+    while array.size(fvgB) > fvgMax
+        box.delete(array.shift(fvgB)), array.shift(fvgUp), array.shift(fvgTop), array.shift(fvgBot)
+
+if fvgBuy
+    label.new(bar_index, low, "", style = label.style_triangleup, color = color.new(fvgBullC, 0), size = size.small, tooltip = "FVG BUY")
+if showLbl and fvgBuy
+    label.new(bar_index, low - atr14 * lblGap,  "BUY\nFVG",  style = label.style_label_up,   color = color.new(#00c853, 0), textcolor = color.black, size = size.small)
+if showLbl and fvgSell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nFVG", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small)
+if showTS and fvgBuy
+    sp = math.min(fvgStopL, close - atr14 * minStopAtr)
+    newTrade(true, sp, close + (close - sp) * tgtR)
+if showTS and fvgSell
+    sp = math.max(fvgStopS, close + atr14 * minStopAtr)
+    newTrade(false, sp, close - (sp - close) * tgtR)
+alertcondition(bullGap or bearGap, "FVG formed", "SMA Signals: new Fair Value Gap on {{ticker}}")
+alertcondition(fvgBuy,  "FVG BUY",  "SMA Signals: FVG retest BUY {{ticker}} @ {{close}}")
+alertcondition(fvgSell, "FVG SELL", "SMA Signals: FVG retest SELL {{ticker}} @ {{close}}")
+
