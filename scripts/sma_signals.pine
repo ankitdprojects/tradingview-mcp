@@ -157,6 +157,30 @@ var label[] tLb = array.new_label(), var label[] sLb = array.new_label()
 var float[] tPx = array.new_float(), var float[] sPx = array.new_float()
 var int[]   tDir = array.new_int()
 
+// ── Fib target for every signal (v49) ────────────────────────────────────
+// Latest completed swing (pivot high ↔ pivot low). A BUY's Fib target is the 1.272 extension of an up-leg
+// (or the 0.618 retracement of a down-leg); a SELL's is the mirror. Drawn next to the normal R target.
+fibTgtOn = input.bool(true, "Also mark a Fib target (1.272 ext / 0.618 retrace of the latest swing)", group="Targets")
+fibTgtPv = input.int(10, "Fib swing pivot length", minval=3, maxval=50, group="Targets")
+fsPh = ta.pivothigh(high, fibTgtPv, fibTgtPv)
+fsPl = ta.pivotlow(low,  fibTgtPv, fibTgtPv)
+var float fsHi = na, var float fsLo = na, var int fsHiB = na, var int fsLoB = na
+if not na(fsPh)
+    fsHi := fsPh, fsHiB := bar_index - fibTgtPv
+if not na(fsPl)
+    fsLo := fsPl, fsLoB := bar_index - fibTgtPv
+fsUp = not na(fsHi) and not na(fsLo) and fsLoB < fsHiB          // up-leg: low came first
+fsRg = fsHi - fsLo
+fibTarget(bool isLong) =>
+    float t = na
+    if not na(fsHi) and not na(fsLo) and fsRg > 0
+        t := isLong ? (fsUp ? fsLo + fsRg * 1.272 : fsLo + fsRg * 0.618) : (fsUp ? fsHi - fsRg * 0.618 : fsHi - fsRg * 1.272)
+        if isLong ? t <= close : t >= close
+            t := na                                             // Fib level already passed → no Fib target
+    t
+var line[]  fLn = array.new_line()
+var label[] fLb = array.new_label()
+
 newTrade(bool isLong, float stopPx, float tgtPx) =>
     col = isLong ? #00c853 : #ff1744
     if isLong or sellTS
@@ -164,9 +188,13 @@ newTrade(bool isLong, float stopPx, float tgtPx) =>
         array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
         array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
         array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
+        ft = fibTgtOn ? fibTarget(isLong) : na
+        array.push(fLn, line.new(bar_index, nz(ft, tgtPx), bar_index + 1, nz(ft, tgtPx), color=color.new(#ffb300, na(ft) ? 100 : 0), style=line.style_dashed, width=1))
+        array.push(fLb, label.new(bar_index + 1, nz(ft, tgtPx), na(ft) ? "" : "Fib T " + str.tostring(ft, format.mintick), style=label.style_label_left, color=color.new(#ffb300, 100), textcolor=#ffb300, size=size.small))
         array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
         if array.size(tPx) > maxLive
             line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
+            line.delete(array.shift(fLn)), label.delete(array.shift(fLb))
             array.shift(tPx), array.shift(sPx), array.shift(tDir)
 
 if showTS
@@ -185,6 +213,8 @@ if showTS
             hitS = d == 1 ? low <= sp  : high >= sp
             line.set_x2(array.get(tLn, i), bar_index + 1), line.set_x2(array.get(sLn, i), bar_index + 1)
             label.set_x(array.get(tLb, i), bar_index + 1), label.set_x(array.get(sLb, i), bar_index + 1)
+            if i < array.size(fLn)
+                line.set_x2(array.get(fLn, i), bar_index + 1), label.set_x(array.get(fLb, i), bar_index + 1)
             if hitS and not (buy or sell)
                 label.set_text(array.get(sLb, i), "Stop " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
             else if hitT and not (buy or sell)
@@ -961,37 +991,3 @@ if s60Sell
         newTrade(false, s60StopS, s60TgtS)
 alertcondition(s60Buy,  "60MIN BUY",  "SMA Signals: 60-minute set BUY {{ticker}} @ {{close}}")
 alertcondition(s60Sell, "60MIN SELL", "SMA Signals: 60-minute set SELL {{ticker}} @ {{close}}")
-
-// ── Fibonacci support / resistance (v48) ─────────────────────────────────
-// Retracement levels of the latest completed swing (pivot high ↔ pivot low). Drawn as horizontal
-// support / resistance lines with a tag; no signals — the levels are context for the other families.
-grpFS    = "Fib support / resistance"
-fsOn     = input.bool(true, "Show Fib retracement levels as S/R",     group = grpFS)
-fsPiv    = input.int(10, "Swing pivot length", minval = 3, maxval = 50, group = grpFS)
-fsExtend = input.int(40, "Extend lines (bars)", minval = 5, maxval = 200, group = grpFS)
-fsPh = ta.pivothigh(high, fsPiv, fsPiv)
-fsPl = ta.pivotlow(low,  fsPiv, fsPiv)
-var float fsHi = na, var float fsLo = na, var int fsHiB = na, var int fsLoB = na
-if not na(fsPh)
-    fsHi := fsPh, fsHiB := bar_index - fsPiv
-if not na(fsPl)
-    fsLo := fsPl, fsLoB := bar_index - fsPiv
-fsUp = not na(fsHi) and not na(fsLo) and fsLoB < fsHiB          // up-leg: low came first
-fsRg = fsHi - fsLo
-var line[]  fsLines = array.new_line()
-var label[] fsLabs  = array.new_label()
-fsLevel(r) => fsUp ? fsHi - fsRg * r : fsLo + fsRg * r
-if fsOn and barstate.islast and not na(fsHi) and not na(fsLo) and fsRg > 0
-    while array.size(fsLines) > 0
-        line.delete(array.pop(fsLines))
-    while array.size(fsLabs) > 0
-        label.delete(array.pop(fsLabs))
-    fsStart = math.min(fsHiB, fsLoB)
-    fsRatios = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
-    for i = 0 to array.size(fsRatios) - 1
-        r  = array.get(fsRatios, i)
-        px = fsLevel(r)
-        isSup = px < close
-        col = r == 0.5 or r == 0.618 ? color.new(#ffb300, 0) : isSup ? color.new(#26a69a, 30) : color.new(#ef5350, 30)
-        array.push(fsLines, line.new(fsStart, px, bar_index + fsExtend, px, color = col, style = r == 0.5 or r == 0.618 ? line.style_solid : line.style_dotted, width = r == 0.618 ? 2 : 1))
-        array.push(fsLabs, label.new(bar_index + fsExtend, px, "Fib " + str.tostring(r) + (isSup ? " S " : " R ") + str.tostring(px, format.mintick), style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.tiny))
