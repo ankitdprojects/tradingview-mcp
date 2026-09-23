@@ -146,9 +146,7 @@ alertcondition(sell,    "SMA SELL", "SMA Signals: SELL {{ticker}} @ {{close}}")
 //            target = entry ± tgtR × stop distance.
 // Lines are dotted, extend to the right while live, and get ✓ / ✗ when hit.
 showTS     = input.bool(true, "Mark target & stop",              group="Targets")
-tgtR       = input.float(1.5, "SMA target T1 (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
-tgtR2      = input.float(3.0, "SMA target T2 (R multiple)", step=0.5, group="Targets")
-tgtR3      = input.float(4.5, "SMA target T3 (R multiple)", step=0.5, group="Targets")
+tgtR       = input.float(1.5, "SMA target (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
 minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
 maxLive    = input.int(2, "Max trades kept on screen", minval=1, maxval=20, group="Targets")
 sellTS     = input.bool(false, "Also mark target / stop for SELL signals (off = buy-only trading)", group="Targets")
@@ -159,12 +157,10 @@ var label[] tLb = array.new_label(), var label[] sLb = array.new_label()
 var float[] tPx = array.new_float(), var float[] sPx = array.new_float()
 var int[]   tDir = array.new_int()
 
-// ── Fib targets T1/T2/T3 + Fib SL for every signal (v50) ─────────────────
-// Latest completed swing (pivot high ↔ pivot low). A BUY after an up-leg: Fib T1/T2/T3 = 1.272 / 1.618 / 2.0
-// extensions of the leg; after a down-leg: 0.5 / 0.618 / 0.786 retracements. Fib SL = the swing extreme
-// against the trade (the leg's low for a BUY, its high for a SELL). A SELL is the mirror.
-// Drawn beside the normal R targets T1/T2/T3 and stop; a Fib level already passed by price is skipped.
-fibTgtOn = input.bool(true, "Also mark Fib T1/T2/T3 + Fib SL (from the latest swing)", group="Targets")
+// ── Fib target for every signal (v49) ────────────────────────────────────
+// Latest completed swing (pivot high ↔ pivot low). A BUY's Fib target is the 1.272 extension of an up-leg
+// (or the 0.618 retracement of a down-leg); a SELL's is the mirror. Drawn next to the normal R target.
+fibTgtOn = input.bool(true, "Also mark a Fib target (1.272 ext / 0.618 retrace of the latest swing)", group="Targets")
 fibTgtPv = input.int(10, "Fib swing pivot length", minval=3, maxval=50, group="Targets")
 fsPh = ta.pivothigh(high, fibTgtPv, fibTgtPv)
 fsPl = ta.pivotlow(low,  fibTgtPv, fibTgtPv)
@@ -175,60 +171,31 @@ if not na(fsPl)
     fsLo := fsPl, fsLoB := bar_index - fibTgtPv
 fsUp = not na(fsHi) and not na(fsLo) and fsLoB < fsHiB          // up-leg: low came first
 fsRg = fsHi - fsLo
-// Fib level k of the latest swing for a BUY (isLong) or SELL; na when the swing is unknown or price already passed it
-fibLevel(bool isLong, int k) =>
+fibTarget(bool isLong) =>
     float t = na
     if not na(fsHi) and not na(fsLo) and fsRg > 0
-        // k = 1..3 → targets, k = 0 → Fib SL
-        float r = na
-        if k == 0
-            t := isLong ? fsLo : fsHi                           // Fib SL = swing extreme against the trade
-        else
-            trendLeg = isLong ? fsUp : not fsUp                 // leg points the trade's way → use extensions
-            r := trendLeg ? (k == 1 ? 1.272 : k == 2 ? 1.618 : 2.0) : (k == 1 ? 0.5 : k == 2 ? 0.618 : 0.786)
-            t := isLong ? fsLo + fsRg * r : fsHi - fsRg * r
-            if isLong ? t <= close : t >= close
-                t := na                                         // Fib level already passed → skip
+        t := isLong ? (fsUp ? fsLo + fsRg * 1.272 : fsLo + fsRg * 0.618) : (fsUp ? fsHi - fsRg * 0.618 : fsHi - fsRg * 1.272)
+        if isLong ? t <= close : t >= close
+            t := na                                             // Fib level already passed → no Fib target
     t
-// 4 entries per trade in draw order: Fib T1, Fib T2, Fib T3, Fib SL
 var line[]  fLn = array.new_line()
 var label[] fLb = array.new_label()
-// normal R targets T2 / T3 (T1 lives in tLn / tLb / tPx)
-var line[]  t2Ln = array.new_line(), var line[]  t3Ln = array.new_line()
-var label[] t2Lb = array.new_label(), var label[] t3Lb = array.new_label()
-var float[] t2Px = array.new_float(), var float[] t3Px = array.new_float()
 
-// push one dashed Fib line + tag (hidden when the level is na)
-fibMark(float px, float fallback, string tag, color c) =>
-    y = nz(px, fallback)
-    array.push(fLn, line.new(bar_index, y, bar_index + 1, y, color=color.new(c, na(px) ? 100 : 0), style=line.style_dashed, width=1))
-    array.push(fLb, label.new(bar_index + 1, y, na(px) ? "" : tag + " " + str.tostring(px, format.mintick), style=label.style_label_left, color=color.new(c, 100), textcolor=c, size=size.small))
-
-newTrade(bool isLong, float stopPx, float tgtPx, float t2In = na, float t3In = na) =>
+newTrade(bool isLong, float stopPx, float tgtPx) =>
     col = isLong ? #00c853 : #ff1744
-    // T2 / T3 default to the T1 distance scaled by tgtR2 / tgtR and tgtR3 / tgtR (works for every signal family)
-    tgt2Px = nz(t2In, close + (tgtPx - close) * tgtR2 / tgtR)
-    tgt3Px = nz(t3In, close + (tgtPx - close) * tgtR3 / tgtR)
     if isLong or sellTS
         array.push(tLn, line.new(bar_index, tgtPx, bar_index + 1, tgtPx, color=color.new(col, 0), style=line.style_dotted, width=2))
-        array.push(t2Ln, line.new(bar_index, tgt2Px, bar_index + 1, tgt2Px, color=color.new(col, 30), style=line.style_dotted, width=1))
-        array.push(t3Ln, line.new(bar_index, tgt3Px, bar_index + 1, tgt3Px, color=color.new(col, 50), style=line.style_dotted, width=1))
         array.push(sLn, line.new(bar_index, stopPx, bar_index + 1, stopPx, color=color.new(#ff1744, 0), style=line.style_dotted, width=2))
-        array.push(tLb, label.new(bar_index + 1, tgtPx, "T1 " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
-        array.push(t2Lb, label.new(bar_index + 1, tgt2Px, "T2 " + str.tostring(tgt2Px, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
-        array.push(t3Lb, label.new(bar_index + 1, tgt3Px, "T3 " + str.tostring(tgt3Px, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
-        array.push(sLb, label.new(bar_index + 1, stopPx, "SL " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
-        fibMark(fibTgtOn ? fibLevel(isLong, 1) : na, tgtPx,  "Fib T1", #ffb300)
-        fibMark(fibTgtOn ? fibLevel(isLong, 2) : na, tgt2Px, "Fib T2", #ffb300)
-        fibMark(fibTgtOn ? fibLevel(isLong, 3) : na, tgt3Px, "Fib T3", #ffb300)
-        fibMark(fibTgtOn ? fibLevel(isLong, 0) : na, stopPx, "Fib SL", #ff8a65)
-        array.push(tPx, tgtPx), array.push(t2Px, tgt2Px), array.push(t3Px, tgt3Px), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
+        array.push(tLb, label.new(bar_index + 1, tgtPx, "Target " + str.tostring(tgtPx, format.mintick), style=label.style_label_left, color=color.new(col, 100), textcolor=col, size=size.small))
+        array.push(sLb, label.new(bar_index + 1, stopPx, "Stop " + str.tostring(stopPx, format.mintick), style=label.style_label_left, color=color.new(#ff1744, 100), textcolor=#ff1744, size=size.small))
+        ft = fibTgtOn ? fibTarget(isLong) : na
+        array.push(fLn, line.new(bar_index, nz(ft, tgtPx), bar_index + 1, nz(ft, tgtPx), color=color.new(#ffb300, na(ft) ? 100 : 0), style=line.style_dashed, width=1))
+        array.push(fLb, label.new(bar_index + 1, nz(ft, tgtPx), na(ft) ? "" : "Fib T " + str.tostring(ft, format.mintick), style=label.style_label_left, color=color.new(#ffb300, 100), textcolor=#ffb300, size=size.small))
+        array.push(tPx, tgtPx), array.push(sPx, stopPx), array.push(tDir, isLong ? 1 : -1)
         if array.size(tPx) > maxLive
             line.delete(array.shift(tLn)), line.delete(array.shift(sLn)), label.delete(array.shift(tLb)), label.delete(array.shift(sLb))
-            line.delete(array.shift(t2Ln)), line.delete(array.shift(t3Ln)), label.delete(array.shift(t2Lb)), label.delete(array.shift(t3Lb))
-            for k = 1 to 4
-                line.delete(array.shift(fLn)), label.delete(array.shift(fLb))
-            array.shift(tPx), array.shift(t2Px), array.shift(t3Px), array.shift(sPx), array.shift(tDir)
+            line.delete(array.shift(fLn)), label.delete(array.shift(fLb))
+            array.shift(tPx), array.shift(sPx), array.shift(tDir)
 
 if showTS
     if buy
@@ -241,27 +208,17 @@ if showTS
     for i = array.size(tPx) - 1 to 0
         if i >= 0 and i < array.size(tPx) and array.get(tDir, i) != 0
             d  = array.get(tDir, i)
-            tp = array.get(tPx, i), tp2 = array.get(t2Px, i), tp3 = array.get(t3Px, i), sp = array.get(sPx, i)
-            hitT  = d == 1 ? high >= tp  : low <= tp
-            hitT2 = d == 1 ? high >= tp2 : low <= tp2
-            hitT3 = d == 1 ? high >= tp3 : low <= tp3
-            hitS  = d == 1 ? low <= sp   : high >= sp
+            tp = array.get(tPx, i), sp = array.get(sPx, i)
+            hitT = d == 1 ? high >= tp : low <= tp
+            hitS = d == 1 ? low <= sp  : high >= sp
             line.set_x2(array.get(tLn, i), bar_index + 1), line.set_x2(array.get(sLn, i), bar_index + 1)
-            line.set_x2(array.get(t2Ln, i), bar_index + 1), line.set_x2(array.get(t3Ln, i), bar_index + 1)
             label.set_x(array.get(tLb, i), bar_index + 1), label.set_x(array.get(sLb, i), bar_index + 1)
-            label.set_x(array.get(t2Lb, i), bar_index + 1), label.set_x(array.get(t3Lb, i), bar_index + 1)
-            for k = 0 to 3
-                if i * 4 + k < array.size(fLn)
-                    line.set_x2(array.get(fLn, i * 4 + k), bar_index + 1), label.set_x(array.get(fLb, i * 4 + k), bar_index + 1)
+            if i < array.size(fLn)
+                line.set_x2(array.get(fLn, i), bar_index + 1), label.set_x(array.get(fLb, i), bar_index + 1)
             if hitS and not (buy or sell)
-                label.set_text(array.get(sLb, i), "SL " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
-            else if not (buy or sell)
-                if hitT
-                    label.set_text(array.get(tLb, i), "T1 " + str.tostring(tp, format.mintick) + " ✓")
-                if hitT2
-                    label.set_text(array.get(t2Lb, i), "T2 " + str.tostring(tp2, format.mintick) + " ✓")
-                if hitT3
-                    label.set_text(array.get(t3Lb, i), "T3 " + str.tostring(tp3, format.mintick) + " ✓"), array.set(tDir, i, 0)
+                label.set_text(array.get(sLb, i), "Stop " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
+            else if hitT and not (buy or sell)
+                label.set_text(array.get(tLb, i), "Target " + str.tostring(tp, format.mintick) + " ✓"), array.set(tDir, i, 0)
 
 // ── Fib channel (auto-anchored) ────────────────────────────────────────────
 // Like TradingView's Fib Channel drawing: a base trendline through two swing
