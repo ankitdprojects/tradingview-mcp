@@ -149,8 +149,16 @@ famSell = family == "SMA 50/200" ? fs1 : family == "SMA 9/21" ? fs2 : family == 
 // CE chart trades the futures BUY, PE chart trades the futures SELL; the opposite one is the exit.
 // FUT: long on BUY, short on SELL, each closed by the opposite signal / stop / target / session end.
 isFut    = side == "FUT"
-enterSig = side == "PE" ? famSell : famBuy
-exitSig  = side == "PE" ? famBuy  : famSell
+// v4: FUT side-specific sets — comma lists of family names; blank = use `family` for that side, "none" = no trades on that side.
+longSet  = input.string("", "FUT long families (comma list, blank = family, none = off)")   // in_13
+shortSet = input.string("", "FUT short families (comma list, blank = family, none = off)")  // in_14
+inSet(s, n) => str.contains("," + s + ",", "," + n + ",")
+anyBuy(s)  => (inSet(s, "SMA 50/200") and fb1) or (inSet(s, "SMA 9/21") and fb2) or (inSet(s, "Sweep") and fb3) or (inSet(s, "Wick") and fb4) or (inSet(s, "Supertrend") and fb5) or (inSet(s, "EMA touch") and fb6) or (inSet(s, "RSI div") and fb7) or (inSet(s, "Donchian") and fb8) or (inSet(s, "VWAP") and fb9) or (inSet(s, "FVG") and fb10) or (inSet(s, "Fib") and fb11)
+anySell(s) => (inSet(s, "SMA 50/200") and fs1) or (inSet(s, "SMA 9/21") and fs2) or (inSet(s, "Sweep") and fs3) or (inSet(s, "Wick") and fs4) or (inSet(s, "Supertrend") and fs5) or (inSet(s, "EMA touch") and fs6) or (inSet(s, "RSI div") and fs7) or (inSet(s, "Donchian") and fs8) or (inSet(s, "VWAP") and fs9) or (inSet(s, "FVG") and fs10) or (inSet(s, "Fib") and fs11)
+famBuyL  = isFut and longSet  != "" ? anyBuy(longSet)   : famBuy
+famSellS = isFut and shortSet != "" ? anySell(shortSet) : famSell
+enterSig = side == "PE" ? famSell : famBuyL
+exitSig  = side == "PE" ? famBuy  : famSellS
 plotshape(enterSig, "enter", shape.triangleup,   location.belowbar, color = color.new(#00c853, 0), size = size.tiny)
 plotshape(exitSig,  "exit",  shape.triangledown, location.abovebar, color = color.new(#ff1744, 0), size = size.tiny)
 
