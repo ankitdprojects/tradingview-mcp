@@ -1,0 +1,28 @@
+//@version=6
+// Screener · ATR / ADX — drawn ON the price chart (like the Screener), as dotted
+// lines on their own hidden scale so they never distort the price axis.
+// Same lengths and the same 25 trend threshold as the Screener console.
+// Display-only; it does not affect signals.
+indicator("Screener ATR / ADX (on chart)", shorttitle = "ATR / ADX", overlay = true, scale = scale.none, precision = 1)
+
+atrLen  = input.int(14, "ATR length", minval = 1)
+adxLen  = input.int(14, "ADX length", minval = 1)
+adxTh   = input.float(25, "ADX trend threshold", minval = 1, step = 1)
+atrMode = input.string("% of price", "ATR display", options = ["% of price", "Absolute"],
+  tooltip = "% of price keeps ATR on a similar 0-100 range as ADX. Absolute shows ATR in price units (the first number in the console's ATR row).")
+cAdxIn  = input.color(#B388FF, "ADX colour")
+cAtrIn  = input.color(#00E5FF, "ATR colour")
+dotSize = input.int(2, "Dot size", minval = 1, maxval = 4)
+showTh  = input.bool(false, "Show ADX 25 threshold line")
+showDI  = input.bool(false, "Show +DI / -DI")
+
+atr = ta.atr(atrLen)
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+atrShown = atrMode == "Absolute" ? atr : atr / close * 100
+
+plot(adx,      "ADX", color = cAdxIn, style = plot.style_circles, linewidth = dotSize)
+plot(atrShown, "ATR", color = cAtrIn, style = plot.style_circles, linewidth = dotSize)
+plot(showDI ? diPlus  : na, "+DI", color = color.new(#26D0A0, 40), style = plot.style_circles, linewidth = 1)
+plot(showDI ? diMinus : na, "-DI", color = color.new(#FF5C6C, 40), style = plot.style_circles, linewidth = 1)
+plot(showTh ? adxTh : na, "ADX threshold", color = color.new(#787B86, 40), style = plot.style_cross, linewidth = 1)
+ 

@@ -1,0 +1,42 @@
+//@version=6
+// Sweep SELL (60-minute) — the one rule that was profitable on 60m futures, calls and puts in the 22 Aug–22 Sep 2026 backtest.
+// Rule (same as the backtest strategy): a 5-bar pivot high is swept (high goes above it), the bar closes back below it and is red.
+// Always evaluated on the 60-minute series. On the 60m chart the label reads "SELL / sweep"; on any other timeframe it reads "60min SELL"
+// and is drawn on the first bar after the 60-minute bar closes, so it never appears early and never disappears.
+indicator("Sweep SELL", overlay = true, max_labels_count = 500, max_lines_count = 200)
+
+sigTf   = input.timeframe("60", "Signal timeframe")
+pivLen  = input.int(5, "Pivot length", minval = 2)
+showTS  = input.bool(true, "Draw stop / target (1 ATR stop, 1.5R)")
+stopAtr = input.float(1.0, "Stop = ATR(14) x", step = 0.25)
+rr      = input.float(1.5, "Target (R)", step = 0.5)
+lblGap  = input.float(0.8, "Label gap (ATR x)", step = 0.1)
+
+sweepSell() =>
+    _ph = ta.pivothigh(high, pivLen, pivLen)
+    var float _sH = na
+    var int   _sHb = na
+    if not na(_ph)
+        _sH := _ph
+        _sHb := bar_index - pivLen
+    _sig = not na(_sH) and bar_index > _sHb + pivLen and high > _sH and close < _sH and close < open
+    [_sig, _sH, ta.atr(14)]
+
+[sigHtf, lvlHtf, atrHtf] = request.security(syminfo.tickerid, sigTf, sweepSell(), lookahead = barmerge.lookahead_off)
+
+isSigTf = timeframe.period == sigTf
+own     = isSigTf and sigHtf and barstate.isconfirmed
+// other timeframes: fire once, on the first bar after the 60-minute bar closes (the value is confirmed)
+htfNew  = not isSigTf and timeframe.in_seconds() < timeframe.in_seconds(sigTf) and ta.change(time(sigTf)) != 0 and sigHtf[1] and barstate.isconfirmed
+fire    = own or htfNew
+
+atr14 = ta.atr(14)
+if fire
+    label.new(bar_index, high + atr14 * lblGap, isSigTf ? "SELL\nsweep" : "60min SELL", style = label.style_label_down, color = color.new(#ff1744, 0), textcolor = color.white, size = size.small, tooltip = "Sweep of " + str.tostring(lvlHtf, format.mintick))
+    if showTS and isSigTf
+        stopPx = close + atrHtf * stopAtr
+        tgtPx  = close - (stopPx - close) * rr
+        line.new(bar_index, stopPx, bar_index + 20, stopPx, color = color.new(#ff1744, 30), style = line.style_dotted)
+        line.new(bar_index, tgtPx,  bar_index + 20, tgtPx,  color = color.new(#00c853, 30), style = line.style_dotted)
+
+alertcondition(fire, "Sweep SELL 60m", "Sweep SELL (60m) on {{ticker}} @ {{close}}")

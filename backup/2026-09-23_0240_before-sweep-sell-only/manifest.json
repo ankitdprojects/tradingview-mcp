@@ -1,0 +1,93 @@
+{
+  "created": "2026-09-23T02:40:05.806Z",
+  "label": "before-sweep-sell-only",
+  "copied": {
+    "pine": [
+      "futures_option_bt.pine",
+      "futures_option_strategy.pine",
+      "oi_profile.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "screener.pine",
+      "screener_atr_adx.pine",
+      "screener_atr_adx_on_chart.pine",
+      "screener_tv.pine",
+      "sma_signals.pine",
+      "sma_signals_strategy.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "pine_sync.mjs",
+      "refresh_oi.mjs"
+    ],
+    "scratchpad": [
+      "agg_fut.mjs",
+      "agg_futopt.mjs",
+      "bt_sweep2.mjs",
+      "fut1m_table.mjs",
+      "fut_table.mjs",
+      "insert_study.mjs",
+      "new_web_pine.mjs",
+      "opt1m_table.mjs",
+      "patch_labels_v25.mjs",
+      "patch_strategy_v9.mjs",
+      "patch_v26.mjs",
+      "patch_v27_rsi.mjs",
+      "patch_v28_1m.mjs",
+      "patch_v30_5m921.mjs",
+      "patch_v32_5mwick.mjs",
+      "patch_v34_15m.mjs",
+      "patch_v35_5mset.mjs",
+      "patch_v36_short.mjs",
+      "patch_v37_tf.mjs",
+      "patch_v38_60m.mjs",
+      "patch_v39_5mname.mjs",
+      "patch_v40_noema.mjs",
+      "patch_v43_names.mjs",
+      "patch_v44_persist.mjs",
+      "patch_v46_restore.mjs",
+      "probe_delta.mjs",
+      "probe_symbols.mjs",
+      "push_web_pine.mjs",
+      "remove_all.mjs",
+      "run_both_1m.ps1",
+      "run_combos.ps1",
+      "run_families.ps1",
+      "run_flow.ps1",
+      "run_fut.ps1",
+      "run_futopt.ps1",
+      "run_fut_1m.ps1",
+      "run_opt_1m.ps1",
+      "run_opt_resume.ps1",
+      "run_rules_crypto.ps1",
+      "run_rules_rel.ps1",
+      "run_rules_swing.ps1",
+      "run_sma.ps1",
+      "save_layout.mjs",
+      "swap_console.mjs"
+    ]
+  },
+  "chart": {
+    "symbol": "MCX:NATURALGAS1!",
+    "resolution": "1",
+    "studies": [
+      {
+        "name": "SMA Signals",
+        "pineId": "USER;f686f1a3397144a4bc31ea731b015e2b",
+        "pineVersion": "47.0"
+      },
+      {
+        "name": "OI Profile",
+        "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+        "pineVersion": "30.0"
+      }
+    ]
+  }
+}
