@@ -157,8 +157,22 @@ anyBuy(s)  => (inSet(s, "SMA 50/200") and fb1) or (inSet(s, "SMA 9/21") and fb2)
 anySell(s) => (inSet(s, "SMA 50/200") and fs1) or (inSet(s, "SMA 9/21") and fs2) or (inSet(s, "Sweep") and fs3) or (inSet(s, "Wick") and fs4) or (inSet(s, "Supertrend") and fs5) or (inSet(s, "EMA touch") and fs6) or (inSet(s, "RSI div") and fs7) or (inSet(s, "Donchian") and fs8) or (inSet(s, "VWAP") and fs9) or (inSet(s, "FVG") and fs10) or (inSet(s, "Fib") and fs11)
 famBuyL  = isFut and longSet  != "" ? anyBuy(longSet)   : famBuy
 famSellS = isFut and shortSet != "" ? anySell(shortSet) : famSell
-enterSig = side == "PE" ? famSell : famBuyL
-exitSig  = side == "PE" ? famBuy  : famSellS
+// v5 PAIR mode (pairSym set): signals come from each option's OWN chart, not the futures.
+//   longSet  = families used on the CE chart, shortSet = families used on the PE chart.
+//   CE chart: buy the call on its own set's BUY or on the put's SELL; close on its own SELL or on the put's BUY.
+//   PE chart: buy the put  on its own set's BUY or on the call's SELL; close on its own SELL or on the call's BUY.
+//   Set in_0 (sigSym) to the chart's own symbol so fb*/fs* are the chart's own signals.
+pairSym  = input.symbol("", "PAIR mode: the other leg (blank = off)")                                            // in_15
+isPair   = pairSym != ""
+[pb1, ps1, pb2, ps2, pb3, ps3, pb4, ps4, pb5, ps5, pb6, ps6, pb7, ps7, pb8, ps8, pb9, ps9, pb10, ps10, pb11, ps11] = request.security(isPair ? pairSym : syminfo.tickerid, timeframe.period, famSignals(), lookahead = barmerge.lookahead_off)
+anyBuyP(s)  => (inSet(s, "SMA 50/200") and pb1) or (inSet(s, "SMA 9/21") and pb2) or (inSet(s, "Sweep") and pb3) or (inSet(s, "Wick") and pb4) or (inSet(s, "Supertrend") and pb5) or (inSet(s, "EMA touch") and pb6) or (inSet(s, "RSI div") and pb7) or (inSet(s, "Donchian") and pb8) or (inSet(s, "VWAP") and pb9) or (inSet(s, "FVG") and pb10) or (inSet(s, "Fib") and pb11)
+anySellP(s) => (inSet(s, "SMA 50/200") and ps1) or (inSet(s, "SMA 9/21") and ps2) or (inSet(s, "Sweep") and ps3) or (inSet(s, "Wick") and ps4) or (inSet(s, "Supertrend") and ps5) or (inSet(s, "EMA touch") and ps6) or (inSet(s, "RSI div") and ps7) or (inSet(s, "Donchian") and ps8) or (inSet(s, "VWAP") and ps9) or (inSet(s, "FVG") and ps10) or (inSet(s, "Fib") and ps11)
+ownSet   = side == "PE" ? shortSet : longSet
+othSet   = side == "PE" ? longSet  : shortSet
+pairEnter = anyBuy(ownSet)  or anySellP(othSet)
+pairExit  = anySell(ownSet) or anyBuyP(othSet)
+enterSig = isPair ? pairEnter : side == "PE" ? famSell : famBuyL
+exitSig  = isPair ? pairExit  : side == "PE" ? famBuy  : famSellS
 plotshape(enterSig, "enter", shape.triangleup,   location.belowbar, color = color.new(#00c853, 0), size = size.tiny)
 plotshape(exitSig,  "exit",  shape.triangledown, location.abovebar, color = color.new(#ff1744, 0), size = size.tiny)
 
