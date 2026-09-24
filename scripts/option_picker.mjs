@@ -19,6 +19,15 @@
 // Public exchange data only (NSE / MCX), no broker login.
 
 import { evaluate } from '../src/connection.js';
+import { spawnSync } from 'child_process';
+
+// Same proxy re-exec as refresh_oi.mjs: Node fetch ignores HTTPS_PROXY, exchange sites then fail ENOTFOUND.
+const PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+if (PROXY && !process.env.NODE_USE_ENV_PROXY) {
+  const noProxy = [process.env.NO_PROXY, 'localhost', '127.0.0.1'].filter(Boolean).join(',');
+  const r = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NO_PROXY: noProxy, no_proxy: noProxy } });
+  process.exit(r.status ?? 1);
+}
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : d; };
