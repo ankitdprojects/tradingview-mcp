@@ -13,7 +13,13 @@ $task = 'TradingView OI Watch'
 $cmd = "`$ErrorActionPreference='Continue'; Set-Location '$repo'; while (`$true) { & '$node' scripts/oi_watch.mjs 2>&1 | Out-File -Append -Encoding utf8 '$log'; Start-Sleep 10 }"
 $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand $enc"
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+# Two triggers: at logon, and every 5 minutes forever. The repeat one is a no-op while the
+# watcher is alive (MultipleInstances IgnoreNew) and revives it after sleep / logoff / a kill
+# (on 2026-09-25 the logon trigger alone left the task idle for two days).
+$trigger = @(
+  (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME),
+  (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5))
+)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
 
 # Stop any stray manual watchers so only the task-managed one runs.
