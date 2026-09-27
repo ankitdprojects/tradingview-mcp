@@ -11,6 +11,12 @@
     "version": "30.0",
     "modified": 1789968275
   },
+  "ORB Signals": {
+    "file": "orb_signals.pine",
+    "id": "USER;0683027873544e68b74c223d00a07d1f",
+    "version": "2.0",
+    "modified": 1790495177
+  },
   "Pullback Retest BT": {
     "file": "pullback_retest_strategy.pine",
     "id": "USER;7e62a80a99334d8ead50d5efa5230b96",

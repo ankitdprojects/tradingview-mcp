@@ -1,0 +1,98 @@
+{
+  "symbol": "MCX:GOLDM260925C152000",
+  "resolution": "1",
+  "studies": [
+    {
+      "id": "L42nnc",
+      "name": "OI Profile",
+      "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+      "pineVersion": "30.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "GOLDM"
+        },
+        {
+          "id": "in_1",
+          "value": "29OCT2026"
+        },
+        {
+          "id": "in_2",
+          "value": 1000
+        },
+        {
+          "id": "in_3",
+          "value": 4
+        },
+        {
+          "id": "in_4",
+          "value": 60
+        },
+        {
+          "id": "in_5",
+          "value": "145000:180:2032:65:361,150000:1291:2564:396:435,151000:378:432:223:357,152000:1125:831:501:528,153000:1188:512:259:265,154000:625:175:349:128,155000:3638:2376:693:842,158000:451:48:206:17,160000:5196:1154:1464:398,spot:152100,pcr:0.66,mp:153000"
+        },
+        {
+          "id": "in_6",
+          "value": true
+        },
+        {
+          "id": "in_7",
+          "value": 10
+        },
+        {
+          "id": "in_8",
+          "value": 3
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": "Middle right"
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": 15
+        },
+        {
+          "id": "in_14",
+          "value": true
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": true
+        },
+        {
+          "id": "in_17",
+          "value": true
+        },
+        {
+          "id": "in_18",
+          "value": 6
+        },
+        {
+          "id": "in_19",
+          "value": 12
+        },
+        {
+          "id": "in_20",
+          "value": true
+        }
+      ]
+    }
+  ]
+}
