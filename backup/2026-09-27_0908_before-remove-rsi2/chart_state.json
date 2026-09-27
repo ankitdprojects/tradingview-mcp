@@ -1,0 +1,174 @@
+{
+  "symbol": "NSE:BANKNIFTY260929C55600",
+  "resolution": "1",
+  "studies": [
+    {
+      "id": "iW0jcS",
+      "name": "RSI2 Signals",
+      "pineId": "USER;06d586048b7d4821912cda89059575e6",
+      "pineVersion": "2.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": 2
+        },
+        {
+          "id": "in_1",
+          "value": 10
+        },
+        {
+          "id": "in_2",
+          "value": 90
+        },
+        {
+          "id": "in_3",
+          "value": true
+        },
+        {
+          "id": "in_4",
+          "value": 200
+        },
+        {
+          "id": "in_5",
+          "value": 5
+        },
+        {
+          "id": "in_6",
+          "value": true
+        },
+        {
+          "id": "in_7",
+          "value": true
+        },
+        {
+          "id": "in_8",
+          "value": 1
+        },
+        {
+          "id": "in_9",
+          "value": 2
+        },
+        {
+          "id": "in_10",
+          "value": 3
+        },
+        {
+          "id": "in_11",
+          "value": 2
+        },
+        {
+          "id": "in_12",
+          "value": 2
+        },
+        {
+          "id": "in_13",
+          "value": true
+        },
+        {
+          "id": "in_14",
+          "value": 0.8
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": "Bottom right"
+        }
+      ]
+    },
+    {
+      "id": "L42nnc",
+      "name": "OI Profile",
+      "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+      "pineVersion": "30.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "BANKNIFTY"
+        },
+        {
+          "id": "in_1",
+          "value": "29-Sep-2026"
+        },
+        {
+          "id": "in_2",
+          "value": 500
+        },
+        {
+          "id": "in_3",
+          "value": 4
+        },
+        {
+          "id": "in_4",
+          "value": 60
+        },
+        {
+          "id": "in_5",
+          "value": "54000:909:29317:-163:143,55000:3830:24557:-87:-2603,55500:14934:23056:342:2010,55600:9981:11560:800:5354,56000:33835:22475:1027:-39,56500:37472:17727:-1616:-2772,57000:45778:15006:-5301:-3455,57500:65343:39608:1650:-821,58000:47870:16598:-4550:-3368,58500:25748:4702:-4247:-174,spot:55580.4,pcr:0.79,mp:56500"
+        },
+        {
+          "id": "in_6",
+          "value": true
+        },
+        {
+          "id": "in_7",
+          "value": 10
+        },
+        {
+          "id": "in_8",
+          "value": 3
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": "Middle right"
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": 15
+        },
+        {
+          "id": "in_14",
+          "value": true
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": true
+        },
+        {
+          "id": "in_17",
+          "value": true
+        },
+        {
+          "id": "in_18",
+          "value": 6
+        },
+        {
+          "id": "in_19",
+          "value": 12
+        },
+        {
+          "id": "in_20",
+          "value": true
+        }
+      ]
+    }
+  ]
+}
