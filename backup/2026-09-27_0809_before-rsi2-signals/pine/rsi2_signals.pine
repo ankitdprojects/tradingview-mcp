@@ -1,0 +1,151 @@
+//@version=6
+indicator("RSI2 Signals", overlay=true, max_labels_count=300, max_lines_count=300)
+
+// ── RSI-2 mean reversion (Larry Connors) ─────────────────────────────────
+// BUY  = 2-period RSI below the oversold level while price is above the trend SMA (a dip inside an uptrend).
+// SELL = 2-period RSI above the overbought level while price is below the trend SMA (a pop inside a downtrend).
+// Exit = close back across the short exit SMA (Connors' rule), or T3, or SL.
+// Works on every timeframe. One trade at a time: no new signal until the open one is closed.
+// The panel counts every closed signal on the loaded history: a WIN is T1 reached before SL,
+// or an exit-SMA close in profit; a LOSS is SL first, or an exit-SMA close at a loss.
+
+grpS = "Signal"
+rsiLen   = input.int(2, "RSI length", minval=2, maxval=10, group=grpS)
+osLvl    = input.float(10, "Oversold level (BUY below)", minval=1, maxval=40, step=1, group=grpS)
+obLvl    = input.float(90, "Overbought level (SELL above)", minval=60, maxval=99, step=1, group=grpS)
+useTrend = input.bool(true, "Trade only with the trend SMA", group=grpS)
+trendLen = input.int(200, "Trend SMA length", minval=20, group=grpS)
+exitLen  = input.int(5, "Exit SMA length", minval=2, group=grpS)
+optBuyOnly = input.bool(true, "On option (CE / PE) charts show BUY only (option buyer)", group=grpS)
+showMa   = input.bool(true, "Plot trend and exit SMA", group=grpS)
+
+grpT = "Targets"
+t1Atr   = input.float(1.0, "T1 (x ATR)", minval=0.1, step=0.25, group=grpT)
+t2Atr   = input.float(2.0, "T2 (x ATR)", minval=0.1, step=0.25, group=grpT)
+t3Atr   = input.float(3.0, "T3 (x ATR)", minval=0.1, step=0.25, group=grpT)
+slAtr   = input.float(2.0, "SL (x ATR)", minval=0.1, step=0.25, group=grpT)
+maxLive = input.int(2, "Max trades kept on screen", minval=1, maxval=10, group=grpT)
+showLbl = input.bool(true, "Show BUY / SELL text labels", group=grpT)
+lblGap  = input.float(0.8, "Label distance from candle (ATR x)", step=0.2, group=grpT)
+showStats = input.bool(true, "Show win-rate panel", group=grpT)
+statPos = input.string("Bottom left", "Panel position", options=["Bottom left", "Bottom right", "Top left", "Top right"], group=grpT)
+
+r      = ta.rsi(close, rsiLen)
+trend  = ta.sma(close, trendLen)
+exitMa = ta.sma(close, exitLen)
+atr14  = ta.atr(14)
+isOpt  = str.match(syminfo.ticker, "[0-9]{6}[CP][0-9]+") != ""
+
+plot(showMa ? trend : na,  "Trend SMA", color=color.new(#2962ff, 0), linewidth=2)
+plot(showMa ? exitMa : na, "Exit SMA",  color=color.new(#ffb300, 30), linewidth=1)
+
+// ── Trade state (one at a time) ──────────────────────────────────────────
+var int   dir = 0            // 1 long, -1 short, 0 flat
+var float ePx = na
+var int   eBar = na
+var bool  t1Done = false
+var int   nTr = 0
+var int   nWin = 0
+
+ready   = not na(trend) and not na(atr14)
+trendUp = not useTrend or close > trend
+trendDn = not useTrend or close < trend
+buy  = barstate.isconfirmed and ready and dir == 0 and r < osLvl and trendUp
+sell = barstate.isconfirmed and ready and dir == 0 and r > obLvl and trendDn and not (optBuyOnly and isOpt)
+
+plotshape(buy,  "RSI2 BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
+plotshape(sell, "RSI2 SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
+if showLbl and buy
+    label.new(bar_index, low - atr14 * lblGap, "BUY\nRSI2", style=label.style_label_up, color=color.new(#00c853, 0), textcolor=color.black, size=size.small, tooltip="RSI-2 oversold dip in an uptrend")
+if showLbl and sell
+    label.new(bar_index, high + atr14 * lblGap, "SELL\nRSI2", style=label.style_label_down, color=color.new(#ff1744, 0), textcolor=color.white, size=size.small, tooltip="RSI-2 overbought pop in a downtrend")
+
+alertcondition(buy,  "RSI2 BUY",  "RSI2 Signals: BUY {{ticker}} @ {{close}}")
+alertcondition(sell, "RSI2 SELL", "RSI2 Signals: SELL {{ticker}} @ {{close}}")
+
+// 4 lines + 4 labels per trade, stored flat in draw order: T1, T2, T3, SL. The open trade is the last 4.
+var line[]  tsLn = array.new_line()
+var label[] tsLb = array.new_label()
+var float[] tsPx = array.new_float()
+
+mark(float px, string tag, color c, int w) =>
+    array.push(tsLn, line.new(bar_index, px, bar_index + 1, px, color=c, style=line.style_dotted, width=w))
+    array.push(tsLb, label.new(bar_index + 1, px, tag + " " + str.tostring(px, format.mintick), style=label.style_label_left, color=color.new(c, 100), textcolor=c, size=size.small))
+    array.push(tsPx, px)
+
+openTrade(bool isLong) =>
+    col = isLong ? #00c853 : #ff1744
+    d   = isLong ? 1 : -1
+    mark(close + d * atr14 * t1Atr, "T1", color.new(col, 0), 2)
+    mark(close + d * atr14 * t2Atr, "T2", color.new(col, 30), 1)
+    mark(close + d * atr14 * t3Atr, "T3", color.new(col, 50), 1)
+    mark(close - d * atr14 * slAtr, "SL", color.new(#ff1744, 0), 2)
+    if array.size(tsPx) > maxLive * 4
+        for k = 1 to 4
+            line.delete(array.shift(tsLn))
+            label.delete(array.shift(tsLb))
+            array.shift(tsPx)
+
+if buy or sell
+    openTrade(buy)
+    dir := buy ? 1 : -1
+    ePx := close
+    eBar := bar_index
+    t1Done := false
+
+exitNote(bool win) =>
+    label.new(bar_index, close, "Exit " + str.tostring(close, format.mintick) + (win ? " ✓" : " ✗"), style=dir == 1 ? label.style_label_lower_left : label.style_label_upper_left, color=color.new(win ? #00c853 : #ff1744, 100), textcolor=win ? #00c853 : #ff1744, size=size.small)
+
+n = array.size(tsPx)
+if dir != 0 and n >= 4 and bar_index > eBar
+    b = n - 4
+    for k = 0 to 3
+        line.set_x2(array.get(tsLn, b + k), bar_index + 1)
+        label.set_x(array.get(tsLb, b + k), bar_index + 1)
+    t1 = array.get(tsPx, b)
+    t2 = array.get(tsPx, b + 1)
+    t3 = array.get(tsPx, b + 2)
+    sl = array.get(tsPx, b + 3)
+    hitS  = dir == 1 ? low <= sl  : high >= sl
+    hitT1 = dir == 1 ? high >= t1 : low <= t1
+    hitT2 = dir == 1 ? high >= t2 : low <= t2
+    hitT3 = dir == 1 ? high >= t3 : low <= t3
+    exitX = barstate.isconfirmed and (dir == 1 ? close > exitMa : close < exitMa)
+    bool justT1 = false
+    if not t1Done
+        if hitS                                       // stop first (a bar touching both counts as a loss)
+            nTr += 1
+            label.set_text(array.get(tsLb, b + 3), "SL " + str.tostring(sl, format.mintick) + " ✗")
+            dir := 0
+        else if hitT1
+            nTr += 1
+            nWin += 1
+            t1Done := true
+            justT1 := true
+            label.set_text(array.get(tsLb, b), "T1 " + str.tostring(t1, format.mintick) + " ✓")
+        else if exitX
+            win = (close - ePx) * dir > 0
+            nTr += 1
+            nWin += win ? 1 : 0
+            exitNote(win)
+            dir := 0
+    if dir != 0 and t1Done
+        if hitT2
+            label.set_text(array.get(tsLb, b + 1), "T2 " + str.tostring(t2, format.mintick) + " ✓")
+        if hitT3
+            label.set_text(array.get(tsLb, b + 2), "T3 " + str.tostring(t3, format.mintick) + " ✓")
+            dir := 0
+        else if not justT1 and (hitS or exitX)       // already banked as a win at T1; just stop tracking
+            dir := 0
+
+// ── Win-rate panel + data-window values ──────────────────────────────────
+winPct = nTr > 0 ? 100.0 * nWin / nTr : na
+plot(nTr,    "Closed signals", display=display.data_window)
+plot(nWin,   "Wins",           display=display.data_window)
+plot(winPct, "Win %",          display=display.data_window)
+
+pos = statPos == "Bottom left" ? position.bottom_left : statPos == "Bottom right" ? position.bottom_right : statPos == "Top left" ? position.top_left : position.top_right
+var table pan = table.new(pos, 1, 1)
+if barstate.islast and showStats
+    txt = "RSI2  " + str.tostring(nTr) + " signals  ·  " + (na(winPct) ? "-" : str.tostring(winPct, "#.#") + "% win") + "  ·  TF " + timeframe.period
+    table.cell(pan, 0, 0, txt, text_color=color.white, bgcolor=color.new(na(winPct) ? #616161 : winPct >= 50 ? #1b5e20 : #b71c1c, 10), text_size=size.small)

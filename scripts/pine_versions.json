@@ -29,6 +29,12 @@
     "version": "3.0",
     "modified": 1788164696
   },
+  "RSI2 Signals": {
+    "file": "rsi2_signals.pine",
+    "id": "USER;06d586048b7d4821912cda89059575e6",
+    "version": "2.0",
+    "modified": 1790498279
+  },
   "Screener": {
     "file": "screener_tv.pine",
     "id": "USER;4624c915b2b849aa8b16c58c1c3c38c8",
