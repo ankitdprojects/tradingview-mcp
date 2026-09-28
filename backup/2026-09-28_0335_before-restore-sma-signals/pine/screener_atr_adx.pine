@@ -1,0 +1,28 @@
+//@version=6
+// Screener · ATR / ADX pane — companion to the Screener console.
+// Same lengths and the same 25 trend threshold as the console defaults, so the
+// pane always agrees with the table. Display-only; it does not affect signals.
+indicator("Screener ATR / ADX", shorttitle = "ATR / ADX", overlay = false, precision = 1)
+
+atrLen  = input.int(14, "ATR length", minval = 1)
+adxLen  = input.int(14, "ADX length", minval = 1)
+adxTh   = input.float(25, "ADX trend threshold", minval = 1, step = 1)
+atrMode = input.string("% of price", "ATR display", options = ["% of price", "Absolute"],
+  tooltip = "% of price keeps ATR readable on the same 0-100 scale as ADX. Absolute shows ATR in price units (the first number in the console's ATR row).")
+showDI  = input.bool(false, "Show +DI / -DI")
+
+atr = ta.atr(atrLen)
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+atrShown = atrMode == "Absolute" ? atr : atr / close * 100
+
+cGood = #26D0A0
+cWarn = #FFB020
+cAtr  = #4FC3F7
+
+plot(adx, "ADX", color = adx >= adxTh ? cGood : cWarn, linewidth = 2)
+plot(atrShown, "ATR", color = cAtr, linewidth = 2)
+plot(showDI ? diPlus  : na, "+DI", color = color.new(cGood, 50), linewidth = 1)
+plot(showDI ? diMinus : na, "-DI", color = color.new(#FF5C6C, 50), linewidth = 1)
+hline(adxTh, "ADX trend threshold", color = color.new(#787B86, 30), linestyle = hline.style_dashed)
+bgcolor(adx >= adxTh ? color.new(cGood, 92) : na, title = "Trending tint")
+ 

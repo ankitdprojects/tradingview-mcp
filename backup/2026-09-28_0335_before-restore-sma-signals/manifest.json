@@ -1,0 +1,63 @@
+{
+  "created": "2026-09-28T03:35:43.866Z",
+  "label": "before-restore-sma-signals",
+  "copied": {
+    "pine": [
+      "futures_option_bt.pine",
+      "futures_option_strategy.pine",
+      "oi_profile.pine",
+      "orb_signals.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "rsi2_signals.pine",
+      "screener.pine",
+      "screener_atr_adx.pine",
+      "screener_atr_adx_on_chart.pine",
+      "screener_tv.pine",
+      "sma_signals.pine",
+      "sma_signals_strategy.pine",
+      "sweep_sell.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_create.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "pine_sync.mjs",
+      "refresh_oi.mjs"
+    ],
+    "scratchpad": [
+      "agg_fut.mjs",
+      "agg_futopt.mjs",
+      "bt_sweep2.mjs",
+      "fut1m_table.mjs",
+      "fut_table.mjs",
+      "new_web_pine.mjs",
+      "opt1m_table.mjs",
+      "patch_v46_restore.mjs",
+      "push_web_pine.mjs",
+      "run_both_1m.ps1",
+      "run_fut.ps1",
+      "run_futopt.ps1",
+      "run_fut_1m.ps1",
+      "run_opt_1m.ps1",
+      "run_opt_resume.ps1"
+    ]
+  },
+  "chart": {
+    "symbol": "NSE:BANKNIFTY260929C55600",
+    "resolution": "1",
+    "studies": [
+      {
+        "name": "OI Profile",
+        "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+        "pineVersion": "30.0"
+      }
+    ]
+  }
+}
