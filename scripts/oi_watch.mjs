@@ -14,6 +14,31 @@ import { dirname, join } from 'path';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
+
+// Single instance: a second watcher (an old task wrapper that survived a reinstall, or a manual
+// run) would fight over the chart and the log. Exit if another oi_watch.mjs is already running.
+try {
+  if (process.platform === 'win32') {
+    // (wmic is gone on recent Windows 11 builds, so ask CIM through PowerShell)
+    const ps = `Get-CimInstance Win32_Process -Filter "name='node.exe'" | Where-Object { $_.CommandLine -match 'oi_watch\\.mjs' -and $_.ProcessId -ne ${process.pid} } | Select-Object -ExpandProperty ProcessId`;
+    const out = execSync(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`, { timeout: 15000 }).toString().trim();
+    if (out) { console.log(`oi_watch: another instance is already running (pid ${out.split(/\s+/).join(', ')}) — exiting`); process.exit(0); }
+  }
+} catch { /* could not check: run anyway */ }
+
+// Own log file (append, shared, rotated at 5 MB) when OI_LOG is set — the task wrapper used to pipe
+// stdout through Out-File, which locks the file and breaks when two wrappers run.
+if (process.env.OI_LOG) {
+  const { appendFileSync, statSync, renameSync } = await import('fs');
+  const logPath = process.env.OI_LOG;
+  const write = (s) => {
+    try { if (statSync(logPath).size > 5 * 1024 * 1024) renameSync(logPath, logPath.replace(/\.log$/, '') + '.1.log'); } catch { /* no file yet */ }
+    try { appendFileSync(logPath, s); } catch { /* disk / lock blip: drop the line */ }
+  };
+  const fmt = (a) => a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ') + '\n';
+  console.log = (...a) => write(fmt(a));
+  console.error = (...a) => write(fmt(a));
+}
 const intervalMs = (Number(process.env.OI_INTERVAL) || 60) * 1000;
 const pollMs = (Number(process.env.OI_POLL) || 5) * 1000;
 const follow = args.length === 0;
@@ -22,7 +47,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toLocaleTimeString('en-IN', { hour12: false });
 
 const runOnce = () => new Promise((resolve) => {
-  const p = spawn(process.execPath, [join(repo, 'scripts', 'refresh_oi.mjs'), ...args], { stdio: 'inherit', cwd: repo });
+  // child output goes through our logger (so it lands in the rotated log file, not a locked pipe)
+  const p = spawn(process.execPath, [join(repo, 'scripts', 'refresh_oi.mjs'), ...args], { stdio: ['ignore', 'pipe', 'pipe'], cwd: repo });
+  p.stdout.on('data', (d) => console.log(String(d).replace(/\r?\n$/, '')));
+  p.stderr.on('data', (d) => console.error(String(d).replace(/\r?\n$/, '')));
   p.on('exit', (code) => resolve(code));
   p.on('error', (e) => { console.error('spawn failed:', e.message); resolve(1); });
 });
