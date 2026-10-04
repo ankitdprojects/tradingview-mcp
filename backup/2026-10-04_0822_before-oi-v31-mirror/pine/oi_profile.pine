@@ -159,20 +159,6 @@ widthPct  = input.int(25, "Profile width (% of visible chart)", minval = 5, maxv
 showBars  = input.bool(true, "Show strike bars on the price pane",
      tooltip = "Off = only the panel, walls and max pain. Use this when the bars and " +
              "the panel feel like the same data twice.")
-// v31: Dhan / Sahi "mirror" layout (in_21, in_22 — appended so the feeder's ids stay stable).
-// One thick row per strike, the strike printed on a centre axis in the right margin, CALL OI
-// growing LEFT of the axis in red, PUT OI growing RIGHT in green (same order as the option chain
-// and the panel), OI value at each bar's end, the day's change as a thinner inner bar.
-profLayout = input.string("Mirror", "Right-margin layout", options = ["Mirror", "Stacked"],
-     tooltip = "Mirror = Dhan / Sahi style, calls left and puts right of a strike axis. " +
-             "Stacked = the older layout with the CE row above the PE row, both growing right.")
-rowPct     = input.int(45, "Mirror row thickness (% of strike step)", minval = 10, maxval = 100, step = 5,
-     tooltip = "Mirror layout only. 45% of a 100-point step = a 45-point thick row per strike. " +
-             "Lower it on a zoomed-in 1m chart, raise it on 15m and above.")
-mirrorBars = input.int(18, "Mirror half-width (bars)", minval = 4, maxval = 200,
-     tooltip = "Mirror layout only. The heaviest strike spans this many bars on its side of the axis; " +
-             "the axis sits 3 + this many bars right of the last candle. Set Chart settings > " +
-             "Canvas > Right margin to at least 2x this + 5 (default fits a 45-bar margin).")
 
 // Bars currently on screen. Scripts that read these recalculate when the
 // chart is scrolled or zoomed, so the profile re-fits itself.
@@ -290,42 +276,13 @@ if barstate.islast and bar_index != lastDrawBar
                     pcg = array.get(putChg, j)
                     ceTxt = showVals ? str.tostring(k, "#") + "  " + compact(ceOI) + (showChg and ccg != 0 ? " (" + (ccg > 0 ? "+" : "") + compact(ccg) + ")" : "") : ""
                     peTxt = showVals ? compact(peOI) + (showChg and pcg != 0 ? " (" + (pcg > 0 ? "+" : "") + compact(pcg) + ")" : "") : ""
-                    if profLayout == "Mirror"
-                        // BAR-INDEX coordinates, not time: the right margin's time axis is projected
-                        // through session gaps (after Friday's close the margin spans into next week),
-                        // so time offsets land far off screen. Bar offsets are exact in the margin and
-                        // independent of zoom: the axis is 3 + mirrorBars right of the last candle and the
-                        // heaviest strike spans mirrorBars on its side.
-                        axisB  = bar_index + 3 + mirrorBars
-                        halfB  = mirrorBars
-                        rh     = stepSz * rowPct / 200          // half of the row thickness
-                        ih     = rh * 0.35                      // inner (change) bar half thickness
-                        isWallC = array.get(callOIs, j) == array.max(callOIs)
-                        isWallP = array.get(putOIs, j)  == array.max(putOIs)
-                        ceV = showVals ? compact(ceOI) + (showChg and ccg != 0 ? " " + (ccg > 0 ? "+" : "") + compact(ccg) : "") : ""
-                        peV = showVals ? compact(peOI) + (showChg and pcg != 0 ? " " + (pcg > 0 ? "+" : "") + compact(pcg) : "") : ""
-                        if ceOI > 0
-                            ceW = math.max(1, math.round(halfB * ceOI / maxOI))
-                            array.push(bxs, box.new(axisB - ceW, k + rh, axisB, k - rh, border_color = na, bgcolor = color.new(#f23645, isWallC ? 25 : 50), text = ceV, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
-                            if showChg and ccg != 0
-                                cW = math.max(1, math.round(halfB * math.abs(ccg) / maxOI))
-                                array.push(bxs, box.new(axisB - cW, k + ih, axisB, k - ih, border_color = ccg < 0 ? #ffffff : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 0)))
-                        if peOI > 0
-                            peW = math.max(1, math.round(halfB * peOI / maxOI))
-                            array.push(bxs, box.new(axisB, k + rh, axisB + peW, k - rh, border_color = na, bgcolor = color.new(#26a69a, isWallP ? 25 : 50), text = peV, text_halign = text.align_right, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
-                            if showChg and pcg != 0
-                                pW = math.max(1, math.round(halfB * math.abs(pcg) / maxOI))
-                                array.push(bxs, box.new(axisB, k + ih, axisB + pW, k - ih, border_color = pcg < 0 ? #ffffff : na, bgcolor = pcg < 0 ? color.new(#26a69a, 100) : color.new(#26a69a, 0)))
-                        // strike on the axis (yellow when it is the strike nearest spot)
-                        nearSpot = not na(spotV) and math.abs(k - spotV) <= stepSz / 2
-                        array.push(lbs, label.new(axisB, k, str.tostring(k, "#"), style = label.style_label_center, color = color.new(#131722, 15), textcolor = nearSpot ? #ffeb3b : #ffffff, size = size.small))
-                    else if ceOI > 0
+                    if ceOI > 0
                         ceW = math.max(minMs, spanMs * ceOI / maxOI)
                         array.push(bxs, box.new(x0t, k + hd, int(x0t + ceW), k + hd * 0.12, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(#f23645, 55), text = ceTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                         if showChg and ccg != 0
                             cW = math.max(minMs, spanMs * math.abs(ccg) / maxOI)
                             array.push(bxs, box.new(x0t, k + hd * 0.8, int(x0t + cW), k + hd * 0.32, xloc = xloc.bar_time, border_color = ccg < 0 ? #f23645 : na, bgcolor = ccg < 0 ? color.new(#f23645, 100) : color.new(#f23645, 15)))
-                    if profLayout != "Mirror" and peOI > 0
+                    if peOI > 0
                         peW = math.max(minMs, spanMs * peOI / maxOI)
                         array.push(bxs, box.new(x0t, k - hd * 0.12, int(x0t + peW), k - hd, xloc = xloc.bar_time, border_color = na, bgcolor = color.new(#26a69a, 55), text = peTxt, text_halign = text.align_left, text_valign = text.align_center, text_color = #ffffff, text_size = size.tiny))
                         if showChg and pcg != 0

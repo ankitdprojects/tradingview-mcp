@@ -1,0 +1,40 @@
+{
+  "created": "2026-10-04T08:22:18.529Z",
+  "label": "before-oi-v31-mirror",
+  "copied": {
+    "pine": [
+      "futures_option_bt.pine",
+      "futures_option_strategy.pine",
+      "oi_profile.pine",
+      "orb_signals.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "rsi2_signals.pine",
+      "screener.pine",
+      "screener_atr_adx.pine",
+      "screener_atr_adx_on_chart.pine",
+      "screener_tv.pine",
+      "sma_signals.pine",
+      "sma_signals_strategy.pine",
+      "sweep_sell.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_create.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "pine_sync.mjs",
+      "refresh_oi.mjs",
+      "tv_launch.mjs"
+    ],
+    "scratchpad": []
+  },
+  "chart": {
+    "error": "JS evaluation error: Error: Value is null\n    at i (https://static.tradingview.com/static/bundles/67543.95245e215b2dbfebb088.js:6:2960)\n    at wm.model (https://static.tradingview.com/static/bundles/54252.7e3b770e8a7a79c91557.js:284:1032)\n    at bt.resolution (https://static.tradingview.com/static/bundles/4351.624c2ed5019db8eae1fe.js:42:96)\n    at <anonymous>:3:51\n    at <anonymous>:15:5"
+  }
+}
