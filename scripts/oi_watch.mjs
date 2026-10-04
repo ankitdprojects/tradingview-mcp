@@ -8,7 +8,7 @@
 // MCX republishes the chain roughly once a minute, so refreshing faster than
 // ~30s only re-downloads the same snapshot.
 // Installed as the logon task "TradingView OI Watch" (scripts/install_oi_watch.ps1).
-import { spawn } from 'child_process';
+import { spawn, spawnSync, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -47,11 +47,43 @@ async function chartSymbol() {
   } catch { return null; }
 }
 
+// TradingView opened from its normal shortcut (or restarted overnight) has no debug port, so the
+// feeder cannot reach the chart. If TradingView is running WITHOUT the port, relaunch it with the
+// port (charts are cloud-saved); at most once per OI_RELAUNCH_MIN minutes. If TradingView is not
+// running at all the user closed it — do nothing and wait quietly.
+const relaunchMs = (Number(process.env.OI_RELAUNCH_MIN) || 10) * 60000;
+let lastRelaunch = 0;
+let downNoted = false;
+async function portUp() {
+  try { const r = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`, { signal: AbortSignal.timeout(2000) }); return r.ok; } catch { return false; }
+}
+function tvRunning() {
+  try {
+    if (process.platform !== 'win32') return execSync('pgrep -f TradingView', { timeout: 5000 }).toString().trim().length > 0;
+    return /TradingView\.exe/i.test(execSync('tasklist /FI "IMAGENAME eq TradingView.exe" /NH', { timeout: 5000 }).toString());
+  } catch { return false; }
+}
+async function ensureChart() {
+  if (await portUp()) { downNoted = false; return true; }
+  if (!tvRunning()) {
+    if (!downNoted) { console.log(`[${stamp()}] TradingView is not running — waiting (open it with the "TradingView (with OI)" shortcut)`); downNoted = true; }
+    return false;
+  }
+  if (Date.now() - lastRelaunch < relaunchMs) return false;
+  lastRelaunch = Date.now();
+  console.log(`[${stamp()}] TradingView is running without the debug port — relaunching it with the port`);
+  const r = spawnSync(process.execPath, [join(repo, 'scripts', 'tv_launch.mjs')], { cwd: repo, stdio: 'inherit', timeout: 120000 });
+  if (r.status !== 0) console.error(`[${stamp()}] relaunch failed (exit ${r.status})`);
+  for (let i = 0; i < 30; i++) { await sleep(2000); if (await portUp()) return true; }
+  return false;
+}
+
 console.log(`oi_watch: refreshing every ${intervalMs / 1000}s (${follow ? 'following the chart symbol, poll ' + pollMs / 1000 + 's' : args.join(' ')}) — Ctrl+C to stop`);
 let lastSym = null;
 let lastRun = 0;
 for (;;) {
   let reason = null;
+  if (!(await ensureChart())) { await sleep(Math.max(pollMs, 15000)); continue; }
   if (follow) {
     const sym = await chartSymbol();
     if (sym && sym !== lastSym) { reason = lastSym ? `symbol ${lastSym} -> ${sym}` : `chart ${sym}`; lastSym = sym; }

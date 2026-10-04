@@ -36,6 +36,10 @@ if (!SYMBOL) {
   // big CRUDEOIL chain), stripping a continuous "1!" or an option suffix.
   const bare = tail.replace(/\d{6}[CP]\d+(\.\d+)?$/, '').replace(/1!$/, '');
   const EXACT = ['CRUDEOILM', 'CRUDEOIL', 'NATGASMINI', 'NATURALGAS', 'GOLDM', 'SILVERM', 'SILVERMIC', 'SILVER', 'COPPER', 'ZINC', 'ZINCMINI', 'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'];
+  // TradingView names BSE option contracts after the index's exchange code, not the index:
+  // BSE:BSX261001P72000 is the SENSEX 72000 PE, BSE:BKX... a BANKEX option. Before this map the
+  // feeder saw "BSX", found no chain and cleared the panel (2026-10-01).
+  const BSE_CODE = { BSX: 'SENSEX', BKX: 'BANKEX', SX50: 'SX50' };
   const ROOT_MAP = [
     ['BANKNIFTY', 'BANKNIFTY'], ['NIFTY', 'NIFTY'],
     ['GOLD', 'GOLDM'],                      // GOLDM carries gold's option liquidity, big GOLD is near-dead
@@ -46,7 +50,8 @@ if (!SYMBOL) {
   const hit = ROOT_MAP.find(([prefix]) => tail.startsWith(prefix));
   const exch = String(chartSym).split(':')[0].toUpperCase();
   const coin = exch === 'DELTAIN' ? tail.replace(/USD(T)?\.P$/, '') : null;   // DELTAIN:BTCUSD.P -> BTC
-  if (EXACT.includes(bare)) SYMBOL = bare;
+  if (exch === 'BSE' && bare in BSE_CODE) SYMBOL = BSE_CODE[bare];
+  else if (EXACT.includes(bare)) SYMBOL = bare;
   else if (hit) SYMBOL = hit[1];
   else if (exch === 'NSE' && /^[A-Z&-]+$/.test(bare)) SYMBOL = bare;   // any NSE stock: try its equity option chain
   else if (coin && ['BTC', 'ETH', 'XAUT'].includes(coin)) SYMBOL = 'DELTA:' + coin;   // Delta lists options only for these
@@ -146,20 +151,57 @@ async function fetchMcx() {
 // BSE: DerivOptionChain_IV returns the whole chain of one expiry; an empty Expiry gives the
 // nearest one (End_TimeStamp says which). Expiry arg format "24 Sep 2026". Numbers arrive as
 // strings with thousands separators.
+// BSE's Akamai edge sends header lines with leading whitespace, which Node's strict HTTP parser
+// (used by fetch) rejects intermittently as "Unexpected whitespace after header value", so the BSE
+// request goes through https.get with insecureHTTPParser (NODE_USE_ENV_PROXY applies to it too).
+// Outside market hours the API often returns a chain whose OI columns are all blank (and an empty
+// Expiry can return every expiry merged), so after the nearest expiry the next Thursdays are tried
+// until one carries OI.
+import https from 'https';
+import zlib from 'zlib';
+function bseGet(url, H) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { ...H, 'Accept-Encoding': 'gzip' }, insecureHTTPParser: true, timeout: 30000 }, (r) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => {
+        let b = Buffer.concat(chunks);
+        if (/gzip/.test(r.headers['content-encoding'] || '')) { try { b = zlib.gunzipSync(b); } catch { /* not gzip after all */ } }
+        resolve({ status: r.statusCode, text: b.toString('utf8') });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('BSE timeout')));
+    req.on('error', reject);
+  });
+}
 async function fetchBse() {
   const H = { ...HDRS, Referer: 'https://www.bseindia.com/', Origin: 'https://www.bseindia.com' };
   const num = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0;
-  const q = `Expiry=${encodeURIComponent(EXPIRY_ARG || '')}&scrip_cd=${BSE_SCRIP[SYMBOL]}&strprice=0`;
-  const res = await fetch(`https://api.bseindia.com/BseIndiaAPI/api/DerivOptionChain_IV/w?${q}`, { headers: H });
-  if (!res.ok) throw new Error(`BSE chain fetch failed: ${res.status}`);
-  const tbl = (await res.json()).Table || [];
-  if (!tbl.length) throw new Error(`BSE: empty chain for ${SYMBOL}`);
+  const fmt = (d) => `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+  const candidates = [EXPIRY_ARG || ''];
+  if (!EXPIRY_ARG) {
+    const d = new Date(); d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7));   // coming Thursday
+    for (let i = 0; i < 6; i++) { candidates.push(fmt(d)); d.setDate(d.getDate() + 7); }
+  }
+  let tbl = null, picked = null;
+  for (const exp of candidates) {
+    const q = `Expiry=${encodeURIComponent(exp)}&scrip_cd=${BSE_SCRIP[SYMBOL]}&strprice=0`;
+    const res = await bseGet(`https://api.bseindia.com/BseIndiaAPI/api/DerivOptionChain_IV/w?${q}`, H);
+    if (res.status !== 200) throw new Error(`BSE chain fetch failed: ${res.status}`);
+    let t = []; try { t = JSON.parse(res.text).Table || []; } catch { throw new Error('BSE: non-JSON chain response'); }
+    const sameExpiry = t.length && t.every(d => d.End_TimeStamp === t[0].End_TimeStamp);
+    const hasOI = t.some(d => num(d.C_Open_Interest) + num(d.Open_Interest) > 0);
+    if (t.length && sameExpiry && hasOI) { tbl = t; picked = exp; break; }
+    if (!tbl && t.length) tbl = t;                           // keep something to report if nothing better turns up
+  }
+  if (!tbl || !tbl.length) throw new Error(`BSE: empty chain for ${SYMBOL}`);
+  if (picked === null) throw new Error(`BSE: no OI in any expiry up to ${candidates[candidates.length - 1]}`);
   const rows = tbl
     .map(d => ({ strike: num(d.Strike_Price1 ?? d.Strike_Price), ce: num(d.C_Open_Interest), pe: num(d.Open_Interest), ceChg: num(d.C_Absolute_Change_OI), peChg: num(d.Absolute_Change_OI) }))
     .filter(d => d.strike > 0)
     .sort((a, b) => a.strike - b.strike);
   const spot = num(tbl[0].UlaValue);
-  const expiry = tbl[0].End_TimeStamp || EXPIRY_ARG || '';
+  const expiry = tbl[0].End_TimeStamp || picked || '';
   const gaps = {};
   for (let i = 1; i < rows.length; i++) { const g = +(rows[i].strike - rows[i - 1].strike).toFixed(2); gaps[g] = (gaps[g] || 0) + 1; }
   const step = Number(Object.entries(gaps).sort((a, b) => b[1] - a[1])[0]?.[0]) || 100;
@@ -221,7 +263,16 @@ const { expiry, spot, step, rows } = chain;
 // profile off-screen), keep the top 2N+1, and always include the strike
 // nearest to spot.
 const band = rows.filter(d => d.strike >= spot * 0.94 && d.strike <= spot * 1.06 && (d.ce + d.pe) > 0);
-if (!band.length) { console.error('No OI in band around spot — check expiry'); process.exit(1); }
+if (!band.length) {
+  // say so on the panel header instead of failing silently
+  console.error('No OI in band around spot — check expiry');
+  try {
+    const studies = await evaluate(`${CHART}.getAllStudies().map(function(s){return {id:s.id,name:s.name}})`);
+    const st = (studies || []).find(s => /oi profile/i.test(s.name));
+    if (st) await setInputs({ entity_id: st.id, inputs: { in_0: SYMBOL, in_1: `${expiry}: no OI near spot ${spot}` } });
+  } catch { /* chart unreachable */ }
+  process.exit(1);
+}
 const picked = [...band].sort((a, b) => (b.ce + b.pe) - (a.ce + a.pe)).slice(0, 2 * N_EACH + 1);
 const nearest = band.reduce((m, d) => (Math.abs(d.strike - spot) < Math.abs(m.strike - spot) ? d : m), band[0]);
 if (!picked.includes(nearest)) picked.push(nearest);
