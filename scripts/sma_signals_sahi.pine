@@ -1010,7 +1010,3 @@ if array.size(fvgB) > 0
             array.remove(fvgD, i)
         else
             box.set_right(bx, bar_index + 1)
-
-grpVW   = "VWAP"
-vwOn    = input.bool(true, "Show session VWAP", group = grpVW)
-plot(vwOn and timeframe.isintraday ? ta.vwap(hlc3) : na, "VWAP", color = #2962ff, linewidth = 2)
