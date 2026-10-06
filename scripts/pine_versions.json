@@ -59,6 +59,12 @@
     "version": "54.0",
     "modified": 1791259050
   },
+  "SMA Signals (Sahi)": {
+    "file": "sma_signals_sahi.pine",
+    "id": "USER;6b250ccafa5b4cd79d9d7c3b3ece1585",
+    "version": "1.0",
+    "modified": 1791314183
+  },
   "SMA Signals BT": {
     "file": "sma_signals_strategy.pine",
     "id": "USER;c0f252c7eb62426e8a607a3498385c1f",
