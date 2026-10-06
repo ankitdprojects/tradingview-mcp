@@ -56,8 +56,8 @@
   "SMA Signals": {
     "file": "sma_signals.pine",
     "id": "USER;f686f1a3397144a4bc31ea731b015e2b",
-    "version": "53.0",
-    "modified": 1791168451
+    "version": "54.0",
+    "modified": 1791259050
   },
   "SMA Signals BT": {
     "file": "sma_signals_strategy.pine",

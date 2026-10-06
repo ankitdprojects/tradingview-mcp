@@ -1,0 +1,53 @@
+{
+  "created": "2026-10-06T03:34:55.102Z",
+  "label": "before-v54-ema-9-15-21",
+  "copied": {
+    "pine": [
+      "futures_option_bt.pine",
+      "futures_option_strategy.pine",
+      "oi_profile.pine",
+      "orb_signals.pine",
+      "pullback_retest_strategy.pine",
+      "quad_stack.pine",
+      "rsi2_signals.pine",
+      "screener.pine",
+      "screener_atr_adx.pine",
+      "screener_atr_adx_on_chart.pine",
+      "screener_tv.pine",
+      "sma_signals.pine",
+      "sma_signals_strategy.pine",
+      "sweep_sell.pine",
+      "swing_pullback_console.pine"
+    ],
+    "tools": [
+      "backup_setup.mjs",
+      "bulk_scan.mjs",
+      "fix_pine_continuations.cjs",
+      "oi_watch.mjs",
+      "option_picker.mjs",
+      "pine_create.mjs",
+      "pine_pull.js",
+      "pine_push.js",
+      "pine_sync.mjs",
+      "refresh_oi.mjs",
+      "tv_launch.mjs"
+    ],
+    "scratchpad": []
+  },
+  "chart": {
+    "symbol": "NSE:NIFTY261006C22650",
+    "resolution": "1",
+    "studies": [
+      {
+        "name": "SMA Signals",
+        "pineId": "USER;f686f1a3397144a4bc31ea731b015e2b",
+        "pineVersion": "53.0"
+      },
+      {
+        "name": "OI Profile",
+        "pineId": "USER;1668bb101d304ef386f71ef4dbd36e34",
+        "pineVersion": "36.0"
+      }
+    ]
+  }
+}

@@ -55,8 +55,9 @@ fast  = ta.sma(close, fastLen)
 slow  = ta.sma(close, slowLen)
 trend = ta.sma(close, trendLen)
 
-// (v54) the SMA lines are plotted at the end of the script behind the "Show SMA lines" switch —
-// the 50/200 cross signals below still use fast / slow / trend exactly as before.
+plot(fast,  "Fast SMA",  color=color.new(#26a69a, 0), linewidth=2)
+plot(slow,  "Slow SMA",  color=color.new(#ef5350, 0), linewidth=2)
+plot(trend, "Trend SMA", color=color.new(#ff9800, 30), linewidth=1)
 
 // ── Major support / resistance block (v26) ───────────────────────────────
 // Major levels = confirmed pivot highs / lows on a long pivot (default 30 bars). A BUY is
@@ -628,7 +629,7 @@ emTol    = input.float(0.1, "Touch tolerance (ATR x)", step = 0.05, minval = 0, 
 emCol    = input.color(#ffeb3b, "EMA colour",                  group = grpEM)
 
 ema50    = ta.ema(close, emLen)
-// (v54) plotted at the end of the script behind the "Show the 50 EMA line" switch; the touch-and-go logic is unchanged.
+plot(emOn ? ema50 : na, "EMA 50", color = color.new(emCol, 0), linewidth = 2)
 emUp     = ema50 > ema50[emSlope]
 emDn     = ema50 < ema50[emSlope]
 emTouchL = low  <= ema50 + atr14 * emTol
@@ -1048,23 +1049,3 @@ plotshape(osEnter, "Oversold",   shape.circle, location.belowbar, color = color.
 bgcolor(obosOn and obosTint and rsi >= rsiHi ? color.new(#ff1744, 85) : obosOn and obosTint and rsi <= rsiLo ? color.new(#00c853, 85) : na, title = "OB / OS tint")
 alertcondition(obEnter, "OVERBOUGHT", "SMA Signals: RSI overbought {{ticker}} @ {{close}}")
 alertcondition(osEnter, "OVERSOLD",   "SMA Signals: RSI oversold {{ticker}} @ {{close}}")
-
-// ── Moving-average lines (v54) ───────────────────────────────────────────
-// User: "remove SMA and EMA and add 15 with 9 and 21". The SMA 50 / 200 and EMA 50 LINES are now
-// off by default (their signals keep running); EMA 9 / 15 / 21 are drawn instead — the intraday
-// pullback set: 9 = trigger, 15 = shallow pullback line, 21 = normal pullback line.
-// Declared last so every earlier input keeps its id (in_104..in_109).
-grpMA   = "Moving average lines"
-showSma = input.bool(false, "Show SMA 50 / 200 lines (signals still use them)", group = grpMA)
-showE50 = input.bool(false, "Show the 50 EMA line", group = grpMA)
-showEma = input.bool(true,  "Show EMA 9 / 15 / 21", group = grpMA)
-emaA    = input.int(9,  "EMA 1", minval = 1, group = grpMA)
-emaB    = input.int(15, "EMA 2", minval = 1, group = grpMA)
-emaC    = input.int(21, "EMA 3", minval = 1, group = grpMA)
-plot(showSma ? fast  : na, "Fast SMA",  color = color.new(#26a69a, 0),  linewidth = 2)
-plot(showSma ? slow  : na, "Slow SMA",  color = color.new(#ef5350, 0),  linewidth = 2)
-plot(showSma ? trend : na, "Trend SMA", color = color.new(#ff9800, 30), linewidth = 1)
-plot(showE50 and emOn ? ema50 : na, "EMA 50", color = color.new(emCol, 0), linewidth = 2)
-plot(showEma ? ta.ema(close, emaA) : na, "EMA 9",  color = color.new(#ffffff, 0), linewidth = 1)
-plot(showEma ? ta.ema(close, emaB) : na, "EMA 15", color = color.new(#ffeb3b, 0), linewidth = 2)
-plot(showEma ? ta.ema(close, emaC) : na, "EMA 21", color = color.new(#ff4081, 0), linewidth = 1)
