@@ -56,14 +56,14 @@
   "SMA Signals": {
     "file": "sma_signals.pine",
     "id": "USER;f686f1a3397144a4bc31ea731b015e2b",
-    "version": "54.0",
-    "modified": 1791259050
+    "version": "55.0",
+    "modified": 1791316396
   },
   "SMA Signals (Sahi lite)": {
     "file": "sma_signals_sahi_lite.pine",
     "id": "USER;88430866abdb42d3ac7415dcf2af0b90",
-    "version": "1.0",
-    "modified": 1791315795
+    "version": "2.0",
+    "modified": 1791340602
   },
   "SMA Signals (Sahi)": {
     "file": "sma_signals_sahi.pine",
