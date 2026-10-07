@@ -1,0 +1,317 @@
+//@version=6
+indicator("Sahi Levels", overlay=true, max_labels_count=500, max_lines_count=200, max_boxes_count=100)
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+fastLen   = input.int(50,  "Fast SMA", minval=1)
+slowLen   = input.int(200, "Slow SMA", minval=2)
+useTrend  = input.bool(false, "Only trade with trend SMA")
+trendLen  = input.int(200, "Trend SMA", minval=5)
+confirm   = input.bool(true, "Close must be on the right side of both SMAs")
+showLbl   = input.bool(true, "Show BUY / SELL text labels")
+sigMinTf  = input.int(0, "Signals only on timeframes ≥ (minutes; 0 = all)", minval = 0, group = "Display")
+lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, minval = 0, group = "Display")
+trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
+// Signals are evaluated only on CLOSED bars (barstate.isconfirmed) so a label, once drawn, never disappears
+// when the live bar moves against it. A signal therefore appears at the close of its bar and then stays.
+sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed
+oneMinOnly = input.bool(false, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
+is1m      = timeframe.in_seconds() <= 60
+othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
+// ── SMAs ──────────────────────────────────────────────────────────────────
+fast  = ta.sma(close, fastLen)
+slow  = ta.sma(close, slowLen)
+trend = ta.sma(close, trendLen)
+// (levels build) shared values the removed signal sections used to provide
+atr14      = ta.atr(14)
+tgtR       = 1.5
+minStopAtr = 0.5
+
+// (v54) the SMA lines are plotted at the end of the script behind the "Show SMA lines" switch —
+// the 50/200 cross signals below still use fast / slow / trend exactly as before.
+
+// ── Fib channel (auto-anchored) ────────────────────────────────────────────
+// Like TradingView's Fib Channel drawing: a base trendline through two swing
+// points plus a width, with Fibonacci ratios drawn as parallel lines. Anchors
+// follow the trend: uptrend = base through the last two confirmed pivot lows,
+// width up to the highest high between them; downtrend = mirror. Rebuilt
+// whenever a new pivot confirms. Appended after the OB/OS block; inputs
+// earlier input ids stay stable. Costs drawings only, not an indicator slot.
+grpFC     = "Fib channel"
+showFib   = input.bool(true, "Show auto Fib channel", group = grpFC)
+fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval = 50, group = grpFC,
+    tooltip = "Larger = bigger swings and a wider, slower channel. Same idea as the S/R pivot length.")
+fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
+fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
+fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+fibOnlyOK = input.bool(true, "Show only while price respects the channel", group = grpFC,
+    tooltip = "Hidden until a ratio line has been touched and held at least N times, and " +
+            "hidden again once price closes outside the channel band or the trend flips.")
+fibMinT   = input.int(1, "Touches required before showing", minval = 1, maxval = 5, group = grpFC)
+fibTol    = input.float(0.15, "Touch tolerance (ATR x)", minval = 0.05, maxval = 1, step = 0.05, group = grpFC)
+
+fPh = ta.pivothigh(high, fibPvt, fibPvt)
+fPl = ta.pivotlow(low,  fibPvt, fibPvt)
+
+// Last two confirmed pivot lows / highs with their bar indexes.
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na   // pl2 = most recent
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na
+if not na(fPl)
+    pl1 := pl2, pl1i := pl2i
+    pl2 := fPl, pl2i := bar_index - fibPvt
+if not na(fPh)
+    ph1 := ph2, ph1i := ph2i
+    ph2 := fPh, ph2i := bar_index - fibPvt
+
+var line[]  fibLn = array.new_line()
+var label[] fibLb = array.new_label()
+fibUp = close > trend            // channel direction follows the 200 SMA
+// Channel geometry kept for the per-bar "is it being respected" test.
+var float fcX1 = na, var float fcY1 = na, var float fcSlope = na, var float fcWid = na
+var bool  fcUp = false
+var int   fcTouches = 0
+var bool  fcShown = false
+
+if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
+    // Base line: two most recent pivots on the trend side. Width: the extreme
+    // of the opposite side between them (highest high in an uptrend).
+    float bx1 = na, float by1 = na, float bx2 = na, float by2 = na, float wid = na
+    if fibUp and not na(pl1) and not na(pl2) and pl2i > pl1i
+        bx1 := pl1i, by1 := pl1, bx2 := pl2i, by2 := pl2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float hh = 0.0
+        for i = 0 to pl2i - pl1i
+            hh := math.max(hh, high[bar_index - pl1i - i])
+        // distance from the base line to the highest high, measured at its bar
+        int hhBar = pl1i
+        for i = 0 to pl2i - pl1i
+            if high[bar_index - pl1i - i] == hh
+                hhBar := pl1i + i
+        wid := hh - (by1 + slope * (hhBar - bx1))
+    else if not fibUp and not na(ph1) and not na(ph2) and ph2i > ph1i
+        bx1 := ph1i, by1 := ph1, bx2 := ph2i, by2 := ph2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float ll = 1.0e12
+        for i = 0 to ph2i - ph1i
+            ll := math.min(ll, low[bar_index - ph1i - i])
+        int llBar = ph1i
+        for i = 0 to ph2i - ph1i
+            if low[bar_index - ph1i - i] == ll
+                llBar := ph1i + i
+        wid := ll - (by1 + slope * (llBar - bx1))          // negative in a downtrend
+    if not na(wid) and wid != 0
+        while array.size(fibLn) > 0
+            line.delete(array.pop(fibLn))
+        while array.size(fibLb) > 0
+            label.delete(array.pop(fibLb))
+        slope = (by2 - by1) / (bx2 - bx1)
+        fcX1 := bx1, fcY1 := by1, fcSlope := slope, fcWid := wid
+        fcUp := fibUp, fcTouches := 0, fcShown := false
+        ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+        for r = 0 to array.size(ratios) - 1
+            k   = array.get(ratios, r)
+            off = wid * k
+            y1  = by1 + off
+            y2  = by2 + off
+            isEdge = k == 0.0 or k == 1.0
+            isMid  = k == 0.5 or k == 0.618
+            ln = line.new(int(bx1), y1, int(bx2), y2, extend = extend.right,
+                          color = color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55),
+                          width = isEdge ? fibWidth + 1 : fibWidth,
+                          style = isEdge ? line.style_solid : line.style_dotted, force_overlay = true)
+            array.push(fibLn, ln)
+            yNow = by1 + slope * (bar_index - bx1) + off
+            array.push(fibLb, label.new(bar_index + 2, yNow, str.tostring(k, "#.###"),
+                          style = label.style_label_left, color = color.new(fibCol, 100),
+                          textcolor = fibCol, size = size.tiny, force_overlay = true))
+
+// Is the channel being respected? Position of price inside the channel as a
+// ratio (0 = base line, 1 = far edge). A touch = a bar's extreme comes within
+// fibTol ATR of a ratio line and the bar closes back on the inside of it.
+// Respected = enough touches, price still inside the band, trend unchanged.
+fcBase   = not na(fcX1) ? fcY1 + fcSlope * (bar_index - fcX1) : na
+fcPosC   = not na(fcBase) and fcWid != 0 ? (close - fcBase) / fcWid : na
+fcPosH   = not na(fcBase) and fcWid != 0 ? (high  - fcBase) / fcWid : na
+fcPosL   = not na(fcBase) and fcWid != 0 ? (low   - fcBase) / fcWid : na
+fcTolR   = not na(fcWid) and fcWid != 0 ? atr14 * fibTol / math.abs(fcWid) : na
+if not na(fcPosC) and barstate.isconfirmed
+    lvls = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    bool touched = false
+    for i = 0 to array.size(lvls) - 1
+        k = array.get(lvls, i)
+        // wick reached the line (either side) and the close stayed on the "inside"
+        // (toward the middle of the channel) — a hold, not a break.
+        reached = math.min(math.abs(fcPosH - k), math.abs(fcPosL - k)) <= fcTolR
+        heldIn  = k <= 0.5 ? fcPosC >= k - fcTolR : fcPosC <= k + fcTolR
+        if reached and heldIn
+            touched := true
+    if touched
+        fcTouches += 1
+fcInside  = not na(fcPosC) and fcPosC >= -0.618 and fcPosC <= 1.618
+fcTrendOK = not na(fcPosC) and fcUp == fibUp
+fcRespect = not fibOnlyOK or (fcTouches >= fibMinT and fcInside and fcTrendOK)
+
+// Show / hide by colour so nothing is redrawn every bar. Labels ride along
+// with the latest bar so the ratio is readable at any zoom.
+if showFib and array.size(fibLb) > 0
+    for i = 0 to array.size(fibLb) - 1
+        lb = array.get(fibLb, i)
+        ln = array.get(fibLn, i)
+        x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
+        sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
+        label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+        kk = str.tonumber(label.get_text(lb))
+        isEdge = kk == 0.0 or kk == 1.0
+        isMid  = kk == 0.5 or kk == 0.618
+        line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
+        label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
+
+// ── Smart Money Concepts + liquidity sweeps (v12) ────────────────────────
+// Structure : swing highs/lows from a short pivot. Close above the last swing high =
+//             BOS (continuation) if the trend was up, CHoCH (reversal) if it was down. Mirror for lows.
+// Order block: on a bullish BOS/CHoCH the last bearish candle before the break becomes a
+//             bullish OB (box extended right until price closes below it). Mirror for bearish.
+// Liquidity : a wick beyond the previous swing high/low that CLOSES back inside = sweep of the
+//             stops resting there. Sweep of a swing LOW + close back above it = BUY (cyan-pink),
+//             sweep of a swing HIGH = SELL. Stop = the sweep wick, target 1.5R.
+grpSMC   = "Smart Money Concepts"
+smcOn    = input.bool(true, "Show structure (BOS / CHoCH)",        group = grpSMC)
+smcPiv   = input.int(5,     "Structure pivot length", minval = 2,  group = grpSMC)
+obOn     = input.bool(true, "Show order blocks",                   group = grpSMC)
+obMax    = input.int(3,     "Max order blocks kept", minval = 1, maxval = 20, group = grpSMC)
+sweepOn  = input.bool(true, "Liquidity sweep BUY / SELL",         group = grpSMC)
+sweepTr  = input.bool(false, "Sweep signals only with trend SMA", group = grpSMC)
+smcBull  = input.color(#00e5ff, "Bullish colour", group = grpSMC)
+smcBear  = input.color(#ff4081, "Bearish colour", group = grpSMC)
+
+sPh = ta.pivothigh(high, smcPiv, smcPiv)
+sPl = ta.pivotlow(low,  smcPiv, smcPiv)
+var float sH = na, var int sHbar = na, var float sL = na, var int sLbar = na   // last confirmed swings
+var float prevH = na, var float prevL = na                                  // the swing before that (liquidity)
+var int   trendDir = 0                                                     // +1 after a bullish break, -1 after bearish
+if not na(sPh)
+    prevH := sH, sH := sPh, sHbar := bar_index - smcPiv
+if not na(sPl)
+    prevL := sL, sL := sPl, sLbar := bar_index - smcPiv
+
+// Structure breaks (once per swing: the swing is consumed after the break)
+var bool hUsed = false, var bool lUsed = false
+if not na(sPh)
+    hUsed := false
+if not na(sPl)
+    lUsed := false
+brkUp = not na(sH) and not hUsed and close > sH
+brkDn = not na(sL) and not lUsed and close < sL
+var box[] obs = array.new_box()
+var bool[] obsBull = array.new_bool()
+if smcOn and brkUp
+    isChoch = trendDir < 0
+    line.new(sHbar, sH, bar_index, sH, color = color.new(smcBull, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sH, isChoch ? "CHoCH" : "BOS", style = label.style_label_down, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny)
+    trendDir := 1, hUsed := true
+    // bullish OB = last bearish candle in the leg up to this break
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] < open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBull, 60), bgcolor = color.new(smcBull, 88), extend = extend.right)), array.push(obsBull, true)
+if smcOn and brkDn
+    isChoch = trendDir > 0
+    line.new(sLbar, sL, bar_index, sL, color = color.new(smcBear, 30), style = line.style_dashed, width = 1)
+    label.new(bar_index, sL, isChoch ? "CHoCH" : "BOS", style = label.style_label_up, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny)
+    trendDir := -1, lUsed := true
+    if obOn
+        int k = 1
+        while k < 30 and not (close[k] > open[k])
+            k += 1
+        if k < 30
+            array.push(obs, box.new(bar_index - k, high[k], bar_index + 1, low[k], border_color = color.new(smcBear, 60), bgcolor = color.new(smcBear, 88), extend = extend.right)), array.push(obsBull, false)
+// mitigate / trim order blocks
+if array.size(obs) > 0
+    for i = array.size(obs) - 1 to 0
+        b = array.get(obs, i)
+        bull = array.get(obsBull, i)
+        gone = bull ? close < box.get_bottom(b) : close > box.get_top(b)
+        if gone
+            bx = array.remove(obs, i), array.remove(obsBull, i)
+            box.set_extend(bx, extend.none), box.set_right(bx, bar_index), box.set_bgcolor(bx, color.new(bull ? smcBull : smcBear, 96)), box.set_border_color(bx, color.new(bull ? smcBull : smcBear, 85))
+    while array.size(obs) > obMax
+        box.delete(array.shift(obs)), array.shift(obsBull)
+
+// Liquidity levels (v26): every confirmed swing high / low that has NOT been traded through yet is
+// where resting stops sit. Drawn as dotted lines that extend right; once swept the line stays, stops at the sweep bar and is tagged "swept".
+liqOn    = input.bool(true, "Show resting liquidity (unswept swing highs / lows)", group = grpSMC)
+liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, maxval = 10, group = grpSMC)
+// (v55) the liquidity lines are drawn at the END of the script: they now come from a longer "major"
+// pivot (own input, declared last so earlier input ids stay put) and a swept level is deleted
+// outright instead of being tagged "swept". The sweep SIGNAL below is unchanged (still smcPiv swings).
+
+alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "Sahi Levels: structure break on {{ticker}}")
+
+// ── Support / Resistance + Supertrend + ATR / ADX (v19) ──────────────────
+grpST    = "Supertrend"
+stOn     = input.bool(false, "Show Supertrend",                 group = grpST)
+stLen    = input.int(10,    "ATR length", minval = 1,          group = grpST)
+stMult   = input.float(3.0, "Multiplier", step = 0.5,          group = grpST)
+stSigOn  = input.bool(true, "BUY / SELL on Supertrend flip",  group = grpST)
+stAdxMin = input.float(20,  "Flip signal needs ADX above (0 = off)", step = 1, minval = 0, group = grpST)
+
+grpAX    = "ATR / ADX"
+axOn     = input.bool(true, "Show ATR / ADX panel",           group = grpAX)
+adxLen   = input.int(14,    "ADX length", minval = 1,          group = grpAX)
+axPos    = input.string("Top right", "Panel position", options = ["Top right", "Top left", "Bottom right", "Bottom left"], group = grpAX)
+
+// Supertrend + ADX
+[stLine, stDir] = ta.supertrend(stMult, stLen)
+[diP, diM, adx] = ta.dmi(adxLen, adxLen)
+plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
+// ATR / ADX panel (table = no plot budget used)
+var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 5, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
+if axOn and barstate.islast
+    adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
+    adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
+    table.cell(axT, 0, 0, "ATR " + str.tostring(atr14, format.mintick), text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 0, str.tostring(100 * atr14 / close, "#.##") + "%", text_color = #9598a1, text_size = size.small)
+    table.cell(axT, 0, 1, "ADX " + str.tostring(adx, "#.#"), text_color = adxCol, text_size = size.small)
+    table.cell(axT, 1, 1, adxTxt, text_color = adxCol, text_size = size.small)
+    table.cell(axT, 0, 2, "+DI " + str.tostring(diP, "#.#"), text_color = diP > diM ? #00c853 : #9598a1, text_size = size.small)
+    table.cell(axT, 1, 2, "-DI " + str.tostring(diM, "#.#"), text_color = diM > diP ? #ff1744 : #9598a1, text_size = size.small)
+    table.cell(axT, 0, 3, "Supertrend", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 3, stDir < 0 ? "UP" : "DOWN", text_color = stDir < 0 ? #00c853 : #ff1744, text_size = size.small)
+    table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
+    table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
+
+// ── Major resting liquidity (v55) ────────────────────────────────────────
+// User: "lots of liquidity lines… after swept it says swept but doesn't disappear". Levels now come from
+// a longer pivot (default 15 bars each side = the swing highs / lows that matter), only the newest
+// liqKeep per side are kept, and a level is DELETED the bar price trades through it.
+grpLQ  = "Liquidity"
+liqPiv = input.int(15, "Major swing pivot length for liquidity lines", minval = 3, maxval = 60, group = grpLQ)
+lqPh = ta.pivothigh(high, liqPiv, liqPiv)
+lqPl = ta.pivotlow(low,  liqPiv, liqPiv)
+var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
+var label[] liqHb = array.new_label(), var label[] liqLb = array.new_label()
+if liqOn and not na(lqPh) and lqPh > close
+    array.push(liqHl, line.new(bar_index - liqPiv, lqPh, bar_index + 1, lqPh, color = color.new(smcBear, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqHb, label.new(bar_index + 1, lqPh, "liquidity ▲ " + str.tostring(lqPh, format.mintick), style = label.style_label_left, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny))
+    while array.size(liqHl) > liqKeep
+        line.delete(array.shift(liqHl)), label.delete(array.shift(liqHb))
+if liqOn and not na(lqPl) and lqPl < close
+    array.push(liqLl, line.new(bar_index - liqPiv, lqPl, bar_index + 1, lqPl, color = color.new(smcBull, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqLb, label.new(bar_index + 1, lqPl, "liquidity ▼ " + str.tostring(lqPl, format.mintick), style = label.style_label_left, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny))
+    while array.size(liqLl) > liqKeep
+        line.delete(array.shift(liqLl)), label.delete(array.shift(liqLb))
+// swept = price traded through the level → the line and tag are removed
+if array.size(liqHl) > 0
+    for i = array.size(liqHl) - 1 to 0
+        if high > line.get_y1(array.get(liqHl, i)) and bar_index > line.get_x1(array.get(liqHl, i)) + liqPiv
+            line.delete(array.remove(liqHl, i)), label.delete(array.remove(liqHb, i))
+        else
+            label.set_x(array.get(liqHb, i), bar_index + 1)
+if array.size(liqLl) > 0
+    for i = array.size(liqLl) - 1 to 0
+        if low < line.get_y1(array.get(liqLl, i)) and bar_index > line.get_x1(array.get(liqLl, i)) + liqPiv
+            line.delete(array.remove(liqLl, i)), label.delete(array.remove(liqLb, i))
+        else
+            label.set_x(array.get(liqLb, i), bar_index + 1)
+

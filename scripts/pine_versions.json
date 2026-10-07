@@ -35,6 +35,18 @@
     "version": "2.0",
     "modified": 1790498279
   },
+  "Sahi Levels": {
+    "file": "sahi_levels.pine",
+    "id": "USER;728e6e2da84d4f78921cb6d419171f56",
+    "version": "1.0",
+    "modified": 1791344950
+  },
+  "Sahi Signals": {
+    "file": "sahi_signals.pine",
+    "id": "USER;40ce7ead312a4a9aa0e53fe9fd4afbba",
+    "version": "1.0",
+    "modified": 1791344764
+  },
   "Screener": {
     "file": "screener_tv.pine",
     "id": "USER;4624c915b2b849aa8b16c58c1c3c38c8",
