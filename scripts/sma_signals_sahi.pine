@@ -225,6 +225,15 @@ newTrade(bool isLong, float stopPx, float tgtPx, float t2In = na, float t3In = n
                 line.delete(array.shift(fLn)), label.delete(array.shift(fLb))
             array.shift(tPx), array.shift(t2Px), array.shift(t3Px), array.shift(sPx), array.shift(tDir)
 
+// (v55) remove trade i (its 4 main lines / tags and 4 Fib lines / tags) from the chart and the arrays
+closeTrade(int i) =>
+    line.delete(array.remove(tLn, i)), line.delete(array.remove(sLn, i)), line.delete(array.remove(t2Ln, i)), line.delete(array.remove(t3Ln, i))
+    label.delete(array.remove(tLb, i)), label.delete(array.remove(sLb, i)), label.delete(array.remove(t2Lb, i)), label.delete(array.remove(t3Lb, i))
+    array.remove(tPx, i), array.remove(t2Px, i), array.remove(t3Px, i), array.remove(sPx, i), array.remove(tDir, i)
+    if array.size(fLn) >= (i + 1) * 4
+        for k = 3 to 0
+            line.delete(array.remove(fLn, i * 4 + k)), label.delete(array.remove(fLb, i * 4 + k))
+
 if showTS
     if buy
         sp = math.min(slow, close - atr14 * minStopAtr)
@@ -248,15 +257,17 @@ if showTS
             for k = 0 to 3
                 if i * 4 + k < array.size(fLn)
                     line.set_x2(array.get(fLn, i * 4 + k), bar_index + 1), label.set_x(array.get(fLb, i * 4 + k), bar_index + 1)
+            // (v55) a finished trade — stop hit or final target reached — is wiped from the chart
+            // (all its target / stop / Fib lines and tags) instead of staying as a ✓ / ✗ mark.
             if hitS and not (buy or sell)
-                label.set_text(array.get(sLb, i), "SL " + str.tostring(sp, format.mintick) + " ✗"), array.set(tDir, i, 0)
+                closeTrade(i)
             else if not (buy or sell)
                 if hitT
                     label.set_text(array.get(tLb, i), "T1 " + str.tostring(tp, format.mintick) + " ✓")
                 if hitT2
                     label.set_text(array.get(t2Lb, i), "T2 " + str.tostring(tp2, format.mintick) + " ✓")
                 if hitT3
-                    label.set_text(array.get(t3Lb, i), "T3 " + str.tostring(tp3, format.mintick) + " ✓"), array.set(tDir, i, 0)
+                    closeTrade(i)
 
 // ── Fib channel (auto-anchored) ────────────────────────────────────────────
 // Like TradingView's Fib Channel drawing: a base trendline through two swing
@@ -471,35 +482,9 @@ if array.size(obs) > 0
 // where resting stops sit. Drawn as dotted lines that extend right; once swept the line stays, stops at the sweep bar and is tagged "swept".
 liqOn    = input.bool(true, "Show resting liquidity (unswept swing highs / lows)", group = grpSMC)
 liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, maxval = 10, group = grpSMC)
-var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
-var label[] liqHb = array.new_label(), var label[] liqLb = array.new_label()
-if liqOn and not na(sPh)
-    array.push(liqHl, line.new(bar_index - smcPiv, sPh, bar_index + 1, sPh, color = color.new(smcBear, 20), style = line.style_dotted, width = 2, extend = extend.right))
-    array.push(liqHb, label.new(bar_index + 1, sPh, "liquidity ▲ " + str.tostring(sPh, format.mintick), style = label.style_label_left, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny))
-    while array.size(liqHl) > liqKeep
-        line.delete(array.shift(liqHl)), label.delete(array.shift(liqHb))
-if liqOn and not na(sPl)
-    array.push(liqLl, line.new(bar_index - smcPiv, sPl, bar_index + 1, sPl, color = color.new(smcBull, 20), style = line.style_dotted, width = 2, extend = extend.right))
-    array.push(liqLb, label.new(bar_index + 1, sPl, "liquidity ▼ " + str.tostring(sPl, format.mintick), style = label.style_label_left, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny))
-    while array.size(liqLl) > liqKeep
-        line.delete(array.shift(liqLl)), label.delete(array.shift(liqLb))
-// swept = price traded through the level (that is the sweep the signal below looks for)
-if array.size(liqHl) > 0
-    for i = array.size(liqHl) - 1 to 0
-        if high > line.get_y1(array.get(liqHl, i)) and bar_index > line.get_x1(array.get(liqHl, i)) + smcPiv
-            ln = array.remove(liqHl, i), lb = array.remove(liqHb, i)
-            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBear, 65))
-            label.set_text(lb, "swept ▲ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBear, 40))
-        else
-            label.set_x(array.get(liqHb, i), bar_index + 1)
-if array.size(liqLl) > 0
-    for i = array.size(liqLl) - 1 to 0
-        if low < line.get_y1(array.get(liqLl, i)) and bar_index > line.get_x1(array.get(liqLl, i)) + smcPiv
-            ln = array.remove(liqLl, i), lb = array.remove(liqLb, i)
-            line.set_extend(ln, extend.none), line.set_x2(ln, bar_index), line.set_color(ln, color.new(smcBull, 65))
-            label.set_text(lb, "swept ▼ " + str.tostring(line.get_y1(ln), format.mintick)), label.set_x(lb, bar_index), label.set_textcolor(lb, color.new(smcBull, 40))
-        else
-            label.set_x(array.get(liqLb, i), bar_index + 1)
+// (v55) the liquidity lines are drawn at the END of the script: they now come from a longer "major"
+// pivot (own input, declared last so earlier input ids stay put) and a swept level is deleted
+// outright instead of being tagged "swept". The sweep SIGNAL below is unchanged (still smcPiv swings).
 
 // Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
 swTrL = not sweepTr or na(trend) or close > trend
@@ -975,6 +960,40 @@ plot(showE50 and emOn ? ema50 : na, "EMA 50", color = color.new(emCol, 0), linew
 plot(showEma ? ta.ema(close, emaA) : na, "EMA 9",  color = color.new(#ffffff, 0), linewidth = 1)
 plot(showEma ? ta.ema(close, emaB) : na, "EMA 15", color = color.new(#ffeb3b, 0), linewidth = 2)
 plot(showEma ? ta.ema(close, emaC) : na, "EMA 21", color = color.new(#ff4081, 0), linewidth = 1)
+
+// ── Major resting liquidity (v55) ────────────────────────────────────────
+// User: "lots of liquidity lines… after swept it says swept but doesn't disappear". Levels now come from
+// a longer pivot (default 15 bars each side = the swing highs / lows that matter), only the newest
+// liqKeep per side are kept, and a level is DELETED the bar price trades through it.
+grpLQ  = "Liquidity"
+liqPiv = input.int(15, "Major swing pivot length for liquidity lines", minval = 3, maxval = 60, group = grpLQ)
+lqPh = ta.pivothigh(high, liqPiv, liqPiv)
+lqPl = ta.pivotlow(low,  liqPiv, liqPiv)
+var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
+var label[] liqHb = array.new_label(), var label[] liqLb = array.new_label()
+if liqOn and not na(lqPh) and lqPh > close
+    array.push(liqHl, line.new(bar_index - liqPiv, lqPh, bar_index + 1, lqPh, color = color.new(smcBear, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqHb, label.new(bar_index + 1, lqPh, "liquidity ▲ " + str.tostring(lqPh, format.mintick), style = label.style_label_left, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny))
+    while array.size(liqHl) > liqKeep
+        line.delete(array.shift(liqHl)), label.delete(array.shift(liqHb))
+if liqOn and not na(lqPl) and lqPl < close
+    array.push(liqLl, line.new(bar_index - liqPiv, lqPl, bar_index + 1, lqPl, color = color.new(smcBull, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqLb, label.new(bar_index + 1, lqPl, "liquidity ▼ " + str.tostring(lqPl, format.mintick), style = label.style_label_left, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny))
+    while array.size(liqLl) > liqKeep
+        line.delete(array.shift(liqLl)), label.delete(array.shift(liqLb))
+// swept = price traded through the level → the line and tag are removed
+if array.size(liqHl) > 0
+    for i = array.size(liqHl) - 1 to 0
+        if high > line.get_y1(array.get(liqHl, i)) and bar_index > line.get_x1(array.get(liqHl, i)) + liqPiv
+            line.delete(array.remove(liqHl, i)), label.delete(array.remove(liqHb, i))
+        else
+            label.set_x(array.get(liqHb, i), bar_index + 1)
+if array.size(liqLl) > 0
+    for i = array.size(liqLl) - 1 to 0
+        if low < line.get_y1(array.get(liqLl, i)) and bar_index > line.get_x1(array.get(liqLl, i)) + liqPiv
+            line.delete(array.remove(liqLl, i)), label.delete(array.remove(liqLb, i))
+        else
+            label.set_x(array.get(liqLb, i), bar_index + 1)
 
 // ── Fair value gaps + session VWAP (Sahi build) ──────────────────────────
 // FVG: a three-candle gap. Bullish = this bar's low above the high two bars back (price jumped up and
