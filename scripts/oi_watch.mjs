@@ -21,7 +21,7 @@ try {
   if (process.platform === 'win32') {
     // (wmic is gone on recent Windows 11 builds, so ask CIM through PowerShell)
     const ps = `Get-CimInstance Win32_Process -Filter "name='node.exe'" | Where-Object { $_.CommandLine -match 'oi_watch\\.mjs' -and $_.ProcessId -ne ${process.pid} } | Select-Object -ExpandProperty ProcessId`;
-    const out = execSync(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`, { timeout: 15000 }).toString().trim();
+    const out = execSync(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`, { timeout: 15000, windowsHide: true }).toString().trim();
     if (out) { console.log(`oi_watch: another instance is already running (pid ${out.split(/\s+/).join(', ')}) — exiting`); process.exit(0); }
   }
 } catch { /* could not check: run anyway */ }
@@ -48,7 +48,7 @@ const stamp = () => new Date().toLocaleTimeString('en-IN', { hour12: false });
 
 const runOnce = () => new Promise((resolve) => {
   // child output goes through our logger (so it lands in the rotated log file, not a locked pipe)
-  const p = spawn(process.execPath, [join(repo, 'scripts', 'refresh_oi.mjs'), ...args], { stdio: ['ignore', 'pipe', 'pipe'], cwd: repo });
+  const p = spawn(process.execPath, [join(repo, 'scripts', 'refresh_oi.mjs'), ...args], { stdio: ['ignore', 'pipe', 'pipe'], cwd: repo, windowsHide: true });
   p.stdout.on('data', (d) => console.log(String(d).replace(/\r?\n$/, '')));
   p.stderr.on('data', (d) => console.error(String(d).replace(/\r?\n$/, '')));
   p.on('exit', (code) => resolve(code));
@@ -88,7 +88,7 @@ async function portUp() {
 function tvRunning() {
   try {
     if (process.platform !== 'win32') return execSync('pgrep -f TradingView', { timeout: 5000 }).toString().trim().length > 0;
-    return /TradingView\.exe/i.test(execSync('tasklist /FI "IMAGENAME eq TradingView.exe" /NH', { timeout: 5000 }).toString());
+    return /TradingView\.exe/i.test(execSync('tasklist /FI "IMAGENAME eq TradingView.exe" /NH', { timeout: 5000, windowsHide: true }).toString());
   } catch { return false; }
 }
 async function ensureChart() {
@@ -100,11 +100,19 @@ async function ensureChart() {
   if (Date.now() - lastRelaunch < relaunchMs) return false;
   lastRelaunch = Date.now();
   console.log(`[${stamp()}] TradingView is running without the debug port — relaunching it with the port`);
-  const r = spawnSync(process.execPath, [join(repo, 'scripts', 'tv_launch.mjs')], { cwd: repo, stdio: 'inherit', timeout: 120000 });
+  const r = spawnSync(process.execPath, [join(repo, 'scripts', 'tv_launch.mjs')], { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000, windowsHide: true });
+  if (r.stdout && r.stdout.length) console.log(String(r.stdout).trim());
+  if (r.stderr && r.stderr.length) console.error(String(r.stderr).trim());
   if (r.status !== 0) console.error(`[${stamp()}] relaunch failed (exit ${r.status})`);
   for (let i = 0; i < 30; i++) { await sleep(2000); if (await portUp()) return true; }
   return false;
 }
+
+// Log why the process ends (the wrapper restarts it after 10 s, so silent exits were invisible).
+process.on('uncaughtException', (e) => { console.error(`[${stamp()}] oi_watch crashed: ${e && e.stack || e}`); process.exit(1); });
+process.on('unhandledRejection', (e) => { console.error(`[${stamp()}] oi_watch unhandled rejection: ${e && e.stack || e}`); });
+process.on('exit', (code) => { try { console.log(`[${stamp()}] oi_watch exiting with code ${code}`); } catch { /* */ } });
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) { try { process.on(sig, () => { console.log(`[${stamp()}] oi_watch got ${sig}`); process.exit(0); }); } catch { /* not on this platform */ } }
 
 console.log(`oi_watch: refreshing every ${intervalMs / 1000}s (${follow ? 'following the chart symbol, poll ' + pollMs / 1000 + 's' : args.join(' ')}) — Ctrl+C to stop`);
 let lastSym = null;

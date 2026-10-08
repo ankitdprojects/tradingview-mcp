@@ -11,8 +11,10 @@ $iconPath = if ($icon -and (Test-Path (Join-Path $icon 'TradingView.exe'))) { Jo
 
 $sh = New-Object -ComObject WScript.Shell
 $s = $sh.CreateShortcut($lnk)
-$s.TargetPath = 'powershell.exe'
-$s.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"Set-Location '$repo'; & '$node' scripts/tv_launch.mjs --if-needed`""
+# wscript + run_hidden.vbs: no console window at all (plain powershell -WindowStyle Hidden still flashes one)
+$inner = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $(Join-Path $repo 'scripts\tv_launch_shortcut.ps1')"
+$s.TargetPath = 'wscript.exe'
+$s.Arguments = "`"$(Join-Path $repo 'scripts\run_hidden.vbs')`" `"$inner`""
 $s.WorkingDirectory = $repo
 $s.IconLocation = "$iconPath,0"
 $s.Description = 'TradingView Desktop with the debug port (OI Profile feed + Claude MCP)'

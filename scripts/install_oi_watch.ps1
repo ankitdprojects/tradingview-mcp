@@ -14,7 +14,12 @@ $task = 'TradingView OI Watch'
 # it ("The process cannot access the file ... being used by another process", 2026-10-04).
 $cmd = "`$ErrorActionPreference='Continue'; Set-Location '$repo'; `$env:OI_LOG='$log'; while (`$true) { & '$node' scripts/oi_watch.mjs; Start-Sleep 10 }"
 $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand $enc"
+# Start through wscript + run_hidden.vbs (window style 0): no console window is ever created.
+# powershell -WindowStyle Hidden alone creates the console first and hides it a moment later, and
+# Task Scheduler sometimes left that window on screen (user saw a "TradingView" terminal, 2026-10-08).
+$vbs = Join-Path $repo 'scripts\run_hidden.vbs'
+$inner = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand $enc"
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" `"$inner`""
 # Two triggers: at logon, and every 5 minutes forever. The repeat one is a no-op while the
 # watcher is alive (MultipleInstances IgnoreNew) and revives it after sleep / logoff / a kill
 # (on 2026-09-25 the logon trigger alone left the task idle for two days).
