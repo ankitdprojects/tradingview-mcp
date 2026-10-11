@@ -1,0 +1,731 @@
+
+ //@version=6
+indicator("FinTecK PRO OHLC Suite", overlay=true, max_lines_count=500, max_labels_count=500)
+
+//====================================================
+// 1. DAILY SETTINGS
+//====================================================
+gD = "DAILY OHLC"
+showD = input.bool(true, "Show Daily", group=gD)
+dO = input.bool(true, "Open", inline="d1", group=gD)
+dH = input.bool(true, "High", inline="d1", group=gD)
+dL = input.bool(true, "Low", inline="d2", group=gD)
+dC = input.bool(true, "Close", inline="d2", group=gD)
+keepD = input.int(10, "Retain Days", minval=1, maxval=100, group=gD)
+
+//====================================================
+// 2. WEEKLY SETTINGS
+//====================================================
+gW = "WEEKLY OHLC"
+showW = input.bool(true, "Show Weekly", group=gW)
+wO = input.bool(true, "Open", inline="w1", group=gW)
+wH = input.bool(true, "High", inline="w1", group=gW)
+wL = input.bool(true, "Low", inline="w2", group=gW)
+wC = input.bool(true, "Close", inline="w2", group=gW)
+keepW = input.int(10, "Retain Weeks", minval=1, maxval=52, group=gW)
+
+//====================================================
+// 3. MONTHLY SETTINGS
+//====================================================
+gM = "MONTHLY OHLC"
+showM = input.bool(true, "Show Monthly", group=gM)
+mO = input.bool(true, "Open", inline="m1", group=gM)
+mH = input.bool(true, "High", inline="m1", group=gM)
+mL = input.bool(true, "Low", inline="m2", group=gM)
+mC = input.bool(true, "Close", inline="m2", group=gM)
+keepM = input.int(12, "Retain Months", minval=1, maxval=120, group=gM)
+
+//====================================================
+// 4. YEARLY SETTINGS
+//====================================================
+gY = "YEARLY OHLC"
+showY = input.bool(true, "Show Yearly", group=gY)
+yO = input.bool(true, "Open", inline="y1", group=gY)
+yH = input.bool(true, "High", inline="y1", group=gY)
+yL = input.bool(true, "Low", inline="y2", group=gY)
+yC = input.bool(true, "Close", inline="y2", group=gY)
+keepY = input.int(5, "Retain Years", minval=1, maxval=30, group=gY)
+
+//====================================================
+// 5. DISPLAY AND LABEL SETTINGS
+//====================================================
+gDisp = "DYNAMIC DISPLAY"
+
+displayMode = input.string("Nearest Levels", "Chart Display",
+     options=["Nearest Levels", "All Levels"], group=gDisp)
+
+showLabels = input.bool(true, "Show Labels", group=gDisp)
+alignLevels = input.bool(true, "Hide Lower-Priority Duplicates", group=gDisp)
+
+priorityMode = input.string("Yearly > Monthly > Weekly > Daily",
+     "Timeframe Priority",
+     options=[
+         "Yearly > Monthly > Weekly > Daily",
+         "Yearly > Monthly > Daily > Weekly",
+         "Monthly > Weekly > Daily > Yearly",
+         "Daily > Weekly > Monthly > Yearly"
+     ], group=gDisp)
+
+duplicateTolerance = input.float(5.0, "Duplicate Tolerance (Points)",
+     minval=0.0, step=0.5, group=gDisp)
+
+labelFormat = input.string("Date + TF + Level + Price", "Label Format",
+     options=[
+         "Date + TF + Level + Price",
+         "Date + Level + Price",
+         "Date + Level",
+         "Level + Price",
+         "Price Only"
+     ], group=gDisp)
+
+lineWidth = input.int(2, "Line Width", minval=1, maxval=4, group=gDisp)
+nearWidth = input.int(3, "Near-Level Width", minval=1, maxval=4, group=gDisp)
+
+lineStyleInput = input.string("Solid", "Line Style",
+     options=["Solid", "Dashed", "Dotted"], group=gDisp)
+
+labelSizeInput = input.string("Small", "Label Size",
+     options=["Tiny", "Small", "Normal"], group=gDisp)
+
+//====================================================
+// 6. AUTOMATIC LABEL SPACING
+//====================================================
+gSpacing = "AUTOMATIC LABEL SPACING"
+
+enableLabelSpacing = input.bool(true, "Enable Label Spacing", group=gSpacing)
+
+labelGapBars = input.int(5, "Minimum Horizontal Spacing (Bars)",
+     minval=1, maxval=30, group=gSpacing)
+
+maxLabelShift = input.int(30, "Maximum Horizontal Shift (Bars)",
+     minval=5, maxval=100, group=gSpacing)
+
+labelVerticalGapATR = input.float(0.25, "Vertical Collision Tolerance (ATR)",
+     minval=0.05, maxval=2.0, step=0.05, group=gSpacing)
+
+//====================================================
+// 7. PROXIMITY SETTINGS
+//====================================================
+gNear = "NEAR-PRICE HIGHLIGHT"
+
+nearMethod = input.string("ATR", "Distance Method",
+     options=["ATR", "Percentage"], group=gNear)
+
+atrLen = input.int(14, "ATR Length", minval=1, group=gNear)
+nearATR = input.float(1.5, "Highlight Within ATR",
+     minval=0.1, step=0.1, group=gNear)
+
+nearPct = input.float(0.75, "Highlight Within %",
+     minval=0.05, step=0.05, group=gNear)
+
+farTransparency = input.int(65, "Distant Line Transparency",
+     minval=0, maxval=100, group=gNear)
+
+//====================================================
+// 8. NEAREST LEVEL COUNTS
+//====================================================
+gNearCount = "NEAREST LEVEL COUNTS"
+
+dAbove = input.int(3, "Daily Above", minval=0, maxval=20, group=gNearCount)
+dBelow = input.int(3, "Daily Below", minval=0, maxval=20, group=gNearCount)
+
+wAbove = input.int(3, "Weekly Above", minval=0, maxval=20, group=gNearCount)
+wBelow = input.int(3, "Weekly Below", minval=0, maxval=20, group=gNearCount)
+
+mAbove = input.int(3, "Monthly Above", minval=0, maxval=20, group=gNearCount)
+mBelow = input.int(3, "Monthly Below", minval=0, maxval=20, group=gNearCount)
+
+yAbove = input.int(3, "Yearly Above", minval=0, maxval=20, group=gNearCount)
+yBelow = input.int(3, "Yearly Below", minval=0, maxval=20, group=gNearCount)
+
+//====================================================
+// 9. HISTORY SETTINGS
+//====================================================
+gHist = "HISTORY SETTINGS"
+
+showHistory = input.bool(false, "Show History Panel", group=gHist)
+
+historyRows = input.int(10, "History Records to Display",
+     minval=1, maxval=12, group=gHist)
+
+showBrokenOnly = input.bool(true, "Show Broken Levels Only", group=gHist)
+
+maxStored = input.int(400, "Maximum Stored Records",
+     minval=40, maxval=450, group=gHist)
+
+//====================================================
+// 10. DAILY COLOURS
+//====================================================
+gDC = "DAILY COLOURS"
+dOpenCol = input.color(color.blue, "Open", group=gDC)
+dHighCol = input.color(color.lime, "High", group=gDC)
+dLowCol = input.color(color.red, "Low", group=gDC)
+dCloseCol = input.color(color.orange, "Close", group=gDC)
+dTextCol = input.color(color.white, "Label Text", group=gDC)
+
+//====================================================
+// 11. WEEKLY COLOURS
+//====================================================
+gWC = "WEEKLY COLOURS"
+wOpenCol = input.color(color.blue, "Open", group=gWC)
+wHighCol = input.color(color.lime, "High", group=gWC)
+wLowCol = input.color(color.red, "Low", group=gWC)
+wCloseCol = input.color(color.orange, "Close", group=gWC)
+wTextCol = input.color(color.white, "Label Text", group=gWC)
+
+//====================================================
+// 12. MONTHLY COLOURS
+//====================================================
+gMC = "MONTHLY COLOURS"
+mOpenCol = input.color(color.blue, "Open", group=gMC)
+mHighCol = input.color(color.lime, "High", group=gMC)
+mLowCol = input.color(color.red, "Low", group=gMC)
+mCloseCol = input.color(color.orange, "Close", group=gMC)
+mTextCol = input.color(color.white, "Label Text", group=gMC)
+
+//====================================================
+// 13. YEARLY COLOURS
+//====================================================
+gYC = "YEARLY COLOURS"
+yOpenCol = input.color(color.blue, "Open", group=gYC)
+yHighCol = input.color(color.lime, "High", group=gYC)
+yLowCol = input.color(color.red, "Low", group=gYC)
+yCloseCol = input.color(color.orange, "Close", group=gYC)
+yTextCol = input.color(color.white, "Label Text", group=gYC)
+
+//====================================================
+// 14. HELPER FUNCTIONS
+//====================================================
+lineStyle = lineStyleInput == "Dashed" ? line.style_dashed :
+     lineStyleInput == "Dotted" ? line.style_dotted : line.style_solid
+
+labelSize = labelSizeInput == "Tiny" ? size.tiny :
+     labelSizeInput == "Normal" ? size.normal : size.small
+
+f_above(int tf) =>
+    tf == 1 ? dAbove : tf == 2 ? wAbove :
+     tf == 3 ? mAbove : yAbove
+
+f_below(int tf) =>
+    tf == 1 ? dBelow : tf == 2 ? wBelow :
+     tf == 3 ? mBelow : yBelow
+
+f_rank(int tf) =>
+    int r = 1
+
+    if priorityMode == "Yearly > Monthly > Weekly > Daily"
+        r := tf == 4 ? 4 : tf == 3 ? 3 : tf == 2 ? 2 : 1
+    else if priorityMode == "Yearly > Monthly > Daily > Weekly"
+        r := tf == 4 ? 4 : tf == 3 ? 3 : tf == 1 ? 2 : 1
+    else if priorityMode == "Monthly > Weekly > Daily > Yearly"
+        r := tf == 3 ? 4 : tf == 2 ? 3 : tf == 1 ? 2 : 1
+    else
+        r := tf == 1 ? 4 : tf == 2 ? 3 : tf == 3 ? 2 : 1
+
+    r
+
+f_labelText(string period, string level, float price, int tf) =>
+    string tfText = tf == 1 ? "D" : tf == 2 ? "W" :
+         tf == 3 ? "M" : "Y"
+
+    string px = str.tostring(price, format.mintick)
+
+    string result = labelFormat == "Date + TF + Level + Price" ?
+         period + " " + tfText + " " + level + " " + px :
+         labelFormat == "Date + Level + Price" ?
+         period + " " + level + " " + px :
+         labelFormat == "Date + Level" ?
+         period + " " + level :
+         labelFormat == "Level + Price" ?
+         level + " " + px : px
+
+    result
+
+//====================================================
+// 15. DISTANCE CALCULATION
+//====================================================
+atrValue = ta.atr(atrLen)
+
+distanceLimit = nearMethod == "ATR" ?
+     nz(atrValue, syminfo.mintick * 10) * nearATR :
+     math.abs(close) * nearPct / 100
+
+labelVerticalGap = math.max(
+     nz(atrValue, syminfo.mintick * 10) * labelVerticalGapATR,
+     syminfo.mintick)
+
+//====================================================
+// 16. PREVIOUS COMPLETED PERIOD DATA
+//====================================================
+pdO = request.security(syminfo.tickerid, "D", open[1], lookahead=barmerge.lookahead_on)
+pdH = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+pdL = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+pdC = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)
+pdT = request.security(syminfo.tickerid, "D", time[1], lookahead=barmerge.lookahead_on)
+
+pwO = request.security(syminfo.tickerid, "W", open[1], lookahead=barmerge.lookahead_on)
+pwH = request.security(syminfo.tickerid, "W", high[1], lookahead=barmerge.lookahead_on)
+pwL = request.security(syminfo.tickerid, "W", low[1], lookahead=barmerge.lookahead_on)
+pwC = request.security(syminfo.tickerid, "W", close[1], lookahead=barmerge.lookahead_on)
+pwT = request.security(syminfo.tickerid, "W", time[1], lookahead=barmerge.lookahead_on)
+
+pmO = request.security(syminfo.tickerid, "M", open[1], lookahead=barmerge.lookahead_on)
+pmH = request.security(syminfo.tickerid, "M", high[1], lookahead=barmerge.lookahead_on)
+pmL = request.security(syminfo.tickerid, "M", low[1], lookahead=barmerge.lookahead_on)
+pmC = request.security(syminfo.tickerid, "M", close[1], lookahead=barmerge.lookahead_on)
+pmT = request.security(syminfo.tickerid, "M", time[1], lookahead=barmerge.lookahead_on)
+
+pyO = request.security(syminfo.tickerid, "12M", open[1], lookahead=barmerge.lookahead_on)
+pyH = request.security(syminfo.tickerid, "12M", high[1], lookahead=barmerge.lookahead_on)
+pyL = request.security(syminfo.tickerid, "12M", low[1], lookahead=barmerge.lookahead_on)
+pyC = request.security(syminfo.tickerid, "12M", close[1], lookahead=barmerge.lookahead_on)
+pyT = request.security(syminfo.tickerid, "12M", time[1], lookahead=barmerge.lookahead_on)
+
+//====================================================
+// 17. PERIOD CHANGES
+//====================================================
+newD = timeframe.change("D")
+newW = timeframe.change("W")
+newM = timeframe.change("M")
+newY = timeframe.change("12M")
+
+//====================================================
+// 18. STORAGE ARRAYS
+//====================================================
+var array<line> lines = array.new_line()
+var array<label> labels = array.new_label()
+var array<float> prices = array.new_float()
+var array<int> kinds = array.new_int()
+var array<int> tfs = array.new_int()
+var array<int> keys = array.new_int()
+var array<string> names = array.new_string()
+var array<string> periods = array.new_string()
+var array<string> states = array.new_string()
+var array<color> colors = array.new_color()
+var array<color> textColors = array.new_color()
+
+//====================================================
+// 19. DELETE RECORD
+//====================================================
+f_remove(int idx) =>
+    line ln = array.get(lines, idx)
+    label lb = array.get(labels, idx)
+
+    if not na(ln)
+        line.delete(ln)
+
+    if not na(lb)
+        label.delete(lb)
+
+    array.remove(lines, idx)
+    array.remove(labels, idx)
+    array.remove(prices, idx)
+    array.remove(kinds, idx)
+    array.remove(tfs, idx)
+    array.remove(keys, idx)
+    array.remove(names, idx)
+    array.remove(periods, idx)
+    array.remove(states, idx)
+    array.remove(colors, idx)
+    array.remove(textColors, idx)
+
+    true
+
+//====================================================
+// 20. LIMIT RECORDS PER TIMEFRAME
+//====================================================
+f_prune(int tf, int keepCount) =>
+    array<int> periodKeys = array.new_int()
+    int n = array.size(lines)
+
+    if n > 0
+        for i = 0 to n - 1
+            if array.get(tfs, i) == tf
+                int k = array.get(keys, i)
+
+                if not array.includes(periodKeys, k)
+                    array.push(periodKeys, k)
+
+    while array.size(periodKeys) > keepCount
+        int oldest = array.get(periodKeys, 0)
+
+        for k = 1 to array.size(periodKeys) - 1
+            oldest := math.min(oldest, array.get(periodKeys, k))
+
+        int i = array.size(lines) - 1
+
+        while i >= 0
+            if array.get(tfs, i) == tf and array.get(keys, i) == oldest
+                f_remove(i)
+            i -= 1
+
+        int pos = array.indexof(periodKeys, oldest)
+
+        if pos >= 0
+            array.remove(periodKeys, pos)
+
+    true
+
+//====================================================
+// 21. CREATE OHLC LEVEL
+//====================================================
+f_add(float price, int kind, int tf, int periodKey,
+     string period, string nm, color clr, color txt) =>
+
+    if not na(price)
+        line ln = line.new(
+             bar_index, price, bar_index, price,
+             xloc=xloc.bar_index, extend=extend.none,
+             color=clr, width=lineWidth, style=lineStyle)
+
+        label lb = na
+
+        if showLabels
+            lb := label.new(
+                 bar_index + 1, price,
+                 f_labelText(period, nm, price, tf),
+                 xloc=xloc.bar_index, yloc=yloc.price,
+                 style=label.style_label_left,
+                 color=clr, textcolor=txt, size=labelSize)
+
+        array.push(lines, ln)
+        array.push(labels, lb)
+        array.push(prices, price)
+        array.push(kinds, kind)
+        array.push(tfs, tf)
+        array.push(keys, periodKey)
+        array.push(names, nm)
+        array.push(periods, period)
+        array.push(states, "ACTIVE")
+        array.push(colors, clr)
+        array.push(textColors, txt)
+
+    true
+
+//====================================================
+// 22. DAILY LEVEL CREATION
+//====================================================
+if newD and showD and not na(pdT)
+    string p = str.upper(str.format_time(pdT, "dd MMM yy", syminfo.timezone))
+
+    if dO
+        f_add(pdO, 0, 1, pdT, p, "O", dOpenCol, dTextCol)
+    if dH
+        f_add(pdH, 1, 1, pdT, p, "H", dHighCol, dTextCol)
+    if dL
+        f_add(pdL, 2, 1, pdT, p, "L", dLowCol, dTextCol)
+    if dC
+        f_add(pdC, 0, 1, pdT, p, "C", dCloseCol, dTextCol)
+
+    f_prune(1, keepD)
+
+//====================================================
+// 23. WEEKLY LEVEL CREATION
+//====================================================
+if newW and showW and not na(pwT)
+    string p = str.upper(str.format_time(pwT, "dd MMM yy", syminfo.timezone))
+
+    if wO
+        f_add(pwO, 0, 2, pwT, p, "O", wOpenCol, wTextCol)
+    if wH
+        f_add(pwH, 1, 2, pwT, p, "H", wHighCol, wTextCol)
+    if wL
+        f_add(pwL, 2, 2, pwT, p, "L", wLowCol, wTextCol)
+    if wC
+        f_add(pwC, 0, 2, pwT, p, "C", wCloseCol, wTextCol)
+
+    f_prune(2, keepW)
+
+//====================================================
+// 24. MONTHLY LEVEL CREATION
+//====================================================
+if newM and showM and not na(pmT)
+    string p = str.upper(str.format_time(pmT, "MMM yy", syminfo.timezone))
+
+    if mO
+        f_add(pmO, 0, 3, pmT, p, "O", mOpenCol, mTextCol)
+    if mH
+        f_add(pmH, 1, 3, pmT, p, "H", mHighCol, mTextCol)
+    if mL
+        f_add(pmL, 2, 3, pmT, p, "L", mLowCol, mTextCol)
+    if mC
+        f_add(pmC, 0, 3, pmT, p, "C", mCloseCol, mTextCol)
+
+    f_prune(3, keepM)
+
+//====================================================
+// 25. YEARLY LEVEL CREATION
+//====================================================
+if newY and showY and not na(pyT)
+    string p = str.format_time(pyT, "yyyy", syminfo.timezone)
+
+    if yO
+        f_add(pyO, 0, 4, pyT, p, "O", yOpenCol, yTextCol)
+    if yH
+        f_add(pyH, 1, 4, pyT, p, "H", yHighCol, yTextCol)
+    if yL
+        f_add(pyL, 2, 4, pyT, p, "L", yLowCol, yTextCol)
+    if yC
+        f_add(pyC, 0, 4, pyT, p, "C", yCloseCol, yTextCol)
+
+    f_prune(4, keepY)
+
+//====================================================
+// 26. BREAK DETECTION
+// Broken levels disappear from chart and remain in
+// storage for the optional history panel.
+//====================================================
+int total = array.size(lines)
+
+if total > 0
+    for step = 0 to total - 1
+        int i = total - 1 - step
+
+        if array.get(states, i) == "ACTIVE"
+            line ln = array.get(lines, i)
+            float price = array.get(prices, i)
+            int kind = array.get(kinds, i)
+
+            bool broken = false
+
+            if barstate.isconfirmed
+                if kind == 1
+                    broken := high > price
+                else if kind == 2
+                    broken := low < price
+                else
+                    broken := not na(close[1]) and
+                         ((close > price and close[1] <= price) or
+                          (close < price and close[1] >= price))
+
+            if broken
+                label lb = array.get(labels, i)
+
+                if not na(ln)
+                    line.delete(ln)
+
+                if not na(lb)
+                    label.delete(lb)
+
+                array.set(lines, i, na)
+                array.set(labels, i, na)
+                array.set(states, i, "BROKEN")
+            else
+                if not na(ln)
+                    line.set_x2(ln, bar_index)
+                    line.set_y2(ln, price)
+
+//====================================================
+// 27. VISIBILITY, PRIORITY AND LABEL SPACING
+//====================================================
+if barstate.islast
+    int n = array.size(lines)
+
+    if n > 0
+        for i = 0 to n - 1
+            line ln = array.get(lines, i)
+            label lb = array.get(labels, i)
+            float price = array.get(prices, i)
+            int kind = array.get(kinds, i)
+            int tf = array.get(tfs, i)
+            string nm = array.get(names, i)
+            string p = array.get(periods, i)
+            string st = array.get(states, i)
+            color clr = array.get(colors, i)
+            color txt = array.get(textColors, i)
+
+            bool enabled = tf == 1 ? showD :
+                 tf == 2 ? showW : tf == 3 ? showM : showY
+
+            bool above = price > close
+            bool below = price < close
+            int aboveRank = 1
+            int belowRank = 1
+
+            if st == "ACTIVE"
+                for j = 0 to n - 1
+                    if i != j and array.get(states, j) == "ACTIVE" and
+                         array.get(tfs, j) == tf
+                        float other = array.get(prices, j)
+
+                        if above and other > close and other < price
+                            aboveRank += 1
+
+                        if below and other < close and other > price
+                            belowRank += 1
+
+            bool withinCount = above ? aboveRank <= f_above(tf) :
+                 below ? belowRank <= f_below(tf) : true
+
+            bool near = math.abs(close - price) <= distanceLimit
+
+            bool visible = enabled and st == "ACTIVE" and
+                 (displayMode == "All Levels" or withinCount)
+
+            bool duplicate = false
+
+            if alignLevels and st == "ACTIVE" and enabled
+                for j = 0 to n - 1
+                    if i != j and array.get(states, j) == "ACTIVE"
+                        int otherTF = array.get(tfs, j)
+                        int otherKind = array.get(kinds, j)
+                        float otherPrice = array.get(prices, j)
+
+                        bool otherEnabled = otherTF == 1 ? showD :
+                             otherTF == 2 ? showW :
+                             otherTF == 3 ? showM : showY
+
+                        if otherEnabled and kind == otherKind and
+                             math.abs(price - otherPrice) <= duplicateTolerance and
+                             f_rank(otherTF) > f_rank(tf)
+                            duplicate := true
+
+            visible := visible and not duplicate
+
+            color finalColor = visible ?
+                 (near ? clr : color.new(clr, farTransparency)) :
+                 color.new(clr, 100)
+
+            if not na(ln)
+                line.set_color(ln, finalColor)
+                line.set_width(ln, near and visible ? nearWidth : lineWidth)
+                line.set_style(ln, lineStyle)
+
+            // Update the label text and style.
+            // Invisible labels are moved out of the way.
+            if not na(lb)
+                label.set_text(lb, f_labelText(p, nm, price, tf))
+                label.set_size(lb, labelSize)
+                label.set_color(lb, finalColor)
+                label.set_textcolor(lb, visible ? txt : color.new(txt, 100))
+
+                if visible
+                    int shift = 1
+
+                    if enableLabelSpacing
+                        // Count visible labels close enough vertically
+                        // to collide with this label.
+                        for j = 0 to i - 1
+                            if j >= 0
+                                string prevState = array.get(states, j)
+                                float prevPrice = array.get(prices, j)
+                                int prevTF = array.get(tfs, j)
+                                int prevKind = array.get(kinds, j)
+
+                                bool prevEnabled = prevTF == 1 ? showD :
+                                     prevTF == 2 ? showW :
+                                     prevTF == 3 ? showM : showY
+
+                                bool prevAbove = prevPrice > close
+                                bool prevBelow = prevPrice < close
+                                int prevAboveRank = 1
+                                int prevBelowRank = 1
+
+                                if prevState == "ACTIVE"
+                                    for k = 0 to n - 1
+                                        if k != j and array.get(states, k) == "ACTIVE" and
+                                             array.get(tfs, k) == prevTF
+                                            float p2 = array.get(prices, k)
+
+                                            if prevAbove and p2 > close and p2 < prevPrice
+                                                prevAboveRank += 1
+
+                                            if prevBelow and p2 < close and p2 > prevPrice
+                                                prevBelowRank += 1
+
+                                bool prevCountOK = prevAbove ?
+                                     prevAboveRank <= f_above(prevTF) :
+                                     prevBelow ? prevBelowRank <= f_below(prevTF) : true
+
+                                bool prevDuplicate = false
+
+                                if alignLevels and prevState == "ACTIVE" and prevEnabled
+                                    for k = 0 to n - 1
+                                        if k != j and array.get(states, k) == "ACTIVE"
+                                            int tf2 = array.get(tfs, k)
+                                            int kind2 = array.get(kinds, k)
+                                            float price2 = array.get(prices, k)
+
+                                            bool enabled2 = tf2 == 1 ? showD :
+                                                 tf2 == 2 ? showW :
+                                                 tf2 == 3 ? showM : showY
+
+                                            if enabled2 and prevKind == kind2 and
+                                                 math.abs(prevPrice - price2) <= duplicateTolerance and
+                                                 f_rank(tf2) > f_rank(prevTF)
+                                                prevDuplicate := true
+
+                                bool prevVisible = prevEnabled and
+                                     prevState == "ACTIVE" and
+                                     (displayMode == "All Levels" or prevCountOK) and
+                                     not prevDuplicate
+
+                                if prevVisible and
+                                     math.abs(price - prevPrice) <= labelVerticalGap
+                                    shift += labelGapBars
+
+                    shift := math.min(shift, maxLabelShift)
+                    label.set_xy(lb, bar_index + shift, price)
+                else
+                    label.set_xy(lb, bar_index + 1, price)
+
+//====================================================
+// 28. OPTIONAL HISTORY PANEL
+//====================================================
+var table history = table.new(position.top_right, 4, 13,
+     bgcolor=color.new(color.black, 10),
+     frame_color=color.gray, frame_width=1,
+     border_color=color.new(color.gray, 70), border_width=1)
+
+if barstate.islast
+    if showHistory
+        table.cell(history, 0, 0, "PERIOD",
+             bgcolor=color.rgb(35, 45, 60), text_color=color.white, text_size=size.tiny)
+        table.cell(history, 1, 0, "LEVEL",
+             bgcolor=color.rgb(35, 45, 60), text_color=color.white, text_size=size.tiny)
+        table.cell(history, 2, 0, "PRICE",
+             bgcolor=color.rgb(35, 45, 60), text_color=color.white, text_size=size.tiny)
+        table.cell(history, 3, 0, "STATUS",
+             bgcolor=color.rgb(35, 45, 60), text_color=color.white, text_size=size.tiny)
+
+        int n = array.size(lines)
+        int row = 1
+
+        if n > 0
+            for step = 0 to n - 1
+                int idx = n - 1 - step
+                string st = array.get(states, idx)
+                bool match = showBrokenOnly ? st == "BROKEN" : true
+
+                if match and row <= historyRows
+                    string p = array.get(periods, idx)
+                    string nm = array.get(names, idx)
+                    float pr = array.get(prices, idx)
+                    color clr = array.get(colors, idx)
+                    color txt = array.get(textColors, idx)
+
+                    table.cell(history, 0, row, p,
+                         text_color=color.white, text_size=size.tiny)
+                    table.cell(history, 1, row, nm,
+                         text_color=clr, text_size=size.tiny)
+                    table.cell(history, 2, row, str.tostring(pr, format.mintick),
+                         text_color=txt, text_size=size.tiny)
+                    table.cell(history, 3, row, st,
+                         text_color=st == "ACTIVE" ? color.lime : color.gray,
+                         text_size=size.tiny)
+
+                    row += 1
+
+        while row <= 12
+            for col = 0 to 3
+                table.cell(history, col, row, "")
+            row += 1
+    else
+        table.clear(history, 0, 0, 3, 12)
+
+//====================================================
+// 29. STORAGE SAFETY
+//====================================================
+if barstate.islast
+    while array.size(lines) > maxStored
+        f_remove(0)
