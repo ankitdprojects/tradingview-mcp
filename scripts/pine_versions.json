@@ -8,14 +8,14 @@
   "HTF LTF Structure": {
     "file": "htf_ltf_structure.pine",
     "id": "USER;48c92ce920854d2b91857694781a19c1",
-    "version": "1.0",
-    "modified": 1792733533
+    "version": "2.0",
+    "modified": 1792736008
   },
   "HTF LTF Structure (Sahi)": {
     "file": "htf_ltf_structure_sahi.pine",
     "id": "USER;5942c9838f324946af0dee99eb6c5460",
-    "version": "1.0",
-    "modified": 1792733541
+    "version": "2.0",
+    "modified": 1792736046
   },
   "OI Profile": {
     "file": "oi_profile.pine",

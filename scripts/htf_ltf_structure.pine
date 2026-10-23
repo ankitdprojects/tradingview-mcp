@@ -100,6 +100,138 @@ if htfLvl and htfOK and barstate.islast
         hLoLb := label.new(time, hSL, htf + " swing low " + str.tostring(hSL, format.mintick), xloc = xloc.bar_time,
              style = label.style_label_upper_left, color = color.new(bullCol, 100), textcolor = bullCol, size = size.small)
 
+// ── Trade levels: SL, TSL, S1 / S2 / S3 (v2) ─────────────────────────────
+// S1-S3 = the next three unbroken HTF swing levels in the trade direction (HTF swing highs above a BUY,
+// lows below a SELL); a missing one falls back to the previous level + 1R. SL = the last LTF swing on
+// the other side of the entry. TSL starts at SL, moves to every new LTF swing beyond it and to entry
+// once S1 is hit. The trade ends when price touches the TSL or S3; an opposite aligned signal closes
+// it and opens the new trade.
+grpT    = "Trade levels"
+trdOn   = input.bool(true, "Show SL, TSL and S1 / S2 / S3", group = grpT)
+keepOld = input.bool(false, "Keep finished trades on the chart", group = grpT)
+tgtCol  = input.color(#4caf50, "Target colour", group = grpT)
+slCol   = input.color(#f44336, "SL colour", group = grpT)
+tslCol  = input.color(#ff9800, "TSL colour", group = grpT)
+
+// Unbroken HTF swing levels: a high is dropped once the chart closes above it, a low once it closes below.
+var float[] uHi = array.new_float(), var float[] uLo = array.new_float()
+if array.size(uHi) > 0
+    for i = array.size(uHi) - 1 to 0
+        if close > array.get(uHi, i)
+            array.remove(uHi, i)
+if array.size(uLo) > 0
+    for i = array.size(uLo) - 1 to 0
+        if close < array.get(uLo, i)
+            array.remove(uLo, i)
+if htfOK and not na(hSHt) and hSHt != nz(hSHt[1]) and close < hSH
+    array.push(uHi, hSH)
+if htfOK and not na(hSLt) and hSLt != nz(hSLt[1]) and close > hSL
+    array.push(uLo, hSL)
+while array.size(uHi) > 30
+    array.shift(uHi)
+while array.size(uLo) > 30
+    array.shift(uLo)
+
+// n-th nearest level beyond px (up = above), na if there are fewer than n
+f_nth(float[] a, float px, bool up, int n) =>
+    float[] c = array.new_float()
+    for v in a
+        if up ? v > px : v < px
+            array.push(c, v)
+    array.sort(c, up ? order.ascending : order.descending)
+    array.size(c) >= n ? array.get(c, n - 1) : na
+
+var int     tDir = 0
+var float   tEn = na, var float tSL = na, var float tTSL = na
+var float[] tS   = array.new_float(3, na)
+var bool[]  tHit = array.new_bool(3, false)
+var line[]  tLn  = array.new_line()     // every line of the open trade (for wiping)
+var line[]  fixLn = array.new_line()    // entry, SL, S1, S2, S3 — extended each bar
+var label[] tLb  = array.new_label()    // their labels + TSL label (last)
+var line    tslLn = na
+string exitWhy = na
+newLow  = lSLt != nz(lSLt[1])           // a new LTF swing low / high confirmed this bar
+newHigh = lSHt != nz(lSHt[1])
+
+if trdOn and barstate.isconfirmed and tDir != 0
+    up = tDir == 1
+    // exits first, against the stop as it stood before this bar
+    if up ? low <= tTSL : high >= tTSL
+        exitWhy := tTSL == tSL ? "SL" : "TSL"
+    else if up ? high >= array.get(tS, 2) : low <= array.get(tS, 2)
+        exitWhy := "S3"
+    else if (up and sellSig) or (not up and buySig)
+        exitWhy := "Reverse"
+    if na(exitWhy)
+        for k = 0 to 2
+            if not array.get(tHit, k) and (up ? high >= array.get(tS, k) : low <= array.get(tS, k))
+                array.set(tHit, k, true)
+                label.set_text(array.get(tLb, 2 + k), "S" + str.tostring(k + 1) + " ✓ " + str.tostring(array.get(tS, k), format.mintick))
+        // trail: new LTF swing beyond the stop, and entry once S1 is hit
+        float nt = tTSL
+        if up and newLow and lSL > nt and lSL < close
+            nt := lSL
+        if not up and newHigh and lSH < nt and lSH > close
+            nt := lSH
+        if array.get(tHit, 0)
+            nt := up ? math.max(nt, tEn) : math.min(nt, tEn)
+        if nt != tTSL
+            tTSL := nt
+            line.set_x2(tslLn, bar_index)
+            tslLn := line.new(bar_index, tTSL, bar_index + 3, tTSL, color = tslCol, width = 2)
+            array.push(tLn, tslLn)
+            label.set_y(array.get(tLb, 5), tTSL), label.set_text(array.get(tLb, 5), "TSL " + str.tostring(tTSL, format.mintick))
+        for ln in fixLn
+            line.set_x2(ln, bar_index + 3)
+        line.set_x2(tslLn, bar_index + 3)
+        for lb in tLb
+            label.set_x(lb, bar_index + 3)
+    else
+        // close the trade: wipe it, or freeze it at the exit bar
+        if keepOld
+            for ln in tLn
+                line.set_x2(ln, math.min(line.get_x2(ln), bar_index))
+            for lb in tLb
+                label.delete(lb)
+            label.new(bar_index, up ? low : high, exitWhy, style = up ? label.style_label_up : label.style_label_down,
+                 color = color.new(exitWhy == "S3" ? tgtCol : slCol, 20), textcolor = color.white, size = size.tiny)
+        else
+            for ln in tLn
+                line.delete(ln)
+            for lb in tLb
+                label.delete(lb)
+        array.clear(tLn), array.clear(fixLn), array.clear(tLb)
+        tDir := 0
+
+if trdOn and tDir == 0 and (buySig or sellSig)
+    up   = buySig
+    stop = up ? lSL : lSH
+    if na(stop) or (up ? stop >= close : stop <= close)
+        stop := up ? close - atr : close + atr
+    risk = math.abs(close - stop)
+    tDir := up ? 1 : -1, tEn := close, tSL := stop, tTSL := stop
+    float prev = close
+    for k = 0 to 2
+        float s = f_nth(up ? uHi : uLo, close, up, k + 1)
+        if na(s)
+            s := up ? prev + risk : prev - risk
+        array.set(tS, k, s), array.set(tHit, k, false)
+        prev := s
+    names = array.from("Entry", "SL", "S1", "S2", "S3")
+    lvls  = array.from(tEn, tSL, array.get(tS, 0), array.get(tS, 1), array.get(tS, 2))
+    for k = 0 to 4
+        c  = k == 0 ? color.gray : k == 1 ? slCol : tgtCol
+        ln = line.new(bar_index, array.get(lvls, k), bar_index + 3, array.get(lvls, k), color = c, width = 1, style = k == 0 ? line.style_dotted : k == 1 ? line.style_dashed : line.style_solid)
+        array.push(fixLn, ln), array.push(tLn, ln)
+        array.push(tLb, label.new(bar_index + 3, array.get(lvls, k), array.get(names, k) + " " + str.tostring(array.get(lvls, k), format.mintick),
+             style = label.style_label_left, color = color.new(c, 100), textcolor = c, size = size.small))
+    tslLn := line.new(bar_index, tTSL, bar_index + 3, tTSL, color = tslCol, width = 2)
+    array.push(tLn, tslLn)
+    array.push(tLb, label.new(bar_index + 3, tTSL, "TSL " + str.tostring(tTSL, format.mintick), style = label.style_label_left,
+         color = color.new(tslCol, 100), textcolor = tslCol, size = size.small))
+
+alertcondition(not na(exitWhy), "Trade exit (SL / TSL / S3)", "HTF/LTF Structure: trade closed on {{ticker}}")
+
 // ── Table ─────────────────────────────────────────────────────────────────
 f_trTxt(int t) => t == 1 ? "Bullish" : t == -1 ? "Bearish" : "—"
 f_trCol(int t) => t == 1 ? bullCol : t == -1 ? bearCol : color.gray

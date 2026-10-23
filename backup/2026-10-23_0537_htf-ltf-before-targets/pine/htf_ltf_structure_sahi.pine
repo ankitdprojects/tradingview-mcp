@@ -1,0 +1,155 @@
+//@version=6
+indicator("HTF LTF Structure (Sahi)", "HTF/LTF Structure", overlay = true, max_labels_count = 300, max_lines_count = 200)
+
+// ── HTF / LTF structure alignment ─────────────────────────────────────────
+// Structure on each timeframe: swing highs / lows from a pivot. A close above the last swing high
+// turns the trend bullish (BOS if it already was, CHoCH if it flips), a close below the last swing
+// low turns it bearish. Each swing can be broken once.
+// Sahi build: no request.security. The HTF candles are built from the chart bars (intraday buckets
+// counted from the first bar of each day, D = calendar day, W = calendar week) and the HTF structure
+// is updated when each HTF candle closes, so it never repaints. LTF = the chart timeframe.
+// Aligned = both trends point the same way. An LTF break in the HTF direction = aligned BUY / SELL.
+
+grpH    = "Higher timeframe"
+htf     = input.string("60", "HTF (minutes, D or W)", options = ["5", "15", "30", "60", "120", "240", "D", "W"], group = grpH)
+htfLen  = input.int(3, "HTF swing pivot length", minval = 1, maxval = 20, group = grpH)
+htfLvl  = input.bool(true, "Show HTF swing high / low levels", group = grpH)
+htfFlip = input.bool(true, "Mark HTF trend flips (CHoCH)", group = grpH)
+grpL    = "Chart (LTF) structure"
+ltfLen  = input.int(5, "LTF swing pivot length", minval = 1, maxval = 30, group = grpL)
+ltfLbl  = input.bool(true, "Show LTF BOS / CHoCH", group = grpL)
+grpD    = "Display"
+sigOn   = input.bool(true, "Aligned BUY / SELL labels", group = grpD)
+bgOn    = input.bool(true, "Shade background while aligned", group = grpD)
+tblOn   = input.bool(true, "Show alignment table", group = grpD)
+bullCol = input.color(#00e5ff, "Bullish colour", group = grpD)
+bearCol = input.color(#ff4081, "Bearish colour", group = grpD)
+
+// Structure of the series it runs on: [trend, swing high, swing low, break, swing-high time, swing-low time]
+// trend +1 / -1 (0 until the first break); break +1 BOS up, +2 CHoCH up, -1 BOS down, -2 CHoCH down, 0 none.
+f_struct(int len) =>
+    var float sh = na, var float sl = na, var int shT = na, var int slT = na
+    var int   tr = 0
+    var bool  hUsed = false, var bool lUsed = false
+    ph = ta.pivothigh(high, len, len)
+    pl = ta.pivotlow(low,  len, len)
+    if not na(ph)
+        sh := ph, shT := time[len], hUsed := false
+    if not na(pl)
+        sl := pl, slT := time[len], lUsed := false
+    int brk = 0
+    if not na(sh) and not hUsed and close > sh
+        brk := tr < 0 ? 2 : 1
+        tr := 1, hUsed := true
+    else if not na(sl) and not lUsed and close < sl
+        brk := tr > 0 ? -2 : -1
+        tr := -1, lUsed := true
+    [tr, sh, sl, brk, shT, slT]
+
+// ── HTF (built from chart bars, closed candles only) ──────────────────────
+htfMin = htf == "D" ? 1440 : htf == "W" ? 10080 : int(str.tonumber(htf))
+htfOK  = htfMin * 60 > timeframe.in_seconds()
+newD = bar_index == 0 or dayofmonth != dayofmonth[1] or month != month[1] or year != year[1]
+newW = bar_index == 0 or weekofyear != weekofyear[1] or (time - time[1]) > 7 * 86400000
+var int dayStart = time
+if newD
+    dayStart := time
+bk   = math.floor((time - dayStart) / (htfMin * 60000.0))
+newH = htf == "W" ? newW : htf == "D" ? newD : (newD or bk != bk[1])
+
+var float  cH = na, var float cL = na, var float cC = na, var int cT = na   // HTF candle being built
+var float[] aH = array.new_float(), var float[] aL = array.new_float(), var int[] aT = array.new_int()
+var float hSH = na, var float hSL = na, var int hSHt = na, var int hSLt = na
+var int   hTr = 0
+var bool  hHU = false, var bool hLU = false
+if newH and not na(cH)
+    // the previous HTF candle has closed: run the same structure logic on it
+    array.push(aH, cH), array.push(aL, cL), array.push(aT, cT)
+    if array.size(aH) > 2 * htfLen + 1
+        array.shift(aH), array.shift(aL), array.shift(aT)
+    if array.size(aH) == 2 * htfLen + 1
+        float mh = array.get(aH, htfLen), float ml = array.get(aL, htfLen)
+        bool isPH = true, bool isPL = true
+        for i = 0 to 2 * htfLen
+            if i != htfLen
+                if array.get(aH, i) > mh or (i < htfLen and array.get(aH, i) == mh)
+                    isPH := false
+                if array.get(aL, i) < ml or (i < htfLen and array.get(aL, i) == ml)
+                    isPL := false
+        if isPH
+            hSH := mh, hSHt := array.get(aT, htfLen), hHU := false
+        if isPL
+            hSL := ml, hSLt := array.get(aT, htfLen), hLU := false
+    if not na(hSH) and not hHU and cC > hSH
+        hTr := 1, hHU := true
+    else if not na(hSL) and not hLU and cC < hSL
+        hTr := -1, hLU := true
+if newH or na(cH)
+    cH := high, cL := low, cT := time
+else
+    cH := math.max(cH, high), cL := math.min(cL, low)
+cC := close
+
+// ── LTF (chart) ───────────────────────────────────────────────────────────
+[lTr, lSH, lSL, lBrk, lSHt, lSLt] = f_struct(ltfLen)
+atr = ta.atr(14)
+
+if ltfLbl and barstate.isconfirmed and lBrk != 0
+    up  = lBrk > 0
+    lvl = up ? lSH : lSL
+    c   = up ? bullCol : bearCol
+    line.new(up ? lSHt : lSLt, lvl, time, lvl, xloc = xloc.bar_time, color = color.new(c, 30), style = line.style_dashed)
+    label.new(time, lvl, math.abs(lBrk) == 2 ? "CHoCH" : "BOS", xloc = xloc.bar_time, style = up ? label.style_label_down : label.style_label_up,
+         color = color.new(c, 100), textcolor = c, size = size.tiny)
+
+// ── Alignment ─────────────────────────────────────────────────────────────
+alBull  = htfOK and hTr == 1 and lTr == 1
+alBear  = htfOK and hTr == -1 and lTr == -1
+buySig  = htfOK and hTr == 1 and lBrk > 0 and barstate.isconfirmed
+sellSig = htfOK and hTr == -1 and lBrk < 0 and barstate.isconfirmed
+
+if sigOn and buySig
+    label.new(bar_index, low - atr * 0.6, "BUY", style = label.style_label_up, color = bullCol, textcolor = color.black, size = size.small,
+         tooltip = "LTF " + (lBrk == 2 ? "CHoCH" : "BOS") + " up with the " + htf + " trend bullish")
+if sigOn and sellSig
+    label.new(bar_index, high + atr * 0.6, "SELL", style = label.style_label_down, color = bearCol, textcolor = color.white, size = size.small,
+         tooltip = "LTF " + (lBrk == -2 ? "CHoCH" : "BOS") + " down with the " + htf + " trend bearish")
+
+hFlipUp = htfOK and hTr == 1 and hTr[1] == -1
+hFlipDn = htfOK and hTr == -1 and hTr[1] == 1
+if htfFlip and barstate.isconfirmed and hFlipUp
+    label.new(bar_index, low - atr * 1.4, "HTF ▲", style = label.style_none, textcolor = bullCol, size = size.small)
+if htfFlip and barstate.isconfirmed and hFlipDn
+    label.new(bar_index, high + atr * 1.4, "HTF ▼", style = label.style_none, textcolor = bearCol, size = size.small)
+
+bgcolor(bgOn and alBull ? color.new(bullCol, 92) : bgOn and alBear ? color.new(bearCol, 92) : na)
+
+// HTF swing levels: the last confirmed HTF swing high / low, extended right.
+var line  hHiLn = na, var line hLoLn = na
+var label hHiLb = na, var label hLoLb = na
+if htfLvl and htfOK and barstate.islast
+    line.delete(hHiLn), line.delete(hLoLn), label.delete(hHiLb), label.delete(hLoLb)
+    if not na(hSH) and not na(hSHt)
+        hHiLn := line.new(hSHt, hSH, time, hSH, xloc = xloc.bar_time, extend = extend.right, color = color.new(bearCol, 20), width = 2)
+        hHiLb := label.new(time, hSH, htf + " swing high " + str.tostring(hSH, format.mintick), xloc = xloc.bar_time,
+             style = label.style_label_lower_left, color = color.new(bearCol, 100), textcolor = bearCol, size = size.small)
+    if not na(hSL) and not na(hSLt)
+        hLoLn := line.new(hSLt, hSL, time, hSL, xloc = xloc.bar_time, extend = extend.right, color = color.new(bullCol, 20), width = 2)
+        hLoLb := label.new(time, hSL, htf + " swing low " + str.tostring(hSL, format.mintick), xloc = xloc.bar_time,
+             style = label.style_label_upper_left, color = color.new(bullCol, 100), textcolor = bullCol, size = size.small)
+
+// ── Table ─────────────────────────────────────────────────────────────────
+f_trTxt(int t) => t == 1 ? "Bullish" : t == -1 ? "Bearish" : "—"
+f_trCol(int t) => t == 1 ? bullCol : t == -1 ? bearCol : color.gray
+var table tb = table.new(position.top_right, 2, 3, bgcolor = color.new(color.black, 20), border_width = 1)
+if tblOn and barstate.islast
+    table.cell(tb, 0, 0, "HTF " + htf, text_color = color.white, text_size = size.small)
+    table.cell(tb, 1, 0, htfOK ? f_trTxt(hTr) : "HTF must be above chart TF", text_color = htfOK ? f_trCol(hTr) : color.orange, text_size = size.small)
+    table.cell(tb, 0, 1, "LTF " + timeframe.period, text_color = color.white, text_size = size.small)
+    table.cell(tb, 1, 1, f_trTxt(lTr), text_color = f_trCol(lTr), text_size = size.small)
+    table.cell(tb, 0, 2, "Status", text_color = color.white, text_size = size.small)
+    table.cell(tb, 1, 2, alBull ? "ALIGNED BULL" : alBear ? "ALIGNED BEAR" : "MIXED", text_color = alBull ? bullCol : alBear ? bearCol : color.gray, text_size = size.small)
+
+alertcondition(buySig,  "Aligned BUY",  "HTF/LTF Structure: aligned BUY on {{ticker}}")
+alertcondition(sellSig, "Aligned SELL", "HTF/LTF Structure: aligned SELL on {{ticker}}")
+alertcondition(hFlipUp or hFlipDn, "HTF trend flip", "HTF/LTF Structure: HTF trend flipped on {{ticker}}")
