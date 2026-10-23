@@ -38,10 +38,27 @@ type Trade
     int   tp = 0           // highest TP hit
     bool  hit = false      // closed by the TSL / SL
     float result
+    int   bar              // entry bar (backtest)
+    int   n = 0            // backtest: closed trades, wins, breakevens, losses, net points, sum of R
+    int   w = 0
+    int   be = 0
+    int   l = 0
+    float pts = 0.0
+    float rs = 0.0
+
+// backtest bookkeeping for one closed trade
+f_stat(Trade t, float res) =>
+    t.n += 1, t.pts += res, t.rs += res / t.risk
+    if math.abs(res) < syminfo.mintick / 2
+        t.be += 1
+    else if res > 0
+        t.w += 1
+    else
+        t.l += 1
 
 f_open(Trade t, int d, float e, float r) =>
     t.dir := d, t.running := true, t.entry := e, t.risk := r
-    t.sl := e - d * r, t.tsl := t.sl, t.tp := 0, t.hit := false, t.result := na
+    t.sl := e - d * r, t.tsl := t.sl, t.tp := 0, t.hit := false, t.result := na, t.bar := bar_index
 
 // One bar of management: the stop is checked first, then every target reached moves the
 // stop to the target before it.
@@ -50,6 +67,7 @@ f_manage(Trade t) =>
         d = t.dir
         if (d == 1 and low <= t.tsl) or (d == -1 and high >= t.tsl)
             t.running := false, t.hit := true, t.result := (t.tsl - t.entry) * d
+            f_stat(t, t.result)
         else
             while t.tp < 50 and (d == 1 ? high >= t.entry + (t.tp + 1) * t.risk : low <= t.entry - (t.tp + 1) * t.risk)
                 t.tp += 1
@@ -148,12 +166,15 @@ var int lastDir = 0
 var int   lDir = 0, var float lEntry = na, var float lStep = na, var float lTsl = na
 var int   lHit = 0
 var bool  lRun = false
+var int   lBar = na
+var Trade lStat = Trade.new()     // backtest counters of the ladder (risk = one step)
 var line[]  lLines = array.new_line()
 var label[] lLabs  = array.new_label()
 // manage the open ladder: stop first, then each new H level reached
 if lRun
     if (lDir == 1 and low <= lTsl) or (lDir == -1 and high >= lTsl)
         lRun := false
+        f_stat(lStat, (lTsl - lEntry) * lDir)
     else
         while lHit < 50 and (lDir == 1 ? high >= lEntry + (lHit + 1) * lStep : low <= lEntry - (lHit + 1) * lStep)
             lHit += 1
@@ -167,12 +188,15 @@ ladSell = htfClose and lastDir == 1 and newDir == -1
 if htfClose
     lastDir := newDir
 if ladBuy or ladSell
+    if lRun     // an opposite ladder signal closes the open ladder at this close (backtest)
+        f_stat(lStat, (close - lEntry) * lDir)
     for ln in lLines
         line.delete(ln)
     for lb in lLabs
         label.delete(lb)
     array.clear(lLines), array.clear(lLabs)
     lDir := ladBuy ? 1 : -1, lEntry := close, lStep := 2 * hAtr, lHit := 0, lRun := true
+    lStat.risk := lStep, lBar := bar_index
     lTsl := lEntry - lDir * lStep
     x1 = bar_index + 1, x2 = bar_index + 28
     tStr = str.format_time(time_close, "HH:mm", syminfo.timezone)
@@ -238,6 +262,46 @@ if barstate.islast
     f_row(1, "COMBO D&S", #7e57c2, tCombo)
     f_row(2, "TRENDLINE", #2196f3, tLine)
     f_row(3, "LIQ SWEEP", #00c853, tSweep)
+
+// ── Backtest (v2) ──────────────────────────────────────────────────────────────────────
+// Every engine is scored on closed trades: win = closed above entry (buy) / below (sell), breakeven =
+// closed at entry (TP1 hit, then the TSL at entry), loss = SL. On intraday charts a trade still open at
+// the last bar of the session is squared off at that close. Net points and average R (result / risk).
+grpB    = "Backtest"
+btOn    = input.bool(true, "Show backtest table", group = grpB)
+sqOff   = input.bool(true, "Square off at session close (intraday)", group = grpB)
+btPos   = input.string("Bottom Right", "Backtest table position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = grpB)
+
+f_square(Trade t) =>
+    if t.running and bar_index > t.bar
+        t.running := false, t.hit := true, t.result := (close - t.entry) * t.dir, t.tsl := close
+        f_stat(t, t.result)
+eod = sqOff and timeframe.isintraday and session.islastbar
+if eod and barstate.isconfirmed
+    f_square(tCombo), f_square(tLine), f_square(tSweep)
+    if lRun and bar_index > lBar
+        lRun := false
+        f_stat(lStat, (close - lEntry) * lDir)
+
+var table bt = table.new(f_pos(btPos), 8, 6, bgcolor = #131722, border_width = 1, border_color = #2a2e39)
+f_btRow(int r, string nm, Trade t) =>
+    dec = t.n > 0 ? t.w * 100.0 / t.n : 0.0
+    vals = array.from(nm, str.tostring(t.n), str.tostring(t.w), str.tostring(t.be), str.tostring(t.l),
+         t.n > 0 ? str.tostring(dec, "#.#") + "%" : "—", t.n > 0 ? f_pts(t.pts) : "—", t.n > 0 ? str.tostring(t.rs / t.n, "#.##") + "R" : "—")
+    for c = 0 to 7
+        table.cell(bt, c, r, array.get(vals, c), text_color = c == 5 and t.n > 0 ? (dec > 50 ? #089981 : #f23645) : color.white, text_size = size.small)
+if btOn and barstate.islast
+    hdr = array.from("BACKTEST", "Trades", "Win", "BE", "Loss", "Win %", "Net pts", "Avg R")
+    for c = 0 to 7
+        table.cell(bt, c, 0, array.get(hdr, c), bgcolor = #1e222d, text_color = color.white, text_size = size.small)
+    f_btRow(1, "COMBO D&S", tCombo)
+    f_btRow(2, "TRENDLINE", tLine)
+    f_btRow(3, "LIQ SWEEP", tSweep)
+    f_btRow(4, "H LADDER", lStat)
+    allN = tCombo.n + tLine.n + tSweep.n + lStat.n, allW = tCombo.w + tLine.w + tSweep.w + lStat.w
+    table.cell(bt, 0, 5, "ALL", text_color = color.white, text_size = size.small)
+    table.cell(bt, 1, 5, str.tostring(allN), text_color = color.white, text_size = size.small)
+    table.cell(bt, 5, 5, allN > 0 ? str.tostring(allW * 100.0 / allN, "#.#") + "%" : "—", text_color = color.white, text_size = size.small)
 
 alertcondition(lineBuy or comboBuy or sweepBuy or ladBuy, "BUY", "Diwali Rebuild: BUY on {{ticker}}")
 alertcondition(lineSell or comboSell or sweepSell or ladSell, "SELL", "Diwali Rebuild: SELL on {{ticker}}")
