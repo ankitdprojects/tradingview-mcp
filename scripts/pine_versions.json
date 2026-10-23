@@ -5,6 +5,18 @@
     "version": "7.0",
     "modified": 1790134438
   },
+  "HTF LTF Structure": {
+    "file": "htf_ltf_structure.pine",
+    "id": "USER;48c92ce920854d2b91857694781a19c1",
+    "version": "1.0",
+    "modified": 1792733533
+  },
+  "HTF LTF Structure (Sahi)": {
+    "file": "htf_ltf_structure_sahi.pine",
+    "id": "USER;5942c9838f324946af0dee99eb6c5460",
+    "version": "1.0",
+    "modified": 1792733541
+  },
   "OI Profile": {
     "file": "oi_profile.pine",
     "id": "USER;1668bb101d304ef386f71ef4dbd36e34",
