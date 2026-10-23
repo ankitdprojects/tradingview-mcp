@@ -1,0 +1,86 @@
+{
+  "symbol": "BINANCE:BTCUSDT",
+  "resolution": "5",
+  "studies": [
+    {
+      "id": "XrdcfT",
+      "name": "Diwali Rebuild",
+      "pineId": "USER;a68e2909c7de4853b41d82a72db9f1c6",
+      "pineVersion": "2.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "Top Right"
+        },
+        {
+          "id": "in_1",
+          "value": "Normal"
+        },
+        {
+          "id": "in_2",
+          "value": 5
+        },
+        {
+          "id": "in_3",
+          "value": "15"
+        },
+        {
+          "id": "in_4",
+          "value": 10
+        },
+        {
+          "id": "in_5",
+          "value": 3
+        },
+        {
+          "id": "in_6",
+          "value": 1.5
+        },
+        {
+          "id": "in_7",
+          "value": 1.8
+        },
+        {
+          "id": "in_8",
+          "value": 0.4
+        },
+        {
+          "id": "in_9",
+          "value": 3
+        },
+        {
+          "id": "in_10",
+          "value": true
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": "Bottom Right"
+        }
+      ]
+    },
+    {
+      "id": "8QTvH3",
+      "name": "FINTECK CONNOISSEUR DIWALI GIFT",
+      "pineId": "PUB;6a50e9d33bac4215865df852364e5d0e",
+      "pineVersion": "1.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": "Top Right"
+        },
+        {
+          "id": "in_1",
+          "value": "Normal"
+        },
+        {
+          "id": "in_2",
+          "value": false
+        }
+      ]
+    }
+  ]
+}

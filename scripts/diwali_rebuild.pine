@@ -303,5 +303,11 @@ if btOn and barstate.islast
     table.cell(bt, 1, 5, str.tostring(allN), text_color = color.white, text_size = size.small)
     table.cell(bt, 5, 5, allN > 0 ? str.tostring(allW * 100.0 / allN, "#.#") + "%" : "—", text_color = color.white, text_size = size.small)
 
+// (v3) hidden signal series (+1 buy / -1 sell) so every entry can be read back bar by bar for comparisons
+plot(ladBuy ? 1 : ladSell ? -1 : 0, "sig ladder", display = display.none)
+plot(lineBuy ? 1 : lineSell ? -1 : 0, "sig trendline", display = display.none)
+plot(sweepBuy ? 1 : sweepSell ? -1 : 0, "sig sweep", display = display.none)
+plot(comboBuy ? 1 : comboSell ? -1 : 0, "sig combo", display = display.none)
+
 alertcondition(lineBuy or comboBuy or sweepBuy or ladBuy, "BUY", "Diwali Rebuild: BUY on {{ticker}}")
 alertcondition(lineSell or comboSell or sweepSell or ladSell, "SELL", "Diwali Rebuild: SELL on {{ticker}}")

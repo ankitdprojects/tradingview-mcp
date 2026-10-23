@@ -1,0 +1,307 @@
+//@version=6
+indicator("Diwali Rebuild", overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+// Clean-room rebuild of what "FINTECK CONNOISSEUR DIWALI GIFT" (a protected script) shows on the chart.
+// Decoded from its drawings on 5m charts (SENSEX, NIFTY, BANKNIFTY, RELIANCE, HDFCBANK, SBIN, INFY,
+// CRUDEOIL, BTCUSDT) — these parts match the original exactly:
+//  • TRENDLINE / LIQ SWEEP / COMBO D&S: entry on the bar close, risk (1R) = ATR(14) of the chart timeframe,
+//    TP1..TP4 at 1R..4R, the TSL steps to the previous TP (TP1 hit → entry, TP2 → TP1, ...).
+//  • H ladder: entry on a 15-minute candle close, step = 2 × ATR(14) of the 15m timeframe (the chart
+//    timeframe when that is higher), SL = 1 step, H1, H2, ... one step apart, each hit tagged "Hn (+pts)".
+//  • FREAK levels: the wick extreme of an outsized candle (range about 1.8 × ATR or more).
+// The ENTRY TRIGGERS are not visible in the original's output, so the ones used here are estimates.
+
+posIn   = input.string("Top Right", "Table position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"])
+sizeIn  = input.string("Normal", "Table size", options = ["Small", "Normal", "Large"])
+grpE    = "Engines (estimated triggers)"
+pivLen  = input.int(5, "Swing pivot length (trendline, sweep)", minval = 2, group = grpE)
+ladTf   = input.timeframe("15", "Ladder timeframe", group = grpE)
+stLen   = input.int(10, "Ladder Supertrend ATR length", minval = 1, group = grpE)
+stMult  = input.float(3.0, "Ladder Supertrend factor", step = 0.5, group = grpE)
+dsK     = input.float(1.5, "COMBO D&S impulse candle (× ATR)", step = 0.1, group = grpE)
+freakK  = input.float(1.8, "FREAK candle range (× ATR)", step = 0.1, group = grpE)
+freakW  = input.float(0.4, "FREAK wick share of the candle", step = 0.05, group = grpE)
+freakMx = input.int(3, "FREAK levels kept per side", minval = 1, maxval = 10, group = grpE)
+
+atr = ta.atr(14)
+f_px(float v) => str.tostring(v, format.mintick)
+f_pts(float v) => (v >= 0 ? "+" : "") + str.tostring(math.round(v))
+
+// ── Trade engine shared by TRENDLINE / LIQ SWEEP / COMBO D&S ───────────────
+type Trade
+    int   dir = 0          // +1 buy, -1 sell, 0 never traded
+    bool  running = false
+    float entry
+    float sl
+    float risk
+    float tsl
+    int   tp = 0           // highest TP hit
+    bool  hit = false      // closed by the TSL / SL
+    float result
+    int   bar              // entry bar (backtest)
+    int   n = 0            // backtest: closed trades, wins, breakevens, losses, net points, sum of R
+    int   w = 0
+    int   be = 0
+    int   l = 0
+    float pts = 0.0
+    float rs = 0.0
+
+// backtest bookkeeping for one closed trade
+f_stat(Trade t, float res) =>
+    t.n += 1, t.pts += res, t.rs += res / t.risk
+    if math.abs(res) < syminfo.mintick / 2
+        t.be += 1
+    else if res > 0
+        t.w += 1
+    else
+        t.l += 1
+
+f_open(Trade t, int d, float e, float r) =>
+    t.dir := d, t.running := true, t.entry := e, t.risk := r
+    t.sl := e - d * r, t.tsl := t.sl, t.tp := 0, t.hit := false, t.result := na, t.bar := bar_index
+
+// One bar of management: the stop is checked first, then every target reached moves the
+// stop to the target before it.
+f_manage(Trade t) =>
+    if t.running
+        d = t.dir
+        if (d == 1 and low <= t.tsl) or (d == -1 and high >= t.tsl)
+            t.running := false, t.hit := true, t.result := (t.tsl - t.entry) * d
+            f_stat(t, t.result)
+        else
+            while t.tp < 50 and (d == 1 ? high >= t.entry + (t.tp + 1) * t.risk : low <= t.entry - (t.tp + 1) * t.risk)
+                t.tp += 1
+                t.tsl := t.entry + d * (t.tp - 1) * t.risk
+
+var Trade tCombo = Trade.new()
+var Trade tLine  = Trade.new()
+var Trade tSweep = Trade.new()
+f_manage(tCombo), f_manage(tLine), f_manage(tSweep)
+
+// ── Swings ──────────────────────────────────────────────────────────────────
+ph = ta.pivothigh(high, pivLen, pivLen)
+pl = ta.pivotlow(low, pivLen, pivLen)
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na     // ph2 = latest
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na
+if not na(ph)
+    ph1 := ph2, ph1i := ph2i, ph2 := ph, ph2i := bar_index - pivLen
+if not na(pl)
+    pl1 := pl2, pl1i := pl2i, pl2 := pl, pl2i := bar_index - pivLen
+
+// ── TRENDLINE: rejection from a falling line through the last two swing highs (SELL) or a
+//    rising line through the last two swing lows (BUY). One trade per line. ──────────────
+var bool dnUsed = false, var bool upUsed = false
+if not na(ph)
+    dnUsed := false
+if not na(pl)
+    upUsed := false
+dnOK  = not na(ph1) and ph2 < ph1
+upOK  = not na(pl1) and pl2 > pl1
+dnVal = dnOK ? ph2 + (ph2 - ph1) / (ph2i - ph1i) * (bar_index - ph2i) : na
+upVal = upOK ? pl2 + (pl2 - pl1) / (pl2i - pl1i) * (bar_index - pl2i) : na
+var line tlDn = na, var line tlUp = na
+if dnOK
+    if na(tlDn) or line.get_x1(tlDn) != ph1i
+        line.delete(tlDn)
+        tlDn := line.new(ph1i, ph1, bar_index, dnVal, color = color.new(#f23645, 0), width = 2)
+    line.set_xy2(tlDn, bar_index, dnVal)
+if upOK
+    if na(tlUp) or line.get_x1(tlUp) != pl1i
+        line.delete(tlUp)
+        tlUp := line.new(pl1i, pl1, bar_index, upVal, color = color.new(#089981, 0), width = 2)
+    line.set_xy2(tlUp, bar_index, upVal)
+lineSell = barstate.isconfirmed and dnOK and not dnUsed and not tLine.running and high >= dnVal and close < dnVal
+lineBuy  = barstate.isconfirmed and upOK and not upUsed and not tLine.running and low <= upVal and close > upVal
+if lineSell
+    f_open(tLine, -1, close, atr), dnUsed := true
+else if lineBuy
+    f_open(tLine, 1, close, atr), upUsed := true
+
+// ── LIQ SWEEP: a wick through the last swing high / low that closes back inside ─────────
+var bool phSwept = false, var bool plSwept = false
+if not na(ph)
+    phSwept := false
+if not na(pl)
+    plSwept := false
+sweepSell = barstate.isconfirmed and not na(ph2) and not phSwept and high > ph2 and close < ph2
+sweepBuy  = barstate.isconfirmed and not na(pl2) and not plSwept and low < pl2 and close > pl2
+if sweepSell
+    phSwept := true
+if sweepBuy
+    plSwept := true
+if not tSweep.running and sweepSell
+    f_open(tSweep, -1, close, atr)
+else if not tSweep.running and sweepBuy
+    f_open(tSweep, 1, close, atr)
+
+// ── COMBO D&S: the base candle before an impulse becomes a zone; the first return into the
+//    zone that closes back out of it is traded. ──────────────────────────────────────────
+impUp = close - open >= dsK * atr[1] and close > high[1]
+impDn = open - close >= dsK * atr[1] and close < low[1]
+var float dTop = na, var float dBot = na, var int dBar = na
+var float sTop = na, var float sBot = na, var int sBar = na
+if impUp
+    dTop := high[1], dBot := low[1], dBar := bar_index
+if impDn
+    sTop := high[1], sBot := low[1], sBar := bar_index
+comboBuy  = barstate.isconfirmed and not na(dTop) and bar_index > dBar + 2 and low <= dTop and close > dTop and low >= dBot
+comboSell = barstate.isconfirmed and not na(sBot) and bar_index > sBar + 2 and high >= sBot and close < sBot and high <= sTop
+if (not na(dBot) and close < dBot) or comboBuy
+    dTop := na, dBot := na
+if (not na(sTop) and close > sTop) or comboSell
+    sTop := na, sBot := na
+if not tCombo.running and comboBuy
+    f_open(tCombo, 1, close, atr)
+else if not tCombo.running and comboSell
+    f_open(tCombo, -1, close, atr)
+
+// ── H ladder (15m) ──────────────────────────────────────────────────────────────────────
+htf = timeframe.in_seconds() < timeframe.in_seconds(ladTf) ? ladTf : timeframe.period
+f_lad() =>
+    [st, d] = ta.supertrend(stMult, stLen)
+    [ta.atr(14), d]
+[hAtr, hDir] = request.security(syminfo.tickerid, htf, f_lad())
+htfClose = time_close == time_close(htf) and barstate.isconfirmed
+var int lastDir = 0
+var int   lDir = 0, var float lEntry = na, var float lStep = na, var float lTsl = na
+var int   lHit = 0
+var bool  lRun = false
+var int   lBar = na
+var Trade lStat = Trade.new()     // backtest counters of the ladder (risk = one step)
+var line[]  lLines = array.new_line()
+var label[] lLabs  = array.new_label()
+// manage the open ladder: stop first, then each new H level reached
+if lRun
+    if (lDir == 1 and low <= lTsl) or (lDir == -1 and high >= lTsl)
+        lRun := false
+        f_stat(lStat, (lTsl - lEntry) * lDir)
+    else
+        while lHit < 50 and (lDir == 1 ? high >= lEntry + (lHit + 1) * lStep : low <= lEntry - (lHit + 1) * lStep)
+            lHit += 1
+            lvl = lEntry + lDir * lHit * lStep
+            label.new(bar_index, lvl, "H" + str.tostring(lHit) + " (" + f_pts(lHit * lStep) + ")",
+                 style = lDir == 1 ? label.style_label_down : label.style_label_up, color = #4caf50, textcolor = color.white, size = size.small)
+            lTsl := lEntry + lDir * (lHit - 1) * lStep
+newDir = htfClose ? (hDir < 0 ? 1 : -1) : lastDir
+ladBuy  = htfClose and lastDir == -1 and newDir == 1
+ladSell = htfClose and lastDir == 1 and newDir == -1
+if htfClose
+    lastDir := newDir
+if ladBuy or ladSell
+    if lRun     // an opposite ladder signal closes the open ladder at this close (backtest)
+        f_stat(lStat, (close - lEntry) * lDir)
+    for ln in lLines
+        line.delete(ln)
+    for lb in lLabs
+        label.delete(lb)
+    array.clear(lLines), array.clear(lLabs)
+    lDir := ladBuy ? 1 : -1, lEntry := close, lStep := 2 * hAtr, lHit := 0, lRun := true
+    lStat.risk := lStep, lBar := bar_index
+    lTsl := lEntry - lDir * lStep
+    x1 = bar_index + 1, x2 = bar_index + 28
+    tStr = str.format_time(time_close, "HH:mm", syminfo.timezone)
+    array.push(lLines, line.new(x1, lEntry, x2, lEntry, color = #ffeb3b, width = 2))
+    array.push(lLines, line.new(x1, lTsl, x2, lTsl, color = #f23645, width = 2))
+    array.push(lLabs, label.new(x2, lEntry, "H " + (ladBuy ? "Buy " : "Sell ") + f_px(lEntry) + " - " + tStr,
+         style = label.style_label_left, color = ladBuy ? #089981 : #f23645, textcolor = color.white, size = size.small))
+    array.push(lLabs, label.new(x2, lTsl, "HSL  " + f_px(lTsl), style = label.style_label_left, color = #f23645, textcolor = color.white, size = size.small))
+    for k = 1 to 3
+        lv = lEntry + lDir * k * lStep
+        array.push(lLines, line.new(x1, lv, x2, lv, color = #787b86, style = line.style_dotted))
+        array.push(lLabs, label.new(x2, lv, "H" + str.tostring(k) + "  " + f_px(lv), style = label.style_label_left, color = #787b86, textcolor = color.white, size = size.small))
+
+// ── FREAK levels: wick extremes of outsized candles ─────────────────────────────────────
+var line[]  fLines = array.new_line()
+var label[] fLabs  = array.new_label()
+var bool[]  fBuy   = array.new_bool()
+f_freak(bool isBuy, float lvl) =>
+    // drop the oldest level of this side once the side is full
+    int n = 0
+    for b in fBuy
+        n += b == isBuy ? 1 : 0
+    if n >= freakMx
+        for i = 0 to array.size(fBuy) - 1
+            if array.get(fBuy, i) == isBuy
+                line.delete(array.remove(fLines, i)), label.delete(array.remove(fLabs, i)), array.remove(fBuy, i)
+                break
+    c = isBuy ? #1b5e20 : #b71c1c
+    array.push(fLines, line.new(bar_index + 1, lvl, bar_index + 2, lvl, color = c, width = 4, extend = extend.right))
+    array.push(fLabs, label.new(bar_index + 8, lvl, "FREAK " + (isBuy ? "BUY" : "SELL") + " | ACTIVE | " + f_px(lvl),
+         style = label.style_label_left, color = c, textcolor = color.white, size = size.small))
+    array.push(fBuy, isBuy)
+rng = high - low
+if barstate.isconfirmed and rng >= freakK * atr[1] and rng > 0
+    if math.min(open, close) - low >= freakW * rng
+        f_freak(true, low)
+    if high - math.max(open, close) >= freakW * rng
+        f_freak(false, high)
+if barstate.islast
+    for lb in fLabs
+        label.set_x(lb, bar_index + 8)
+
+// ── Table ──────────────────────────────────────────────────────────────────────────────
+f_pos(string p) => p == "Top Left" ? position.top_left : p == "Bottom Right" ? position.bottom_right : p == "Bottom Left" ? position.bottom_left : position.top_right
+tsz = sizeIn == "Small" ? size.small : sizeIn == "Large" ? size.large : size.normal
+var table tb = table.new(f_pos(posIn), 5, 4, bgcolor = #131722, border_width = 1, border_color = #2a2e39)
+f_row(int r, string nm, color nc, Trade t) =>
+    side = t.dir == 1 ? "BUY" : t.dir == -1 ? "SELL" : ""
+    st   = t.running ? "RUNNING • " + side : t.dir != 0 ? "IDLE • " + side : "IDLE"
+    es   = t.dir != 0 ? f_px(t.entry) + " / " + f_px(t.sl) : "—"
+    ts   = t.dir == 0 ? "—" : t.running ? f_px(t.tsl) : f_px(t.tsl) + " (" + f_pts(t.result) + ") HIT"
+    tp   = t.dir == 0 ? "—" : t.tp > 0 ? "TP" + str.tostring(t.tp) + " " + f_px(t.entry + t.dir * t.tp * t.risk) + " HIT" : "Waiting"
+    tc   = t.hit ? (t.result >= 0 ? #089981 : #f23645) : #131722
+    table.cell(tb, 0, r, nm, bgcolor = nc, text_color = color.white, text_size = tsz)
+    table.cell(tb, 1, r, st, bgcolor = #787b86, text_color = color.white, text_size = tsz)
+    table.cell(tb, 2, r, es, text_color = t.running ? color.white : #5d606b, text_size = tsz)
+    table.cell(tb, 3, r, ts, bgcolor = tc, text_color = color.white, text_size = tsz)
+    table.cell(tb, 4, r, tp, text_color = t.running ? color.white : #5d606b, text_size = tsz)
+if barstate.islast
+    hdr = array.from("FINTECK", "STATE / SIDE", "ENTRY / SL", "TSL", "LAST TP")
+    for c = 0 to 4
+        table.cell(tb, c, 0, array.get(hdr, c), bgcolor = #1e222d, text_color = color.white, text_size = tsz)
+    f_row(1, "COMBO D&S", #7e57c2, tCombo)
+    f_row(2, "TRENDLINE", #2196f3, tLine)
+    f_row(3, "LIQ SWEEP", #00c853, tSweep)
+
+// ── Backtest (v2) ──────────────────────────────────────────────────────────────────────
+// Every engine is scored on closed trades: win = closed above entry (buy) / below (sell), breakeven =
+// closed at entry (TP1 hit, then the TSL at entry), loss = SL. On intraday charts a trade still open at
+// the last bar of the session is squared off at that close. Net points and average R (result / risk).
+grpB    = "Backtest"
+btOn    = input.bool(true, "Show backtest table", group = grpB)
+sqOff   = input.bool(true, "Square off at session close (intraday)", group = grpB)
+btPos   = input.string("Bottom Right", "Backtest table position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = grpB)
+
+f_square(Trade t) =>
+    if t.running and bar_index > t.bar
+        t.running := false, t.hit := true, t.result := (close - t.entry) * t.dir, t.tsl := close
+        f_stat(t, t.result)
+eod = sqOff and timeframe.isintraday and session.islastbar
+if eod and barstate.isconfirmed
+    f_square(tCombo), f_square(tLine), f_square(tSweep)
+    if lRun and bar_index > lBar
+        lRun := false
+        f_stat(lStat, (close - lEntry) * lDir)
+
+var table bt = table.new(f_pos(btPos), 8, 6, bgcolor = #131722, border_width = 1, border_color = #2a2e39)
+f_btRow(int r, string nm, Trade t) =>
+    dec = t.n > 0 ? t.w * 100.0 / t.n : 0.0
+    vals = array.from(nm, str.tostring(t.n), str.tostring(t.w), str.tostring(t.be), str.tostring(t.l),
+         t.n > 0 ? str.tostring(dec, "#.#") + "%" : "—", t.n > 0 ? f_pts(t.pts) : "—", t.n > 0 ? str.tostring(t.rs / t.n, "#.##") + "R" : "—")
+    for c = 0 to 7
+        table.cell(bt, c, r, array.get(vals, c), text_color = c == 5 and t.n > 0 ? (dec > 50 ? #089981 : #f23645) : color.white, text_size = size.small)
+if btOn and barstate.islast
+    hdr = array.from("BACKTEST", "Trades", "Win", "BE", "Loss", "Win %", "Net pts", "Avg R")
+    for c = 0 to 7
+        table.cell(bt, c, 0, array.get(hdr, c), bgcolor = #1e222d, text_color = color.white, text_size = size.small)
+    f_btRow(1, "COMBO D&S", tCombo)
+    f_btRow(2, "TRENDLINE", tLine)
+    f_btRow(3, "LIQ SWEEP", tSweep)
+    f_btRow(4, "H LADDER", lStat)
+    allN = tCombo.n + tLine.n + tSweep.n + lStat.n, allW = tCombo.w + tLine.w + tSweep.w + lStat.w
+    table.cell(bt, 0, 5, "ALL", text_color = color.white, text_size = size.small)
+    table.cell(bt, 1, 5, str.tostring(allN), text_color = color.white, text_size = size.small)
+    table.cell(bt, 5, 5, allN > 0 ? str.tostring(allW * 100.0 / allN, "#.#") + "%" : "—", text_color = color.white, text_size = size.small)
+
+alertcondition(lineBuy or comboBuy or sweepBuy or ladBuy, "BUY", "Diwali Rebuild: BUY on {{ticker}}")
+alertcondition(lineSell or comboSell or sweepSell or ladSell, "SELL", "Diwali Rebuild: SELL on {{ticker}}")
