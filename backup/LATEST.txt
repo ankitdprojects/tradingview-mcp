@@ -1,1 +1,1 @@
-2026-10-28_1829_before-sma-bugfix
+2026-10-28_1841_before-tf-signal-sets

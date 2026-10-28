@@ -13,7 +13,10 @@ lblGap    = input.float(0.8, "Label distance from candle (ATR x)", step = 0.2, m
 trendAll  = input.bool(false, "Every BUY needs price above the 200 SMA, every SELL below (ignored while the SMA has no data)", group = "Display")
 // Signals are evaluated only on CLOSED bars (barstate.isconfirmed) so a label, once drawn, never disappears
 // when the live bar moves against it. A signal therefore appears at the close of its bar and then stays.
-sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed
+// (v57) charts up to 30m use the per-timeframe signal sets at the end of the script (5min / 15min / 30min);
+// the older per-chart families and the old 5m / 15m / 60m / 30m-240m-D label blocks stay off there
+setMode   = timeframe.in_seconds() <= 1800
+sigOK     = (sigMinTf == 0 or timeframe.in_seconds() >= sigMinTf * 60) and barstate.isconfirmed and not setMode
 oneMinOnly = input.bool(true, "On the 1-minute chart show only SMA 50/200 cross + wick rejection", group = "Display")
 is1m      = timeframe.in_seconds() <= 60
 othersOK  = not (oneMinOnly and is1m)      // sweep / Supertrend / EMA / RSI divergence / HTF labels
@@ -663,7 +666,7 @@ htColB   = input.color(#b388ff, "30m colour", group = grpHT)
 htColC   = input.color(#ffffff, "60m colour", group = grpHT)
 htGap    = input.float(1.0, "Label distance from candle (ATR x)", step = 0.25, minval = 0, group = grpHT)
 
-htfSig() =>
+htfSig(int off) =>           // (v57) off = 0 on its own chart, 1 through request.security
     _atr   = ta.atr(14)
     _fast  = ta.sma(close, fastLen), _slow = ta.sma(close, slowLen)
     _gL    = not trendAll or na(_slow) or close > _slow
@@ -707,12 +710,12 @@ htfSig() =>
     _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : _slow, close - _atr * minStopAtr)
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : _slow, close + _atr * minStopAtr)
     // (v56) [1] + lookahead_on = the last CLOSED higher-timeframe candle, identical live and on history
-    [_b[1], _s[1], _tagB[1], _tagS[1], _stopB[1], _stopS[1], close[1]]
+    [_b[off], _s[off], _tagB[off], _tagS[off], _stopB[off], _stopS[off], close[off]]
 
 drawHtf(bool on, string tf, color col) =>
-    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_on)
+    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(1), lookahead = barmerge.lookahead_on)
     newTf = ta.change(time(tf)) != 0       // (v56) evaluated on every bar
-    fresh = on and othersOK and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and newTf
+    fresh = on and othersOK and not setMode and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and newTf
     // (v56) same major-level block and RSI guard as every other signal
     b := b and blkL and rsiL
     s := s and blkS and rsiS
@@ -808,17 +811,17 @@ m5Conf   = input.bool(true, "Close must be on the right side of both SMAs", grou
 m5BuyC   = input.color(#00e676, "5min BUY colour",  group = grpM5)
 m5SellC  = input.color(#ff5252, "5min SELL colour", group = grpM5)
 
-m5Sig() =>
+m5Sig(int off) =>
     _f = ta.sma(close, m5Fast), _s = ta.sma(close, m5Slow)
     _b = ta.crossover(_f, _s)  and (not m5Conf or (close > _f and close > _s))
     _x = ta.crossunder(_f, _s) and (not m5Conf or (close < _f and close < _s))
-    [_b[1], _x[1], _s[1], close[1]]       // (v56) last closed 5m candle, same live and on history
-[m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_on)
+    [_b[off], _x[off], _s[off], close[off]]       // (v56) off = 1: last closed 5m candle, same live and on history
+[m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(1), lookahead = barmerge.lookahead_on)
 // (v56) "new candle" checks run on every bar (inside an and-chain they could be skipped)
 new5    = ta.change(time("5")) != 0
 new15   = ta.change(time("15")) != 0
 new60   = ta.change(time("60")) != 0
-m5Fresh = m5On and is1m and barstate.isconfirmed and new5
+m5Fresh = m5On and is1m and barstate.isconfirmed and new5 and not setMode
 m5Buy   = m5Fresh and m5B and blkL and rsiL and tAllL
 m5Sell  = m5Fresh and m5S and blkS and rsiS and tAllS
 if m5Buy
@@ -844,7 +847,7 @@ w5On     = input.bool(true, "Show 5-minute wick rejection on the 1-minute chart"
 w5BuyC   = input.color(#00bfa5, "5min wick BUY colour",  group = grpW5)
 w5SellC  = input.color(#d50000, "5min wick SELL colour", group = grpW5)
 
-w5Sig() =>
+w5Sig(int off) =>
     _atr   = ta.atr(14)
     _mean  = ta.sma(close, wkLen)
     _body  = math.abs(close - open)
@@ -853,9 +856,9 @@ w5Sig() =>
     _upper = high - math.max(open, close)
     _b = _rng > 0 and _lower >= _body * wkRatio and _lower >= _rng * wkPct and low  <= _mean - _atr * wkAtr and close < _mean
     _s = _rng > 0 and _upper >= _body * wkRatio and _upper >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
-    [_b[1], _s[1], _mean[1], low[1], high[1], close[1], _atr[1]]       // (v56) last closed 5m candle
-[w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_on)
-w5Fresh = w5On and is1m and barstate.isconfirmed and new5
+    [_b[off], _s[off], _mean[off], low[off], high[off], close[off], _atr[off]]       // (v56) off = 1: last closed 5m candle
+[w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(1), lookahead = barmerge.lookahead_on)
+w5Fresh = w5On and is1m and barstate.isconfirmed and new5 and not setMode
 w5Buy   = w5Fresh and w5B and blkL and rsiL and tAllL
 w5Sell  = w5Fresh and w5S and blkS and rsiS and tAllS
 if w5Buy
@@ -879,7 +882,7 @@ s15On    = input.bool(true, "Show the 15-minute set on 1m / 5m charts", group = 
 s15BuyC  = input.color(#ffb300, "15min BUY colour",  group = grpS15)
 s15SellC = input.color(#ff6d00, "15min SELL colour", group = grpS15)
 
-s15Sig() =>
+s15Sig(int off) =>
     _atr = ta.atr(14)
     [_stL, _stD] = ta.supertrend(3.0, 10)
     [_dp, _dm, _adx] = ta.dmi(14, 14)
@@ -930,9 +933,9 @@ s15Sig() =>
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high, close + _atr * minStopAtr)
     _tgtB = _wkB and not (_swB or _stB or _emB) ? _mean : close + (close - _stopB) * tgtR
     _tgtS = _wkS and not (_swS or _stS or _emS) ? _mean : close - (_stopS - close) * tgtR
-    [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], _tgtB[1], _tgtS[1]]       // (v56) last closed 15m candle
-[s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(), lookahead = barmerge.lookahead_on)
-s15Fresh = s15On and lt15 and barstate.isconfirmed and new15
+    [_b[off], _s[off], _tb[off], _ts[off], _stopB[off], _stopS[off], _tgtB[off], _tgtS[off]]       // (v56) off = 1: last closed 15m candle
+[s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(1), lookahead = barmerge.lookahead_on)
+s15Fresh = s15On and lt15 and barstate.isconfirmed and new15 and not setMode
 s15Buy   = s15Fresh and s15B and blkL and rsiL and tAllL
 s15Sell  = s15Fresh and s15S and blkS and rsiS and tAllS
 if s15Buy
@@ -956,7 +959,7 @@ k5On     = input.bool(true, "Show 5-minute sweep / ST / EMA / RSI-div on the 1-m
 k5BuyC   = input.color(#69f0ae, "5min set BUY colour",  group = grpK5)
 k5SellC  = input.color(#ff8a80, "5min set SELL colour", group = grpK5)
 
-k5Sig() =>
+k5Sig(int off) =>
     _atr = ta.atr(14)
     _slow = ta.sma(close, slowLen)
     _gL = not trendAll or na(_slow) or close > _slow
@@ -1008,9 +1011,9 @@ k5Sig() =>
     _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "RSI div"
     _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low[rsiDivPv], close - _atr * minStopAtr)
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high[rsiDivPv], close + _atr * minStopAtr)
-    [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], close[1]]       // (v56) last closed 5m candle
-[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_on)
-k5Fresh = k5On and is1m and barstate.isconfirmed and new5
+    [_b[off], _s[off], _tb[off], _ts[off], _stopB[off], _stopS[off], close[off]]       // (v56) off = 1: last closed 5m candle
+[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(1), lookahead = barmerge.lookahead_on)
+k5Fresh = k5On and is1m and barstate.isconfirmed and new5 and not setMode
 k5Buy   = k5Fresh and k5B and blkL and rsiL and tAllL
 k5Sell  = k5Fresh and k5S and blkS and rsiS and tAllS
 if k5Buy
@@ -1054,7 +1057,7 @@ s60Sig() =>
     _tgtS = _stS ? close - (_stopS - close) * tgtR : _mean
     [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], _tgtB[1], _tgtS[1]]       // (v56) last closed 60m candle
 [s60B, s60S, s60Tb, s60Ts, s60StopB, s60StopS, s60TgtB, s60TgtS] = request.security(syminfo.tickerid, "60", s60Sig(), lookahead = barmerge.lookahead_on)
-s60Fresh = s60On and lt60 and barstate.isconfirmed and new60
+s60Fresh = s60On and lt60 and barstate.isconfirmed and new60 and not setMode
 s60Buy   = s60Fresh and s60B and blkL and rsiL and tAllL
 s60Sell  = s60Fresh and s60S and blkS and rsiS and tAllS
 if s60Buy
@@ -1136,3 +1139,90 @@ if array.size(liqLl) > 0
             line.delete(array.remove(liqLl, i)), label.delete(array.remove(liqLb, i))
         else
             label.set_x(array.get(liqLb, i), bar_index + 1)
+
+// ── Timeframe signal sets (v57) ──────────────────────────────────────────
+// User: "1 min won't have its own signal; on 1 min show the BUY / SELL of 5, 15 and 30 min; on 5 min all
+// 5 min signals plus the higher ones, same for 15 and 30". One definition per timeframe, identical on its
+// own chart and on every lower chart (charts up to 30m; above 30m the older blocks still run):
+//   5min  = sweep / Supertrend+ADX / 50 EMA touch / RSI div (k5Sig) + 9/21 SMA cross (m5Sig) + wick (w5Sig)
+//   15min = the 15-minute set (s15Sig): sweep on the VWAP side, Supertrend+ADX20, EMA touch with ST, wick
+//   30min = SMA 50/200 cross / sweep / Supertrend+ADX / 50 EMA touch (htfSig)
+// On its own chart a set fires at the close of the bar; on a lower chart on the bar after that
+// higher-timeframe candle closes. Same major-level block, RSI guard and 200 SMA switch as before.
+// 60m / 240m / D labels are not drawn on charts up to 30m.
+tfSec = timeframe.in_seconds()
+// the chart's own candle (used when the chart IS that timeframe)
+[o5kB, o5kS, o5kTb, o5kTs, o5kStB, o5kStS, o5kPx] = k5Sig(0)
+[o5mB, o5mS, o5mSlow, o5mPx] = m5Sig(0)
+[o5wB, o5wS, o5wMean, o5wLow, o5wHigh, o5wPx, o5wAtr] = w5Sig(0)
+[o15B, o15S, o15Tb, o15Ts, o15StB, o15StS, o15TgB, o15TgS] = s15Sig(0)
+[o30B, o30S, o30Tb, o30Ts, o30StB, o30StS, o30Px] = htfSig(0)
+// last closed 30m candle for lower charts (the 5m / 15m requests are further up)
+[h30B, h30S, h30Tb, h30Ts, h30StB, h30StS, h30Px] = request.security(syminfo.tickerid, "30", htfSig(1), lookahead = barmerge.lookahead_on)
+new30 = ta.change(time("30")) != 0
+
+own5  = setMode and tfSec == 300
+own15 = setMode and tfSec == 900
+own30 = setMode and tfSec == 1800
+u5    = own5  or (setMode and tfSec < 300 and new5)
+u15   = own15 or (setMode and tfSec < 900 and new15)
+u30   = own30 or (setMode and tfSec < 1800 and new30)
+
+// 5min set
+f5kB = u5 and k5On and (own5 ? o5kB : k5B), f5kS = u5 and k5On and (own5 ? o5kS : k5S)
+f5mB = u5 and m5On and (own5 ? o5mB : m5B), f5mS = u5 and m5On and (own5 ? o5mS : m5S)
+f5wB = u5 and w5On and (own5 ? o5wB : w5B), f5wS = u5 and w5On and (own5 ? o5wS : w5S)
+px5   = own5 ? close : k5Px
+atr5  = own5 ? o5wAtr : w5Atr
+slow5 = own5 ? o5mSlow : m5SlowV
+kStB5 = own5 ? o5kStB : k5StopB, kStS5 = own5 ? o5kStS : k5StopS
+kTb5  = own5 ? o5kTb : k5Tb,     kTs5  = own5 ? o5kTs : k5Ts
+wLo5  = own5 ? o5wLow : w5Low,   wHi5  = own5 ? o5wHigh : w5High, wMean5 = own5 ? o5wMean : w5Mean
+set5B = barstate.isconfirmed and (f5kB or f5mB or f5wB) and blkL and rsiL and tAllL
+set5S = barstate.isconfirmed and (f5kS or f5mS or f5wS) and blkS and rsiS and tAllS
+tag5B = f5kB ? kTb5 : f5mB ? "9/21" : "wick"
+tag5S = f5kS ? kTs5 : f5mS ? "9/21" : "wick"
+st5B  = f5kB ? kStB5 : f5mB ? math.min(slow5, px5 - atr5 * minStopAtr) : math.min(wLo5, px5 - atr5 * minStopAtr)
+st5S  = f5kS ? kStS5 : f5mS ? math.max(slow5, px5 + atr5 * minStopAtr) : math.max(wHi5, px5 + atr5 * minStopAtr)
+tg5B  = not f5kB and not f5mB ? wMean5 : px5 + (px5 - st5B) * tgtR
+tg5S  = not f5kS and not f5mS ? wMean5 : px5 - (st5S - px5) * tgtR
+
+// 15min set
+f15B   = u15 and s15On and (own15 ? o15B : s15B), f15S = u15 and s15On and (own15 ? o15S : s15S)
+set15B = barstate.isconfirmed and f15B and blkL and rsiL and tAllL
+set15S = barstate.isconfirmed and f15S and blkS and rsiS and tAllS
+tag15B = own15 ? o15Tb : s15Tb,     tag15S = own15 ? o15Ts : s15Ts
+st15B  = own15 ? o15StB : s15StopB, st15S  = own15 ? o15StS : s15StopS
+tg15B  = own15 ? o15TgB : s15TgtB,  tg15S  = own15 ? o15TgS : s15TgtS
+
+// 30min set
+f30B   = u30 and htOn and (own30 ? o30B : h30B), f30S = u30 and htOn and (own30 ? o30S : h30S)
+set30B = barstate.isconfirmed and f30B and blkL and rsiL and tAllL
+set30S = barstate.isconfirmed and f30S and blkS and rsiS and tAllS
+px30   = own30 ? close : h30Px
+tag30B = own30 ? o30Tb : h30Tb,     tag30S = own30 ? o30Ts : h30Ts
+st30B  = own30 ? o30StB : h30StB,   st30S  = own30 ? o30StS : h30StS
+tg30B  = px30 + (px30 - st30B) * tgtR
+tg30S  = px30 - (st30S - px30) * tgtR
+
+setMark(bool b, bool s, string nm, string tb, string ts, float stB, float stS, float tgB, float tgS, color cB, color cS, color tS, float gap) =>
+    if b
+        label.new(bar_index, low - atr14 * gap, nm + " BUY", style = label.style_label_up, color = color.new(cB, 0), textcolor = color.black, size = size.normal, tooltip = nm + " BUY\n" + tb + "  stop " + str.tostring(stB, format.mintick))
+        if showTS
+            newTrade(true, stB, tgB)
+    if s
+        label.new(bar_index, high + atr14 * gap, nm + " SELL", style = label.style_label_down, color = color.new(cS, 0), textcolor = tS, size = size.normal, tooltip = nm + " SELL\n" + ts + "  stop " + str.tostring(stS, format.mintick))
+        if showTS
+            newTrade(false, stS, tgS)
+// stacked further from the candle per timeframe so labels on the same bar don't overlap
+setMark(set5B,  set5S,  "5min",  tag5B,  tag5S,  st5B,  st5S,  tg5B,  tg5S,  m5BuyC,  m5SellC,  color.white, lblGap)
+setMark(set15B, set15S, "15min", tag15B, tag15S, st15B, st15S, tg15B, tg15S, s15BuyC, s15SellC, color.black, lblGap * 2.5)
+setMark(set30B, set30S, "30min", tag30B, tag30S, st30B, st30S, tg30B, tg30S, htColB,  #7c4dff,   color.white, lblGap * 4)
+alertcondition(set5B,  "SET 5MIN BUY",   "SMA Signals: 5min BUY {{ticker}} @ {{close}}")
+alertcondition(set5S,  "SET 5MIN SELL",  "SMA Signals: 5min SELL {{ticker}} @ {{close}}")
+alertcondition(set15B, "SET 15MIN BUY",  "SMA Signals: 15min BUY {{ticker}} @ {{close}}")
+alertcondition(set15S, "SET 15MIN SELL", "SMA Signals: 15min SELL {{ticker}} @ {{close}}")
+alertcondition(set30B, "SET 30MIN BUY",  "SMA Signals: 30min BUY {{ticker}} @ {{close}}")
+alertcondition(set30S, "SET 30MIN SELL", "SMA Signals: 30min SELL {{ticker}} @ {{close}}")
+alertcondition(set5B or set15B or set30B, "SET ANY BUY",  "SMA Signals: BUY (5/15/30min) {{ticker}} @ {{close}}")
+alertcondition(set5S or set15S or set30S, "SET ANY SELL", "SMA Signals: SELL (5/15/30min) {{ticker}} @ {{close}}")
