@@ -1,8 +1,116 @@
 {
-  "Diwali Rebuild": {
-    "file": "diwali_rebuild.pine",
-    "id": "USER;a68e2909c7de4853b41d82a72db9f1c6",
+  "Futures→Option BT": {
+    "file": "futures_option_bt.pine",
+    "id": "USER;f9df4a5cb52b4d59b60c488a45e43061",
+    "version": "7.0",
+    "modified": 1790134438
+  },
+  "HTF LTF Structure": {
+    "file": "htf_ltf_structure.pine",
+    "id": "USER;48c92ce920854d2b91857694781a19c1",
+    "version": "2.0",
+    "modified": 1792736008
+  },
+  "HTF LTF Structure (Sahi)": {
+    "file": "htf_ltf_structure_sahi.pine",
+    "id": "USER;5942c9838f324946af0dee99eb6c5460",
+    "version": "2.0",
+    "modified": 1792736046
+  },
+  "OI Profile": {
+    "file": "oi_profile.pine",
+    "id": "USER;1668bb101d304ef386f71ef4dbd36e34",
+    "version": "36.0",
+    "modified": 1791168782
+  },
+  "ORB Signals": {
+    "file": "orb_signals.pine",
+    "id": "USER;0683027873544e68b74c223d00a07d1f",
+    "version": "2.0",
+    "modified": 1790495177
+  },
+  "Pullback Retest BT": {
+    "file": "pullback_retest_strategy.pine",
+    "id": "USER;7e62a80a99334d8ead50d5efa5230b96",
+    "version": "18.0",
+    "modified": 1789179410
+  },
+  "Quad Stack": {
+    "file": "quad_stack.pine",
+    "id": "USER;4de29176d89f4aa19052ef423d4f90be",
     "version": "3.0",
-    "modified": 1792768823
+    "modified": 1788164696
+  },
+  "RSI2 Signals": {
+    "file": "rsi2_signals.pine",
+    "id": "USER;06d586048b7d4821912cda89059575e6",
+    "version": "2.0",
+    "modified": 1790498279
+  },
+  "Sahi Levels": {
+    "file": "sahi_levels.pine",
+    "id": "USER;728e6e2da84d4f78921cb6d419171f56",
+    "version": "1.0",
+    "modified": 1791344950
+  },
+  "Sahi Signals": {
+    "file": "sahi_signals.pine",
+    "id": "USER;40ce7ead312a4a9aa0e53fe9fd4afbba",
+    "version": "1.0",
+    "modified": 1791344764
+  },
+  "Screener": {
+    "file": "screener_tv.pine",
+    "id": "USER;4624c915b2b849aa8b16c58c1c3c38c8",
+    "version": "1.0",
+    "modified": 1786692705
+  },
+  "Screener ATR / ADX": {
+    "file": "screener_atr_adx.pine",
+    "id": "USER;677180d5f8904442bb4cbf5a22027682",
+    "version": "1.0",
+    "modified": 1787645075
+  },
+  "Screener ATR / ADX (on chart)": {
+    "file": "screener_atr_adx_on_chart.pine",
+    "id": "USER;7d359d4115e341fe896024838fc2c813",
+    "version": "3.0",
+    "modified": 1787652479
+  },
+  "SMA Signals": {
+    "file": "sma_signals.pine",
+    "id": "USER;f686f1a3397144a4bc31ea731b015e2b",
+    "version": "56.0",
+    "modified": 1793212364
+  },
+  "SMA Signals (Sahi lite)": {
+    "file": "sma_signals_sahi_lite.pine",
+    "id": "USER;88430866abdb42d3ac7415dcf2af0b90",
+    "version": "2.0",
+    "modified": 1791340602
+  },
+  "SMA Signals (Sahi)": {
+    "file": "sma_signals_sahi.pine",
+    "id": "USER;6b250ccafa5b4cd79d9d7c3b3ece1585",
+    "version": "3.0",
+    "modified": 1791340763
+  },
+  "SMA Signals BT": {
+    "file": "sma_signals_strategy.pine",
+    "id": "USER;c0f252c7eb62426e8a607a3498385c1f",
+    "version": "9.0",
+    "modified": 1789370661
+  },
+  "Sweep SELL": {
+    "file": "sweep_sell.pine",
+    "id": "USER;18eae575e9904c6f8799afba0a27ea37",
+    "version": "5.0",
+    "modified": 1790134628
+  },
+  "Swing Pullback Console": {
+    "file": "swing_pullback_console.pine",
+    "id": "USER;ad5ec9f07f2b4daeb989326e14cc13b8",
+    "version": "116.0",
+    "modified": 1789213005
   }
 }

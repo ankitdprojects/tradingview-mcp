@@ -122,8 +122,11 @@ confOK_S  = not confirm or (close < fast and close < slow)
 
 gateL = sigOK and othersOK and blkL and rsiL and (not trendAll or na(slow) or close > slow)
 gateS = sigOK and othersOK and blkS and rsiS and (not trendAll or na(slow) or close < slow)
-buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL and smaTfOK
-sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS and smaTfOK
+// (v56) the "every BUY above the 200 SMA" switch now reaches every signal family, not only gateL users
+tAllL = not trendAll or na(slow) or close > slow
+tAllS = not trendAll or na(slow) or close < slow
+buy  = upCross   and trendOK_L and confOK_L and sigOK and blkL and rsiL and smaTfOK and tAllL
+sell = downCross and trendOK_S and confOK_S and sigOK and blkS and rsiS and smaTfOK and tAllS
 
 plotshape(buy,  "BUY",  shape.triangleup,   location.belowbar, color=color.new(#00c853, 0), size=size.small)
 plotshape(sell, "SELL", shape.triangledown, location.abovebar, color=color.new(#ff1744, 0), size=size.small)
@@ -493,8 +496,18 @@ liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, max
 // Liquidity sweeps: wick through the last swing, close back inside (the swing must be older than this bar)
 swTrL = not sweepTr or na(trend) or close > trend
 swTrS = not sweepTr or na(trend) or close < trend
-sweepLo = sweepOn and gateL and f15SwL and not is60 and not na(sL) and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
-sweepHi = sweepOn and gateS and f15SwS and not is60 and not na(sH) and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+// (v56) a swing gives at most ONE sweep: once price trades through it (swept or broken) it is used up
+var bool sLDone = false, var bool sHDone = false
+if not na(sPl)
+    sLDone := false
+if not na(sPh)
+    sHDone := false
+sweepLo = sweepOn and gateL and f15SwL and not is60 and not na(sL) and not sLDone and bar_index > sLbar + smcPiv and low < sL and close > sL and close > open and swTrL
+sweepHi = sweepOn and gateS and f15SwS and not is60 and not na(sH) and not sHDone and bar_index > sHbar + smcPiv and high > sH and close < sH and close < open and swTrS
+if not na(sL) and bar_index > sLbar + smcPiv and low < sL
+    sLDone := true
+if not na(sH) and bar_index > sHbar + smcPiv and high > sH
+    sHDone := true
 if showLbl and sweepLo
     label.new(bar_index, low - atr14 * lblGap, "BUY\nsweep", style = label.style_label_up, color = color.new(#00c853, 0), textcolor = color.black, size = size.small, tooltip = "BUY\nsweep")
 if showLbl and sweepHi
@@ -665,8 +678,17 @@ htfSig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = sweepOn and not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
-    _swS = sweepOn and not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    var bool _lD = false, var bool _hD = false        // (v56) one sweep per swing
+    if not na(_pl)
+        _lD := false
+    if not na(_ph)
+        _hD := false
+    _swB = sweepOn and not na(_sL) and not _lD and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = sweepOn and not na(_sH) and not _hD and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    if not na(_sL) and bar_index > _sLb + smcPiv and low < _sL
+        _lD := true
+    if not na(_sH) and bar_index > _sHb + smcPiv and high > _sH
+        _hD := true
     // Supertrend flip + ADX
     [_stL, _stD] = ta.supertrend(stMult, stLen)
     [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
@@ -684,11 +706,16 @@ htfSig() =>
     _tagS = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "SMA"
     _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : _slow, close - _atr * minStopAtr)
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : _slow, close + _atr * minStopAtr)
-    [_b, _s, _tagB, _tagS, _stopB, _stopS, close]
+    // (v56) [1] + lookahead_on = the last CLOSED higher-timeframe candle, identical live and on history
+    [_b[1], _s[1], _tagB[1], _tagS[1], _stopB[1], _stopS[1], close[1]]
 
 drawHtf(bool on, string tf, color col) =>
-    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
-    fresh = on and othersOK and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_on)
+    newTf = ta.change(time(tf)) != 0       // (v56) evaluated on every bar
+    fresh = on and othersOK and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and newTf
+    // (v56) same major-level block and RSI guard as every other signal
+    b := b and blkL and rsiL
+    s := s and blkS and rsiS
     // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
     if fresh and b
         label.new(bar_index, low - atr14 * htGap, "BUY " + tf + "m", style = label.style_label_up, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "BUY " + tf + "m\n" + tb + "  " + "stop " + str.tostring(spB, format.mintick))
@@ -753,8 +780,8 @@ wkBody   = math.abs(close - open)
 wkRange  = high - low
 wkLower  = math.min(open, close) - low
 wkUpper  = high - math.max(open, close)
-wkTf     = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL
-wkTfS    = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS
+wkTf     = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL and tAllL
+wkTfS    = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS and tAllS
 wkBuy  = wkTf  and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean
 wkSell = wkTfS and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean
 if showLbl and wkBuy
@@ -785,11 +812,15 @@ m5Sig() =>
     _f = ta.sma(close, m5Fast), _s = ta.sma(close, m5Slow)
     _b = ta.crossover(_f, _s)  and (not m5Conf or (close > _f and close > _s))
     _x = ta.crossunder(_f, _s) and (not m5Conf or (close < _f and close < _s))
-    [_b, _x, _s, close]
-[m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_off)
-m5Fresh = m5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
-m5Buy   = m5Fresh and m5B and blkL and rsiL
-m5Sell  = m5Fresh and m5S and blkS and rsiS
+    [_b[1], _x[1], _s[1], close[1]]       // (v56) last closed 5m candle, same live and on history
+[m5B, m5S, m5SlowV, m5Px] = request.security(syminfo.tickerid, "5", m5Sig(), lookahead = barmerge.lookahead_on)
+// (v56) "new candle" checks run on every bar (inside an and-chain they could be skipped)
+new5    = ta.change(time("5")) != 0
+new15   = ta.change(time("15")) != 0
+new60   = ta.change(time("60")) != 0
+m5Fresh = m5On and is1m and barstate.isconfirmed and new5
+m5Buy   = m5Fresh and m5B and blkL and rsiL and tAllL
+m5Sell  = m5Fresh and m5S and blkS and rsiS and tAllS
 if m5Buy
     label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(m5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY")
     if showTS
@@ -822,11 +853,11 @@ w5Sig() =>
     _upper = high - math.max(open, close)
     _b = _rng > 0 and _lower >= _body * wkRatio and _lower >= _rng * wkPct and low  <= _mean - _atr * wkAtr and close < _mean
     _s = _rng > 0 and _upper >= _body * wkRatio and _upper >= _rng * wkPct and high >= _mean + _atr * wkAtr and close > _mean
-    [_b, _s, _mean, low, high, close, _atr]
-[w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_off)
-w5Fresh = w5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
-w5Buy   = w5Fresh and w5B and blkL and rsiL
-w5Sell  = w5Fresh and w5S and blkS and rsiS
+    [_b[1], _s[1], _mean[1], low[1], high[1], close[1], _atr[1]]       // (v56) last closed 5m candle
+[w5B, w5S, w5Mean, w5Low, w5High, w5Px, w5Atr] = request.security(syminfo.tickerid, "5", w5Sig(), lookahead = barmerge.lookahead_on)
+w5Fresh = w5On and is1m and barstate.isconfirmed and new5
+w5Buy   = w5Fresh and w5B and blkL and rsiL and tAllL
+w5Sell  = w5Fresh and w5S and blkS and rsiS and tAllS
 if w5Buy
     label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(w5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\nwick")
     if showTS
@@ -866,8 +897,17 @@ s15Sig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open and close > _vwap
-    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open and close < _vwap
+    var bool _lD = false, var bool _hD = false        // (v56) one sweep per swing
+    if not na(_pl)
+        _lD := false
+    if not na(_ph)
+        _hD := false
+    _swB = not na(_sL) and not _lD and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open and close > _vwap
+    _swS = not na(_sH) and not _hD and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open and close < _vwap
+    if not na(_sL) and bar_index > _sLb + smcPiv and low < _sL
+        _lD := true
+    if not na(_sH) and bar_index > _sHb + smcPiv and high > _sH
+        _hD := true
     // Supertrend flip with ADX
     _stB = _stD < 0 and _stD[1] >= 0 and _adx >= 20
     _stS = _stD > 0 and _stD[1] <= 0 and _adx >= 20
@@ -890,11 +930,11 @@ s15Sig() =>
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high, close + _atr * minStopAtr)
     _tgtB = _wkB and not (_swB or _stB or _emB) ? _mean : close + (close - _stopB) * tgtR
     _tgtS = _wkS and not (_swS or _stS or _emS) ? _mean : close - (_stopS - close) * tgtR
-    [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
-[s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(), lookahead = barmerge.lookahead_off)
-s15Fresh = s15On and lt15 and barstate.isconfirmed and ta.change(time("15")) != 0
-s15Buy   = s15Fresh and s15B and blkL and rsiL
-s15Sell  = s15Fresh and s15S and blkS and rsiS
+    [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], _tgtB[1], _tgtS[1]]       // (v56) last closed 15m candle
+[s15B, s15S, s15Tb, s15Ts, s15StopB, s15StopS, s15TgtB, s15TgtS] = request.security(syminfo.tickerid, "15", s15Sig(), lookahead = barmerge.lookahead_on)
+s15Fresh = s15On and lt15 and barstate.isconfirmed and new15
+s15Buy   = s15Fresh and s15B and blkL and rsiL and tAllL
+s15Sell  = s15Fresh and s15S and blkS and rsiS and tAllS
 if s15Buy
     label.new(bar_index, low - atr14 * lblGap, "15min BUY", style = label.style_label_up, color = color.new(s15BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "15min BUY\n" + s15Tb)
     if showTS
@@ -928,8 +968,17 @@ k5Sig() =>
         _sH := _ph, _sHb := bar_index - smcPiv
     if not na(_pl)
         _sL := _pl, _sLb := bar_index - smcPiv
-    _swB = not na(_sL) and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
-    _swS = not na(_sH) and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    var bool _lD = false, var bool _hD = false        // (v56) one sweep per swing
+    if not na(_pl)
+        _lD := false
+    if not na(_ph)
+        _hD := false
+    _swB = not na(_sL) and not _lD and bar_index > _sLb + smcPiv and low < _sL and close > _sL and close > open
+    _swS = not na(_sH) and not _hD and bar_index > _sHb + smcPiv and high > _sH and close < _sH and close < open
+    if not na(_sL) and bar_index > _sLb + smcPiv and low < _sL
+        _lD := true
+    if not na(_sH) and bar_index > _sHb + smcPiv and high > _sH
+        _hD := true
     // Supertrend flip with ADX
     [_stL, _stD] = ta.supertrend(stMult, stLen)
     [_dp, _dm, _adx] = ta.dmi(adxLen, adxLen)
@@ -959,11 +1008,11 @@ k5Sig() =>
     _ts = _swS ? "sweep" : _stS ? "ST" : _emS ? "EMA" : "RSI div"
     _stopB = math.min(_swB ? low : _stB ? _stL : _emB ? low : low[rsiDivPv], close - _atr * minStopAtr)
     _stopS = math.max(_swS ? high : _stS ? _stL : _emS ? high : high[rsiDivPv], close + _atr * minStopAtr)
-    [_b, _s, _tb, _ts, _stopB, _stopS, close]
-[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_off)
-k5Fresh = k5On and is1m and barstate.isconfirmed and ta.change(time("5")) != 0
-k5Buy   = k5Fresh and k5B and blkL and rsiL
-k5Sell  = k5Fresh and k5S and blkS and rsiS
+    [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], close[1]]       // (v56) last closed 5m candle
+[k5B, k5S, k5Tb, k5Ts, k5StopB, k5StopS, k5Px] = request.security(syminfo.tickerid, "5", k5Sig(), lookahead = barmerge.lookahead_on)
+k5Fresh = k5On and is1m and barstate.isconfirmed and new5
+k5Buy   = k5Fresh and k5B and blkL and rsiL and tAllL
+k5Sell  = k5Fresh and k5S and blkS and rsiS and tAllS
 if k5Buy
     label.new(bar_index, low - atr14 * lblGap, "5min BUY", style = label.style_label_up, color = color.new(k5BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "5min BUY\n" + k5Tb)
     if showTS
@@ -1003,11 +1052,11 @@ s60Sig() =>
     _stopS = math.max(_stS ? _stL : high, close + _atr * minStopAtr)
     _tgtB = _stB ? close + (close - _stopB) * tgtR : _mean
     _tgtS = _stS ? close - (_stopS - close) * tgtR : _mean
-    [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
-[s60B, s60S, s60Tb, s60Ts, s60StopB, s60StopS, s60TgtB, s60TgtS] = request.security(syminfo.tickerid, "60", s60Sig(), lookahead = barmerge.lookahead_off)
-s60Fresh = s60On and lt60 and barstate.isconfirmed and ta.change(time("60")) != 0
-s60Buy   = s60Fresh and s60B and blkL and rsiL
-s60Sell  = s60Fresh and s60S and blkS and rsiS
+    [_b[1], _s[1], _tb[1], _ts[1], _stopB[1], _stopS[1], _tgtB[1], _tgtS[1]]       // (v56) last closed 60m candle
+[s60B, s60S, s60Tb, s60Ts, s60StopB, s60StopS, s60TgtB, s60TgtS] = request.security(syminfo.tickerid, "60", s60Sig(), lookahead = barmerge.lookahead_on)
+s60Fresh = s60On and lt60 and barstate.isconfirmed and new60
+s60Buy   = s60Fresh and s60B and blkL and rsiL and tAllL
+s60Sell  = s60Fresh and s60S and blkS and rsiS and tAllS
 if s60Buy
     label.new(bar_index, low - atr14 * lblGap,  "60min BUY",  style = label.style_label_up,   color = color.new(s60BuyC, 0),  textcolor = color.black, size = size.normal, tooltip = "60min BUY " + s60Tb)
     if showTS

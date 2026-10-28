@@ -1,0 +1,1056 @@
+//@version=6
+// Screener v2 — rules.md setup + S/R + full context, ONE slot.
+// NOTE: the ARMED/TRIGGER logic is UNCHANGED from v1. Everything added here is
+// display-only context, so the 15-trade validation sample stays clean.
+// overlay = false so the script owns the pane below the chart, where the RSI
+// plots live. Every pre-existing visual carries force_overlay = true, which
+// pins it to the main price pane — chart appearance is unchanged.
+indicator("Screener", overlay = false, max_lines_count = 60, max_labels_count = 100)
+
+// ── Inputs    ────────────────────────────────────────────────────────────────
+grpS   = "Setup (drives TRIGGER)"
+preset = input.string("Fast (1-3d)", "Speed preset", group = grpS,
+    options = ["Fast (1-3d)", "Short (3-7d)", "Swing (5-15d)", "Custom"],
+    tooltip = "Fast is the quickest preset here by design - nothing shorter " +
+            "is offered. On a 25,000 position, delivery round-trip costs " +
+            "are ~0.5%, which is ~12% of a 1,000 risk unit. That lifts the " +
+            "breakeven win rate from 33% to ~38% at a 2R target. " +
+            "Swing (5-15d) spreads the same cost over a larger move.")
+
+// Custom values — only used when preset = "Custom"
+cFast   = input.int(20,  "Custom: Pullback EMA", minval = 1, group = grpS)
+cSlow   = input.int(50,  "Custom: Context EMA",  minval = 1, group = grpS)
+cTrend  = input.int(200, "Custom: Regime EMA",   minval = 1, group = grpS)
+cSwing  = input.int(10,  "Custom: Swing-low lookback", minval = 2, group = grpS)
+
+// Preset table. Swing-low lookback scales with speed so the stop stays
+// proportional to the pullback the preset is designed to catch.
+fastLen   = preset == "Fast (1-3d)"  ?  5 : preset == "Short (3-7d)" ?  9 : preset == "Swing (5-15d)" ? 20 : cFast
+slowLen   = preset == "Fast (1-3d)"  ? 13 : preset == "Short (3-7d)" ? 21 : preset == "Swing (5-15d)" ? 50 : cSlow
+trendLen  = preset == "Fast (1-3d)"  ? 50 : preset == "Short (3-7d)" ? 50 : preset == "Swing (5-15d)" ? 200 : cTrend
+swingBack = preset == "Fast (1-3d)"  ?  3 : preset == "Short (3-7d)" ?  5 : preset == "Swing (5-15d)" ? 10 : cSwing
+
+grpST     = "Setup type"
+setupType = input.string("Pullback", "Setup", options = ["Pullback", "Breakout", "Breakout retest", "VCP", "All", "Pullback + Retest"], group = grpST,
+    tooltip = "Pullback: buy a dip to the fast EMA in an uptrend (or sell a " +
+            "rally in a downtrend).\n\nBreakout: buy a close through the " +
+            "nearest confirmed pivot resistance (or sell a close below " +
+            "support). These are near-opposite trades - log them as " +
+            "SEPARATE setups so /review can judge each on its own record.")
+brkVolMin = input.float(1.0, "Breakout: min relative volume", minval = 0, step = 0.1, group = grpST,
+    tooltip = "A breakout on below-average volume is the classic false break. " +
+            "0 disables the filter. Ignored on feeds with no real volume.")
+rtWindow  = input.int(12, "Retest: bars allowed after the break", minval = 1, group = grpST,
+    tooltip = "How long a broken level stays 'live' as a retest candidate. " +
+            "On 30m equity, 12 bars is about one session.")
+
+grpD2      = "Direction"
+confirmBar = input.bool(true, "Signal only on CLOSED bars (no repaint)", group = grpD2,
+    tooltip = "ON: a trigger fires only when the bar closes, matching the " +
+            "rules.md definition ('close back above the EMA'). What you see " +
+            "live is then identical to what you see in history.\n\n" +
+            "OFF: triggers evaluate tick-by-tick on the forming bar. You see " +
+            "them earlier, but an arrow can APPEAR and then VANISH before the " +
+            "bar closes. History will not match what you saw live.")
+dirMode    = input.string("Both", "Trade direction", options = ["Long only", "Short only", "Both"], group = grpD2,
+    tooltip = "Cash equity DELIVERY cannot be held short overnight in India - " +
+            "use Long only for SWING/POSITIONAL equity. Intraday equity, " +
+            "futures and commodities can be shorted freely.")
+
+grpR       = "Risk (from rules.md)"
+riskRupees = input.float(1000,  "Risk per trade", minval = 1, group = grpR)
+minPos     = input.float(20000, "Min position (equity only)", minval = 0, group = grpR)
+instType   = input.string("Equity (shares)", "Instrument type", group = grpR,
+    options = ["Equity (shares)", "Futures / Commodity (lots)"],
+    tooltip = "MCX commodities and currency futures trade in LOTS. Risk per " +
+            "lot = stop distance x lot size, so risk is quantised - you " +
+            "often cannot hit the target risk exactly.")
+lotSize    = input.float(10, "Lot size (contract multiplier)", minval = 0.0001, group = grpR,
+    tooltip = "e.g. Crude Oil Mini 10 barrels, Crude Oil 100, Natural Gas Mini 250, " +
+            "Gold Mini 100 g, Silver Micro 1 kg. ALWAYS confirm the current lot " +
+            "size in the Groww order window - exchanges revise these.")
+
+grpSR    = "Support / Resistance"
+showSR   = input.bool(true, "Show S/R lines",  group = grpSR)
+pvtLen   = input.int(10, "Pivot lookback",     minval = 2, group = grpSR)
+maxSR    = input.int(4,  "Max levels per side", minval = 1, maxval = 10, group = grpSR)
+srColor  = input.color(#4FC3F7, "S/R line colour", group = grpSR,
+    tooltip = "Light blue by default — reads clearly on a dark chart. " +
+            "A mid or dark blue disappears against the background.")
+srWidth  = input.int(2, "S/R line width", minval = 1, maxval = 4, group = grpSR)
+srTransp = input.int(0, "S/R transparency", minval = 0, maxval = 90, group = grpSR,
+    tooltip = "0 = fully solid. Raise only if the lines start competing with " +
+            "the candles for attention.")
+
+grpVC     = "VCP (Volatility Contraction)"
+showVCP   = input.bool(true, "Detect VCP", group = grpVC)
+vcpPvt    = input.int(5, "Swing sensitivity", minval = 2, group = grpVC,
+    tooltip = "Pivot lookback for the swings INSIDE the base. Smaller than the " +
+            "S/R pivot - contractions are minor swings by definition.")
+vcpMinC   = input.int(3, "Min contractions", minval = 2, maxval = 5, group = grpVC,
+    tooltip = "Minervini's classic base shows 2-4 contractions, each tighter " +
+            "than the last. 3 is the usual minimum for a valid VCP.")
+vcpTight  = input.float(0.75, "Each contraction < this x previous", minval = 0.3, maxval = 0.95, step = 0.05, group = grpVC,
+    tooltip = "0.75 means each pullback must be at least 25% shallower than " +
+            "the one before. Lower = stricter tightening required.")
+vcpVolDry = input.float(0.85, "Base volume vs longer average", minval = 0.3, maxval = 1.2, step = 0.05, group = grpVC,
+    tooltip = "Volume must DRY UP through the base. 0.85 = recent volume below " +
+            "85% of the longer average. This is half the pattern - a base " +
+            "without volume contraction is not a VCP.")
+vcpNear   = input.float(3.0, "Pivot proximity %", minval = 0.5, maxval = 15, step = 0.5, group = grpVC,
+    tooltip = "How close price must be to the base high to count as READY.")
+vcpBrkVol = input.float(1.5, "Breakout volume multiple", minval = 0, step = 0.1, group = grpVC,
+    tooltip = "Volume expansion required on the breakout bar. Minervini treats " +
+            "a low-volume breakout from a VCP as a failure signal.")
+
+grpC     = "Context readouts"
+rsiLen   = input.int(14, "RSI length",  minval = 1, group = grpC)
+rsiMaLen = input.int(14, "RSI MA length", minval = 1, group = grpC)
+atrLen   = input.int(14, "ATR length",  minval = 1, group = grpC)
+volLen   = input.int(20, "Rel-volume baseline", minval = 1, group = grpC)
+adxLen   = input.int(14, "ADX length",  minval = 1, group = grpC)
+
+grpF     = "Fundamentals & liquidity"
+showFund = input.bool(true, "Show P/E and turnover", group = grpF)
+peMax    = input.float(0, "Flag P/E above (0 = off)", minval = 0, group = grpF,
+    tooltip = "Colours the P/E cell red above this value. Purely a flag - it " +
+            "does not block a signal. P/E is meaningless for futures, " +
+            "commodities and indices, and for loss-making companies.")
+minTurnCr = input.float(5, "Min turnover (Rs crore)", minval = 0, group = grpF,
+    tooltip = "Turnover = volume x price, the honest liquidity measure. Share " +
+            "count alone is misleading: 10,000 shares of a Rs100 stock is " +
+            "Rs10 lakh, of a Rs3,000 stock is Rs3 crore.")
+
+grpV     = "Appearance"
+emaFastCol = input.color(#FF4081, "Pullback EMA colour", group = grpV)
+emaSlowCol = input.color(#FFC107, "Context EMA colour",  group = grpV)
+emaTrndCol = input.color(#90A4AE, "Regime EMA colour",   group = grpV)
+emaWidth   = input.int(2, "EMA line width", minval = 1, maxval = 4, group = grpV)
+theme    = input.string("Dark", "Theme", options = ["Dark", "Light"], group = grpV)
+txtSzIn  = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpV)
+tblPos   = input.string("Top right", "Table position", options = ["Top right", "Top left", "Bottom right", "Bottom left", "Middle right"], group = grpV)
+tblOpac  = input.int(12, "Table background opacity", minval = 0, maxval = 100, group = grpV)
+showTbl  = input.bool(true, "Show console table", group = grpV)
+
+// ── Palette ───────────────────────────────────────────────────────────────
+isDark   = theme == "Dark"
+cBg      = isDark ? #0E1117 : #FFFFFF          // table background
+cTxt     = isDark ? #D1D4DC : #2A2E39          // primary text
+cDim     = isDark ? #787B86 : #868993          // secondary / labels
+cGood    = isDark ? #26D0A0 : #0E9F6E          // pass / bullish
+cBad     = isDark ? #FF5C6C : #E02424          // fail / bearish
+cWarn    = isDark ? #FFB020 : #C77700          // armed / caution
+cAccent  = isDark ? #2962FF : #1E53E5          // header
+
+// EMA colours — deliberately NOT blue, so they never compete with the blue
+// S/R lines. Also avoids pure red/green, which the table reserves for
+// pass/fail and bullish/bearish meaning.
+cFastEma = emaFastCol                           // magenta — pullback EMA
+cSlowEma = emaSlowCol                           // amber   — context EMA
+cTrndEma = emaTrndCol                           // muted   — regime EMA
+
+txtSz    = txtSzIn == "Tiny" ? size.tiny : txtSzIn == "Small" ? size.small : txtSzIn == "Normal" ? size.normal : size.large
+tPos     = tblPos == "Top right" ? position.top_right : tblPos == "Top left" ? position.top_left : tblPos == "Bottom right" ? position.bottom_right : tblPos == "Bottom left" ? position.bottom_left : position.middle_right
+
+// ── Core series ───────────────────────────────────────────────────────────
+emaFast  = ta.ema(close, fastLen)
+emaSlow  = ta.ema(close, slowLen)
+emaTrend = ta.ema(close, trendLen)
+atr      = ta.atr(atrLen)
+rsi      = ta.rsi(close, rsiLen)
+rsiMa    = ta.sma(rsi, rsiMaLen)
+relVol   = volume / math.max(ta.sma(volume, volLen), 1)
+
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+
+// ── Fundamentals & liquidity ──────────────────────────────────────────────
+// ignore_invalid_symbol = true so futures, commodities and indices return na
+// instead of erroring. A missing P/E is correct for those, not a fault.
+// Inside an `if` block (not a ternary) so v6 dynamic requests skip the
+// fundamentals fetch entirely when the toggle is off. A ternary evaluates
+// both branches, so the request would still be made every load.
+// P/E removed 2026-09-04: request.financial was a full server fetch that
+// slowed every chart load. The table cell now always reads "n/a".
+peRatio = float(na)
+
+// Turnover in rupees, then crore. Volume in shares is a poor liquidity proxy
+// across stocks at very different prices.
+turnover   = volume * close
+turnoverCr = turnover / 10000000
+// 20-bar average turnover gives context for whether today is unusually active.
+avgTurnCr  = ta.sma(turnover, volLen) / 10000000
+
+pF = plot(emaFast,  "Pullback EMA", color = cFastEma, linewidth = emaWidth, force_overlay = true)
+pS = plot(emaSlow,  "Context EMA",  color = cSlowEma, linewidth = emaWidth, force_overlay = true)
+plot(emaTrend,      "Regime EMA",   color = cTrndEma, linewidth = 1, force_overlay = true)
+
+// Soft ribbon between the two active EMAs — green when the trend context
+// holds, red when it does not. Readable at a glance without reading numbers.
+fill(pF, pS, color = color.new(emaFast > emaSlow ? cGood : cBad, 88), title = "EMA ribbon")
+
+// ── RSI pane — the script's own pane, standard TradingView RSI look ───────
+plot(rsi,   "RSI",          color = #7E57C2, linewidth = 1)
+plot(rsiMa, "RSI-based MA", color = color.yellow, linewidth = 1)
+rsiUp = hline(70, "RSI Upper Band", color = #787B86)
+hline(50, "RSI Middle Band", color = color.new(#787B86, 50))
+rsiDn = hline(30, "RSI Lower Band", color = #787B86)
+fill(rsiUp, rsiDn, color = color.rgb(126, 87, 194, 90), title = "RSI Background Fill")
+
+// ── Setup state machine — UNCHANGED from v1 ───────────────────────────────
+allowL = dirMode != "Short only"
+allowS = dirMode != "Long only"
+
+// barstate.isconfirmed is true for every historical bar and becomes true for
+// the live bar only at its close. Gating triggers on it makes live behaviour
+// identical to historical behaviour — the definition of non-repainting.
+barOK  = confirmBar ? barstate.isconfirmed : true
+
+// ── Support / Resistance from pivots ──────────────────────────────────────
+ph = ta.pivothigh(high, pvtLen, pvtLen)
+pl = ta.pivotlow(low,  pvtLen, pvtLen)
+
+var array<line>  resLine = array.new<line>()
+var array<float> resVal  = array.new<float>()
+var array<line>  supLine = array.new<line>()
+var array<float> supVal  = array.new<float>()
+// Price tags for each level; re-anchored to the latest candle every bar so the
+// levels visibly travel with price (the lines themselves already extend right).
+var array<label> resLbl  = array.new<label>()
+var array<label> supLbl  = array.new<label>()
+
+if showSR and not na(ph)
+    ln = line.new(bar_index - pvtLen, ph, bar_index, ph, extend = extend.right,
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid,
+                force_overlay = true)
+    array.push(resLine, ln)
+    array.push(resVal, ph)
+    array.push(resLbl, label.new(bar_index + 2, ph, "R " + str.tostring(ph, format.mintick),
+                style = label.style_label_left, color = color.new(srColor, 100),
+                textcolor = srColor, size = size.small, force_overlay = true))
+    if array.size(resLine) > maxSR
+        line.delete(array.shift(resLine))
+        array.shift(resVal)
+        label.delete(array.shift(resLbl))
+
+if showSR and not na(pl)
+    ln = line.new(bar_index - pvtLen, pl, bar_index, pl, extend = extend.right,
+                color = color.new(srColor, srTransp), width = srWidth, style = line.style_solid,
+                force_overlay = true)
+    array.push(supLine, ln)
+    array.push(supVal, pl)
+    array.push(supLbl, label.new(bar_index + 2, pl, "S " + str.tostring(pl, format.mintick),
+                style = label.style_label_left, color = color.new(srColor, 100),
+                textcolor = srColor, size = size.small, force_overlay = true))
+    if array.size(supLine) > maxSR
+        line.delete(array.shift(supLine))
+        array.shift(supVal)
+        label.delete(array.shift(supLbl))
+
+if showSR
+    if array.size(resLbl) > 0
+        for i = 0 to array.size(resLbl) - 1
+            label.set_x(array.get(resLbl, i), bar_index + 2)
+    if array.size(supLbl) > 0
+        for i = 0 to array.size(supLbl) - 1
+            label.set_x(array.get(supLbl, i), bar_index + 2)
+
+// nearest level above / below current price
+nearestRes = float(na)
+for i = 0 to math.max(array.size(resVal) - 1, 0)
+    if array.size(resVal) > 0
+        v = array.get(resVal, i)
+        if v > close and (na(nearestRes) or v < nearestRes)
+            nearestRes := v
+
+nearestSup = float(na)
+for i = 0 to math.max(array.size(supVal) - 1, 0)
+    if array.size(supVal) > 0
+        v = array.get(supVal, i)
+        if v < close and (na(nearestSup) or v > nearestSup)
+            nearestSup := v
+
+// Which setups are active. Defined here because the VCP block below needs
+// doVCP, and Pine requires define-before-use.
+doPull = setupType == "Pullback" or setupType == "All" or setupType == "Pullback + Retest"
+doBrk  = setupType == "Breakout" or setupType == "All"
+doRT   = setupType == "Breakout retest" or setupType == "All" or setupType == "Pullback + Retest"
+doVCP  = setupType == "VCP" or setupType == "All"
+
+// ── VCP · Volatility Contraction Pattern ──────────────────────────────────
+// Minervini's base: successive pullbacks get SHALLOWER while volume DRIES UP,
+// then price breaks out of the tightest contraction on expanding volume.
+//
+// Measured, not eyeballed: each contraction is (swing high - next swing low)
+// / swing high, and each must be materially smaller than the one before.
+vPh = ta.pivothigh(high, vcpPvt, vcpPvt)
+vPl = ta.pivotlow(low,  vcpPvt, vcpPvt)
+
+var float vLastHi  = na               // most recent swing high in the base
+var array<float> vDepths = array.new_float()
+
+if showVCP and not na(vPh)
+    vLastHi := vPh
+
+// A contraction completes when a swing low confirms below the prior high.
+if showVCP and not na(vPl) and not na(vLastHi) and vLastHi > vPl
+    array.push(vDepths, (vLastHi - vPl) / vLastHi)
+    if array.size(vDepths) > 5
+        array.shift(vDepths)
+
+// Are the last vcpMinC contractions each tighter than the previous?
+vTightening = false
+if showVCP and array.size(vDepths) >= vcpMinC
+    ok = true
+    for i = array.size(vDepths) - vcpMinC + 1 to array.size(vDepths) - 1
+        if array.get(vDepths, i) > array.get(vDepths, i - 1) * vcpTight
+            ok := false
+    vTightening := ok
+
+// Volume must dry up through the base — half the pattern, and the half most
+// often ignored. A tightening range on RISING volume is distribution.
+vVolDry = ta.sma(volume, 10) < ta.sma(volume, 50) * vcpVolDry
+
+// Depth of the final, tightest contraction — reported so the base can be judged.
+vLastDepth = array.size(vDepths) > 0 ? array.get(vDepths, array.size(vDepths) - 1) * 100 : na
+
+// READY: base is formed, volume dry, price coiled just under the pivot.
+vcpReady = showVCP and vTightening and vVolDry and not na(vLastHi)
+      and close <= vLastHi and close >= vLastHi * (1 - vcpNear / 100)
+
+// BREAKOUT: clears the base high on expanding volume.
+vcpBrk = showVCP and doVCP and allowL and barOK and vTightening and not na(vLastHi)
+      and close > vLastHi and close[1] <= vLastHi
+      and (vcpBrkVol <= 0 or relVol < 0.01 or relVol >= vcpBrkVol)
+
+// Stop sits below the low of the final contraction — the tightest one, which
+// is what makes a VCP entry low-risk relative to the base it came from.
+vcpStop = not na(vLastHi) and array.size(vDepths) > 0
+          ? vLastHi * (1 - array.get(vDepths, array.size(vDepths) - 1)) : na
+
+// ── BREAKOUT / BREAKDOWN ──────────────────────────────────────────────────
+// A breakout is a close THROUGH the nearest confirmed pivot level. Those
+// levels lag by pvtLen bars, which is fine here: the level was established
+// long before the break, so no future information is used.
+
+// Volume filter. Feeds without real volume report relVol ~0; treat those as
+// "no data" and pass, rather than silently blocking every signal.
+volOK  = brkVolMin <= 0 or relVol < 0.01 or relVol >= brkVolMin
+
+resPrev = nearestRes[1]
+supPrev = nearestSup[1]
+
+// Raw break events feed the RETEST tracker regardless of whether breakout
+// signals themselves are enabled — otherwise "Breakout retest" alone could
+// never arm, because no break would ever be recorded.
+brkRawL  = allowL and barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev and volOK
+brkRawS  = allowS and barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev and volOK
+brkLong  = doBrk and brkRawL
+brkShort = doBrk and brkRawS
+
+// The broken level becomes the stop: a breakout that falls back through it
+// has failed by definition.
+brkStopL = resPrev
+brkStopS = supPrev
+
+// ── BREAKOUT RETEST ───────────────────────────────────────────────────────
+// The sequence: price breaks a level, comes BACK to it, holds, then continues.
+// Old resistance becoming support is the whole idea. Higher quality than a
+// raw breakout because the level has been tested twice, and the stop is tight
+// (just under the level) rather than back at a swing low.
+//
+// Note: the breakout leg must clear the volume filter, but the retest itself
+// usually comes on LOWER volume — that is healthy. Only the continuation
+// matters for confirmation.
+var float rtLevelL = na      // level broken to the upside, now support
+var int   rtBarsL  = na      // bars since that break
+var bool  rtTouchL = false   // has price come back to touch it?
+
+if brkRawL
+    rtLevelL := resPrev
+    rtBarsL  := 0
+    rtTouchL := false
+else if not na(rtBarsL)
+    rtBarsL += 1
+
+// Expired, or the level failed outright → drop the candidate.
+if not na(rtBarsL) and (rtBarsL > rtWindow or (not na(rtLevelL) and close < rtLevelL and rtTouchL))
+    rtLevelL := na
+    rtBarsL  := na
+    rtTouchL := false
+
+// Price has come back down to the level.
+if not na(rtLevelL) and low <= rtLevelL and close >= rtLevelL
+    rtTouchL := true
+
+rtLong = doRT and allowL and barOK and rtTouchL and not na(rtLevelL)
+      and close > rtLevelL and close > open and close[1] <= math.max(rtLevelL, open[1])
+
+// Mirror for the short side: break down, rally back to the level, fail.
+var float rtLevelS = na
+var int   rtBarsS  = na
+var bool  rtTouchS = false
+
+if brkRawS
+    rtLevelS := supPrev
+    rtBarsS  := 0
+    rtTouchS := false
+else if not na(rtBarsS)
+    rtBarsS += 1
+
+if not na(rtBarsS) and (rtBarsS > rtWindow or (not na(rtLevelS) and close > rtLevelS and rtTouchS))
+    rtLevelS := na
+    rtBarsS  := na
+    rtTouchS := false
+
+if not na(rtLevelS) and high >= rtLevelS and close <= rtLevelS
+    rtTouchS := true
+
+rtShort = doRT and allowS and barOK and rtTouchS and not na(rtLevelS)
+      and close < rtLevelS and close < open and close[1] >= math.min(rtLevelS, open[1])
+
+// Retest stop: just beyond the level being defended.
+rtStopL = rtLevelL
+rtStopS = rtLevelS
+
+// Armed states — waiting at the level for the continuation bar.
+rtArmedL = doRT and rtTouchL and not na(rtLevelL) and not rtLong
+rtArmedS = doRT and rtTouchS and not na(rtLevelS) and not rtShort
+
+// ── LONG: pullback INTO the fast EMA in an uptrend, then reclaim ──────────
+contextL = close > emaSlow
+touchedL = low <= emaFast and contextL
+
+var bool armedL = false
+if allowL and touchedL and close < emaFast
+    armedL := true
+if not contextL or not allowL
+    armedL := false
+
+triggerL = doPull and armedL and close > emaFast and close[1] <= emaFast and barOK
+if triggerL
+    armedL := false
+
+// ── SHORT: exact mirror. Rally UP into the fast EMA in a downtrend, then
+// fail back below it. Same logic, inverted — not a different system.
+contextS = close < emaSlow
+touchedS = high >= emaFast and contextS
+
+var bool armedS = false
+if allowS and touchedS and close > emaFast
+    armedS := true
+if not contextS or not allowS
+    armedS := false
+
+triggerS = doPull and armedS and close < emaFast and close[1] >= emaFast and barOK
+if triggerS
+    armedS := false
+
+// Aggregate state. Long and short contexts are mutually exclusive (price
+// cannot be both above and below the context EMA), so these never collide.
+context = contextL or contextS
+touched = touchedL or touchedS
+armed   = armedL or armedS
+isShort = contextS
+
+// Combined signals. A breakout and a pullback can in principle fire on the
+// same bar; the breakout wins for stop placement because its level is the
+// tighter, more specific invalidation.
+anyLong  = triggerL or brkLong or rtLong or vcpBrk
+anyShort = triggerS or brkShort or rtShort
+trigger  = anyLong or anyShort
+
+// ── Sizing ────────────────────────────────────────────────────────────────
+// Equity sizes in shares (any integer). Futures/commodity sizes in LOTS, so
+// risk is quantised — rounding down often lands well under the target risk,
+// and 1 lot can exceed it entirely.
+isLots       = instType == "Futures / Commodity (lots)"
+swingLow     = ta.lowest(low, swingBack)
+swingHigh    = ta.highest(high, swingBack)
+// Stop sits beyond the pullback extreme: below the swing low for a long,
+// above the swing high for a short.
+// Breakout stops sit at the broken level; pullback stops at the swing extreme.
+stopLevel    = vcpBrk  and not na(vcpStop)  ? vcpStop
+              : rtLong   and not na(rtStopL)  ? rtStopL
+              : rtShort  and not na(rtStopS)  ? rtStopS
+              : brkLong  and not na(brkStopL) ? brkStopL
+              : brkShort and not na(brkStopS) ? brkStopS
+              : isShort ? swingHigh : swingLow
+goingShort   = brkShort or rtShort or (isShort and not brkLong and not rtLong and not vcpBrk)
+riskPerShare = goingShort ? stopLevel - close : close - stopLevel
+validRisk    = riskPerShare > 0
+
+riskPerUnit  = isLots ? riskPerShare * lotSize : riskPerShare
+units        = validRisk ? math.floor(riskRupees / riskPerUnit) : 0
+posValue     = isLots ? units * close * lotSize : units * close
+actualRisk   = units * riskPerUnit
+target2R     = isShort ? close - (riskPerShare * 2) : close + (riskPerShare * 2)
+
+// A single lot whose risk already exceeds the budget is the common failure
+// at small capital. Flag it rather than quietly returning 0.
+oneLotRisk   = validRisk ? riskPerShare * lotSize : na
+lotTooBig    = isLots and validRisk and units < 1
+
+
+// ── Marks ─────────────────────────────────────────────────────────────────
+plotshape(touchedL ? low  : na, "Pullback touch (long)",  shape.circle,
+        location.absolute, color.new(cWarn, 20), size = size.tiny, force_overlay = true)
+plotshape(touchedS ? high : na, "Pullback touch (short)", shape.circle,
+        location.absolute, color.new(cWarn, 20), size = size.tiny, force_overlay = true)
+
+plotshape(triggerL ? low : na, "BUY trigger", shape.triangleup,
+        location.belowbar, cGood, size = size.small,
+        text = "BUY", textcolor = cGood, force_overlay = true)
+plotshape(triggerS ? high : na, "SELL trigger", shape.triangledown,
+        location.abovebar, cBad, size = size.small,
+        text = "SELL", textcolor = cBad, force_overlay = true)
+
+// Breakouts get their own marks so the two setups are never confused on the
+// chart or in the journal.
+plotshape(brkLong ? low : na, "BREAKOUT", shape.labelup,
+        location.belowbar, cGood, size = size.small,
+        text = "BRK↑", textcolor = #FFFFFF, force_overlay = true)
+plotshape(brkShort ? high : na, "BREAKDOWN", shape.labeldown,
+        location.abovebar, cBad, size = size.small,
+        text = "BRK↓", textcolor = #FFFFFF, force_overlay = true)
+
+plotshape(vcpBrk ? low : na, "VCP breakout", shape.labelup,
+        location.belowbar, cGood, size = size.normal,
+        text = "VCP", textcolor = #FFFFFF, force_overlay = true)
+
+// Retest marks — same triangle style as the pullback BUY/SELL so they read
+// as entries. BORTST = breakout retest (long), BDRTST = breakdown retest (short).
+// Placed one ATR beyond the bar (absolute) so they never sit on top of a
+// pullback BUY/SELL fired on the same candle.
+plotshape(rtLong ? low - atr * 0.8 : na, "RETEST long", shape.triangleup,
+        location.absolute, cGood, size = size.small,
+        text = "BORTST", textcolor = cGood, force_overlay = true)
+plotshape(rtShort ? high + atr * 0.8 : na, "RETEST short", shape.triangledown,
+        location.absolute, cBad, size = size.small,
+        text = "BDRTST", textcolor = cBad, force_overlay = true)
+
+// Faint tint while armed — green-ish waiting to buy, red-ish waiting to sell.
+bgcolor(armedL and not triggerL ? color.new(cGood, 94) : armedS and not triggerS ? color.new(cBad, 94) : na,
+        title = "Armed tint", force_overlay = true)
+
+// ── Console ───────────────────────────────────────────────────────────────
+tick(bool ok)  => ok ? "✔" : "✘"
+okCol(bool ok) => ok ? cGood : cBad
+
+var table cons = table.new(tPos, 2, 19, border_width = 0,
+                        frame_width = 1, frame_color = color.new(cDim, 60),
+                        bgcolor = color.new(cBg, tblOpac), force_overlay = true)
+
+if barstate.islast and showTbl
+    sizeOK  = posValue >= minPos
+    atrPct  = (atr / close) * 100
+    stopAtr = validRisk ? riskPerShare / atr : na
+
+    stateTxt = vcpBrk   ? "▲ VCP BREAK"
+              : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+              : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+              : vcpReady ? "◆ VCP READY"
+              : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
+              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+    stateBg  = anyLong ? cGood : anyShort ? cBad
+              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : color.new(cDim, 55)
+
+    table.cell(cons, 0, 0, " SCREENER ", text_color = #FFFFFF,
+            bgcolor = cAccent, text_size = txtSz)
+    table.cell(cons, 1, 0, stateTxt, text_color = #FFFFFF,
+            text_size = txtSz, bgcolor = stateBg)
+
+    // Condition labels flip with direction, so the row always describes the
+    // side actually being evaluated rather than a fixed long bias.
+    table.cell(cons, 0, 1, (isShort ? "Close < " : "Close > ") + str.tostring(slowLen) + " EMA", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 1, tick(context), text_color = okCol(context), text_size = txtSz)
+    table.cell(cons, 0, 2, (isShort ? "Rallied to " : "Touched ") + str.tostring(fastLen) + " EMA", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 2, tick(armed or trigger), text_color = okCol(armed or trigger), text_size = txtSz)
+    table.cell(cons, 0, 3, (isShort ? "Below " : "Above ") + str.tostring(trendLen) + " EMA", text_color = cDim, text_size = txtSz)
+    table.cell(cons, 1, 3, tick(isShort ? close < emaTrend : close > emaTrend),
+            text_color = okCol(isShort ? close < emaTrend : close > emaTrend), text_size = txtSz)
+
+    // Bar status — makes the live/closed distinction explicit rather than
+    // leaving the user to wonder why a setup has not fired yet.
+    table.cell(cons, 0, 4, "Bar", text_color = cDim, text_size = txtSz)
+    table.cell(cons, 1, 4, barstate.isrealtime ? (confirmBar ? "LIVE · waits close" : "LIVE · may repaint") : "closed",
+            text_color = barstate.isrealtime ? cWarn : cDim, text_size = txtSz)
+
+    table.cell(cons, 0, 5, "LEVELS · lag " + str.tostring(pvtLen), text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 5, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 6, "Resistance", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 6, na(nearestRes) ? "none" : str.tostring(nearestRes, format.mintick), text_color = cBad, text_size = txtSz)
+    table.cell(cons, 0, 7, "Support", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 7, na(nearestSup) ? "none" : str.tostring(nearestSup, format.mintick), text_color = cGood, text_size = txtSz)
+
+    table.cell(cons, 0, 8, "CONTEXT", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 8, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 9, "RSI " + str.tostring(rsiLen), text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 9, str.tostring(rsi, "#.0"), text_size = txtSz,
+            text_color = rsi > 70 ? cBad : rsi < 30 ? cGood : cTxt)
+    table.cell(cons, 0, 10, "Rel volume", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 10, relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x", text_size = txtSz,
+            text_color = relVol < 0.01 ? cDim : relVol >= 1.5 ? cGood : cTxt)
+    table.cell(cons, 0, 11, "ADX", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 11, str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop"),
+            text_size = txtSz, text_color = adx >= 25 ? cGood : cWarn)
+    table.cell(cons, 0, 12, "ATR / %", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 12, str.tostring(atr, format.mintick) + " / " + str.tostring(atrPct, "#.1") + "%", text_color = cTxt, text_size = txtSz)
+
+    // Volume in shares AND rupees. Turnover is the liquidity number that
+    // actually matters — share count is not comparable across price levels.
+    table.cell(cons, 0, 13, "Turnover Cr", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 13, str.tostring(turnoverCr, "#.2") + " / avg " + str.tostring(avgTurnCr, "#.2"),
+            text_color = turnoverCr >= minTurnCr ? cTxt : cWarn, text_size = txtSz)
+    table.cell(cons, 0, 14, "P/E (TTM)", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 14, na(peRatio) ? "n/a" : str.tostring(peRatio, "#.1"),
+            text_color = na(peRatio) ? cDim : (peMax > 0 and peRatio > peMax ? cBad : cTxt),
+            text_size = txtSz)
+
+    table.cell(cons, 0, 15, "VCP", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 15, not showVCP ? "off" : vcpBrk ? "BREAKOUT" : vcpReady ? "READY " + str.tostring(vLastDepth, "#.1") + "%" : vTightening ? "basing " + str.tostring(array.size(vDepths)) + "c" : "no base",
+            text_color = vcpBrk ? cGood : vcpReady ? cWarn : cDim, text_size = txtSz)
+
+    table.cell(cons, 0, 16, "SIZING", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 1, 16, "", text_color = cDim, text_size = txtSz, bgcolor = color.new(cDim, 88))
+    table.cell(cons, 0, 17, isLots ? "Stop / risk-lot" : "Stop / risk-sh", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 17, str.tostring(stopLevel, format.mintick) + " / " +
+            (validRisk ? str.tostring(riskPerUnit, "#") : "n/a") +
+            (na(stopAtr) ? "" : " (" + str.tostring(stopAtr, "#.1") + "atr)"),
+            text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 0, 18, isLots ? "Lots / risk" : "Shares / value", text_color = cTxt, text_size = txtSz)
+    table.cell(cons, 1, 18,
+            lotTooBig ? "0 · 1 lot = " + str.tostring(oneLotRisk, "#")
+                        : str.tostring(units) + " / " + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or sizeOK ? "" : " ⚠"),
+            text_color = lotTooBig ? cBad : (isLots or sizeOK ? cTxt : cWarn),
+            text_size = txtSz)
+
+alertcondition(triggerL, "BUY trigger",   "Long pullback trigger - close back ABOVE the pullback EMA")
+alertcondition(triggerS, "SELL trigger",  "Short pullback trigger - close back BELOW the pullback EMA")
+alertcondition(brkLong,  "BREAKOUT",      "Breakout - close through pivot resistance")
+alertcondition(brkShort, "BREAKDOWN",     "Breakdown - close through pivot support")
+alertcondition(vcpBrk,   "VCP breakout",  "VCP base cleared on expanding volume")
+alertcondition(rtLong,   "RETEST long",   "Breakout retest held - old resistance now support")
+alertcondition(rtShort,  "RETEST short",  "Breakdown retest failed - old support now resistance")
+alertcondition(trigger,  "Any trigger",   "Any setup fired (pullback or breakout, long or short)")
+
+// ── Last-bar label · ADDED (display-only; reads the same values as the console,
+//    no setup / trigger logic touched) ──────────────────────────────────────
+grpL     = "Last-bar label"
+showLbl  = input.bool(false, "Show status label on last bar", group = grpL)
+lblOff   = input.int(3, "Label offset (bars to the right)", minval = 0, maxval = 30, group = grpL)
+lblSzIn  = input.string("Small", "Label text size", options = ["Tiny", "Small", "Normal", "Large"], group = grpL)
+lblSz    = lblSzIn == "Tiny" ? size.tiny : lblSzIn == "Small" ? size.small : lblSzIn == "Normal" ? size.normal : size.large
+
+var label lastLbl = na
+if showLbl and barstate.islast
+    lAtrPct  = (atr / close) * 100
+    lStopAtr = validRisk ? riskPerShare / atr : na
+    lSizeOK  = posValue >= minPos
+    lState   = vcpBrk   ? "▲ VCP BREAK"
+              : rtLong   ? "▲ RETEST"    : rtShort  ? "▼ RETEST"
+              : brkLong  ? "▲ BREAKOUT"  : brkShort ? "▼ BREAKDOWN"
+              : triggerL ? "▲ BUY pull"  : triggerS ? "▼ SELL pull"
+              : vcpReady ? "◆ VCP READY"
+              : rtArmedL ? "◆ AT LEVEL (L)" : rtArmedS ? "◆ AT LEVEL (S)"
+              : armedL   ? "◆ ARMED LONG" : armedS ? "◆ ARMED SHORT" : "— WAIT"
+    lBg      = anyLong ? cGood : anyShort ? cBad
+              : armed or rtArmedL or rtArmedS or vcpReady ? cWarn : cDim
+    lTxt     = lState
+      + "\nRSI " + str.tostring(rsi, "#.0")
+      + " · ADX " + str.tostring(adx, "#.0") + (adx >= 25 ? " trend" : " chop")
+      + " · ATR " + str.tostring(atr, format.mintick) + " (" + str.tostring(lAtrPct, "#.1") + "%)"
+      + "\nRel vol " + (relVol < 0.01 ? "n/a" : str.tostring(relVol, "#.00") + "x")
+      + " · Turnover " + str.tostring(turnoverCr, "#.2") + " Cr (avg " + str.tostring(avgTurnCr, "#.2") + ")"
+      + " · P/E " + (na(peRatio) ? "n/a" : str.tostring(peRatio, "#.1"))
+      + "\nStop " + str.tostring(stopLevel, format.mintick)
+      + " · Risk/" + (isLots ? "lot " : "sh ") + (validRisk ? str.tostring(riskPerUnit, "#") : "n/a")
+      + (na(lStopAtr) ? "" : " (" + str.tostring(lStopAtr, "#.1") + " atr)")
+      + "\nSize " + (lotTooBig ? "0 · 1 lot risks " + str.tostring(oneLotRisk, "#")
+      : str.tostring(units) + (isLots ? " lots · risk " : " sh · value ") + str.tostring(isLots ? actualRisk : posValue, "#") + (isLots or lSizeOK ? "" : " ⚠"))
+    if na(lastLbl)
+        lastLbl := label.new(bar_index + lblOff, close, lTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_left, color = color.new(lBg, 15), textcolor = #FFFFFF, size = lblSz, textalign = text.align_left)
+    else
+        label.set_xy(lastLbl, bar_index + lblOff, close)
+        label.set_text(lastLbl, lTxt)
+        label.set_color(lastLbl, color.new(lBg, 15))
+        label.set_size(lastLbl, lblSz)
+
+// ── FAKEOUT · failed break (bull trap / bear trap) ─────────────────────────
+// Appended AFTER every other input so in_0..in_46 keep their ids.
+// A close through a pivot level that is undone within a few bars. The
+// breakout crowd is trapped on the wrong side; the reclaim bar is the
+// signal. Pure price logic, so it works on option premiums as well as the
+// underlying. Independent of the Setup selector — its own toggle.
+grpFK    = "Fakeout"
+showFake = input.bool(true, "Show fakeout signals (grey)", group = grpFK,
+    tooltip = "Grey triangle when a breakout / breakdown is reversed within " +
+            "the window. Above the bar = bull trap (bearish). Below the bar " +
+            "= bear trap (bullish).")
+fkWindow = input.int(5, "Fakeout: bars allowed to reclaim", minval = 1, maxval = 20, group = grpFK,
+    tooltip = "How quickly the level must be reclaimed. A slow drift back is " +
+            "a pullback, not a trap.")
+cFake    = #9598A1
+
+// No volume filter on the break: low-volume breaks are the classic fakes.
+fkBreakUp = barOK and not na(resPrev) and close > resPrev and close[1] <= resPrev
+fkBreakDn = barOK and not na(supPrev) and close < supPrev and close[1] >= supPrev
+
+// Bull trap: broke ABOVE resistance, then closes back BELOW it.
+var float fkLevelL = na
+var int   fkBarsL  = na
+if fkBreakUp
+    fkLevelL := resPrev
+    fkBarsL  := 0
+else if not na(fkBarsL)
+    fkBarsL += 1
+
+fakeShort = showFake and allowS and barOK and not na(fkLevelL) and fkBarsL >= 1
+          and fkBarsL <= fkWindow and close < fkLevelL
+
+if fakeShort or (not na(fkBarsL) and fkBarsL > fkWindow)
+    fkLevelL := na
+    fkBarsL  := na
+
+// Bear trap: broke BELOW support, then closes back ABOVE it.
+var float fkLevelS = na
+var int   fkBarsS  = na
+if fkBreakDn
+    fkLevelS := supPrev
+    fkBarsS  := 0
+else if not na(fkBarsS)
+    fkBarsS += 1
+
+fakeLong = showFake and allowL and barOK and not na(fkLevelS) and fkBarsS >= 1
+         and fkBarsS <= fkWindow and close > fkLevelS
+
+if fakeLong or (not na(fkBarsS) and fkBarsS > fkWindow)
+    fkLevelS := na
+    fkBarsS  := na
+
+// At the bar. FAKE BORTST = a breakout that failed (bull trap, bearish);
+// FAKE BDRTST = a breakdown that failed (bear trap, bullish).
+plotshape(fakeShort ? high : na, "FAKEOUT (bull trap)", shape.triangledown,
+        location.abovebar, cFake, size = size.small,
+        text = "FAKE BORTST", textcolor = cFake, force_overlay = true)
+plotshape(fakeLong ? low : na, "FAKEOUT (bear trap)", shape.triangleup,
+        location.belowbar, cFake, size = size.small,
+        text = "FAKE BDRTST", textcolor = cFake, force_overlay = true)
+
+alertcondition(fakeShort, "FAKEOUT bull trap", "Breakout above resistance failed - close back below the level")
+alertcondition(fakeLong,  "FAKEOUT bear trap", "Breakdown below support failed - close back above the level")
+
+// ── FAKE PULLBACK · a pullback trigger whose stop is hit within a few bars ──
+// Appended after the fakeout block; inputs land as in_49 / in_50.
+// The BUY (or SELL) fired, then price closed through the swing stop the
+// script assigned to that trade. The "dip in a trend" was the trend turning.
+// Bearish after a failed BUY, bullish after a failed SELL. Pure price.
+grpFP      = "Fake pullback"
+showFakePb = input.bool(true, "Show fake pullback signals (light grey)", group = grpFP,
+    tooltip = "Fires when a pullback BUY/SELL is followed, within the window, " +
+            "by a close through that trade's swing stop. Above the bar = " +
+            "failed BUY (bearish). Below the bar = failed SELL (bullish).")
+fpWindow   = input.int(6, "Fake pullback: bars allowed to fail", minval = 1, maxval = 30, group = grpFP)
+cFakePb    = #D1D4DC                          // light grey — FAKEOUT is the mid grey
+
+// Failed long pullback: BUY fired, then close < the swing-low stop.
+var float fpStopL = na
+var int   fpBarsL = na
+if triggerL
+    fpStopL := swingLow
+    fpBarsL := 0
+else if not na(fpBarsL)
+    fpBarsL += 1
+
+fakePbL = showFakePb and barOK and not na(fpStopL) and fpBarsL >= 1
+          and fpBarsL <= fpWindow and close < fpStopL
+
+if fakePbL or (not na(fpBarsL) and fpBarsL > fpWindow)
+    fpStopL := na
+    fpBarsL := na
+
+// Failed short pullback: SELL fired, then close > the swing-high stop.
+var float fpStopS = na
+var int   fpBarsS = na
+if triggerS
+    fpStopS := swingHigh
+    fpBarsS := 0
+else if not na(fpBarsS)
+    fpBarsS += 1
+
+fakePbS = showFakePb and barOK and not na(fpStopS) and fpBarsS >= 1
+          and fpBarsS <= fpWindow and close > fpStopS
+
+if fakePbS or (not na(fpBarsS) and fpBarsS > fpWindow)
+    fpStopS := na
+    fpBarsS := na
+
+// At the bar. FAKE PULLBACK = the long pullback (BUY) failed, bearish.
+// FAKE PULLDOWN = the short-side rally (SELL) failed, bullish.
+plotshape(fakePbL ? high : na, "FAKE PULLBACK (failed BUY)", shape.triangledown,
+        location.abovebar, cFakePb, size = size.small,
+        text = "FAKE PULLBACK", textcolor = cFakePb, force_overlay = true)
+plotshape(fakePbS ? low : na, "FAKE PULLDOWN (failed SELL)", shape.triangleup,
+        location.belowbar, cFakePb, size = size.small,
+        text = "FAKE PULLDOWN", textcolor = cFakePb, force_overlay = true)
+
+// ── TARGET LINES · dotted line + "Target <price>" on every entry signal ────
+// Appended after the fake-pullback block; inputs land as in_51 / in_52 / in_53.
+// Target = entry close ± tgtR x the trade's risk (stop distance), using the
+// same stop ladder the console sizes with. Green above for longs, red below
+// for shorts. Drawn once per signal bar, kept for the last tgtKeep signals.
+grpTG   = "Targets"
+showTgt = input.bool(true, "Show target lines", group = grpTG)
+tgtR    = input.float(2.0, "Target (R multiple)", minval = 0.5, step = 0.5, group = grpTG)
+tgtBars = input.int(20, "Target line length (bars) - unused since v106, kept so input ids stay stable", minval = 3, maxval = 200, group = grpTG)
+tgtMinAtr = input.float(0.5, "Min stop distance for targets (ATR x)", minval = 0, step = 0.1, group = grpTG,
+    tooltip = "On fast timeframes the swing stop can be a few ticks away, which makes " +
+            "the 2R target tiny. The risk used for the target is floored at this many " +
+            "ATR(14), so the target is at least R x that far from entry. Same floor " +
+            "the backtest strategy uses. 0 = off.")
+tgtKeep = 12
+
+// Each target is tracked while the trade is live: the line and label follow
+// the latest candle until price reaches the target (label gets a tick) or
+// the stop (label gets a cross). After that the drawing freezes in place.
+var array<line>  tgtLines  = array.new<line>()
+var array<label> tgtLabels = array.new<label>()
+var array<float> tgtPxs    = array.new<float>()
+var array<float> tgtStops  = array.new<float>()
+var array<int>   tgtDirs   = array.new<int>()      // 1 long, -1 short
+var array<bool>  tgtLive   = array.new<bool>()
+
+sigLong  = triggerL or rtLong or brkLong or vcpBrk
+sigShort = triggerS or rtShort or brkShort
+
+// Advance live targets first, so a target opened on this bar is not judged
+// against its own signal candle.
+if showTgt and array.size(tgtLines) > 0
+    for i = 0 to array.size(tgtLines) - 1
+        if array.get(tgtLive, i)
+            px  = array.get(tgtPxs, i)
+            sp  = array.get(tgtStops, i)
+            dir = array.get(tgtDirs, i)
+            hit  = dir == 1 ? high >= px : low <= px
+            dead = dir == 1 ? low <= sp  : high >= sp
+            ln = array.get(tgtLines, i)
+            lb = array.get(tgtLabels, i)
+            line.set_x2(ln, bar_index + 2)
+            label.set_x(lb, bar_index + 2)
+            if hit or dead
+                array.set(tgtLive, i, false)
+                label.set_text(lb, "Target " + str.tostring(px, format.mintick) + (hit ? " ✓" : " ✗"))
+                if not hit
+                    line.set_color(ln, color.new(cDim, 30))
+                    label.set_textcolor(lb, cDim)
+
+if showTgt and barstate.isconfirmed and validRisk and (sigLong or sigShort) and not (sigLong and sigShort)
+    tgtRisk = math.max(riskPerShare, atr * tgtMinAtr)
+    tgtPx  = sigLong ? close + tgtRisk * tgtR : close - tgtRisk * tgtR
+    tgtStp = sigLong ? close - tgtRisk : close + tgtRisk     // floored stop, consistent with the target
+    tgtCol = sigLong ? cGood : cBad
+    ln = line.new(bar_index, tgtPx, bar_index + 2, tgtPx,
+                  color = tgtCol, style = line.style_dotted, width = 4, force_overlay = true)   // 4 = Pine's max width
+    lb = label.new(bar_index + 2, tgtPx, "Target " + str.tostring(tgtPx, format.mintick),
+                   style = label.style_label_left, color = color.new(tgtCol, 100),   // transparent box
+                   textcolor = tgtCol, size = size.normal, force_overlay = true)
+    array.push(tgtLines, ln)
+    array.push(tgtLabels, lb)
+    array.push(tgtPxs, tgtPx)
+    array.push(tgtStops, tgtStp)
+    array.push(tgtDirs, sigLong ? 1 : -1)
+    array.push(tgtLive, true)
+    if array.size(tgtLines) > tgtKeep
+        line.delete(array.shift(tgtLines))
+        label.delete(array.shift(tgtLabels))
+        array.shift(tgtPxs)
+        array.shift(tgtStops)
+        array.shift(tgtDirs)
+        array.shift(tgtLive)
+
+// ── REVERSAL · overbought / oversold TURNS (5-minute and above) ───────────
+// Appended after the Targets block; inputs land as in_55 onward.
+// Marks the bar where an extended move starts to come back, not the extreme:
+//   OB = RSI was above the upper level and crossed back below it, OR price was
+//        stretched > N ATR above the context EMA and printed a down close.
+//   OS = mirror. Levels tighten to 75/25 on 5-minute automatically.
+// Pure price, so identical on futures and option premiums; on a premium chart
+// an OS turn is a bounce in the premium, not a reversal of the underlying.
+grpRV      = "Reversal (OB / OS turns)"
+showRev    = input.bool(true, "Show OB / OS turn markers", group = grpRV)
+revRsiHi   = input.int(70, "RSI upper level (15m+)", minval = 50, maxval = 95, group = grpRV)
+revRsiLo   = input.int(30, "RSI lower level (15m+)", minval = 5,  maxval = 50, group = grpRV)
+revRsiHi5  = input.int(75, "RSI upper level (5m)",   minval = 50, maxval = 95, group = grpRV)
+revRsiLo5  = input.int(25, "RSI lower level (5m)",   minval = 5,  maxval = 50, group = grpRV)
+revStretch = input.float(2.0, "EMA stretch (ATR x) for a turn", minval = 0, step = 0.25, group = grpRV,
+    tooltip = "Price more than this many ATR from the context EMA, then a close back " +
+            "toward it, also counts as a turn. 0 disables the stretch test.")
+cRev       = #B388FF                                  // purple, unused elsewhere
+// Appended after the volume group's old ids (in_61..63 were removed in v113),
+// so this lands as in_61 and nothing earlier shifts.
+revMinTf   = input.int(5, "Show OB / OS from this timeframe (minutes)", minval = 1, maxval = 60, group = grpRV,
+    tooltip = "1 = also on 1m and 3m charts (uses the 5m levels there, 75/25 by " +
+            "default). RSI is noisy on 1m: expect several turns per hour and treat " +
+            "them as scalp exits, not reversals.")
+
+revTfOK  = not timeframe.isintraday or timeframe.multiplier >= revMinTf
+is5m     = timeframe.isintraday and timeframe.multiplier < 15
+obLvl    = is5m ? revRsiHi5 : revRsiHi
+osLvl    = is5m ? revRsiLo5 : revRsiLo
+
+rsiObTurn = rsi[1] >= obLvl and rsi < obLvl
+rsiOsTurn = rsi[1] <= osLvl and rsi > osLvl
+stretchUp = revStretch > 0 and (close[1] - emaSlow[1]) > atr * revStretch and close < open and close < close[1]
+stretchDn = revStretch > 0 and (emaSlow[1] - close[1]) > atr * revStretch and close > open and close > close[1]
+
+obTurn = showRev and revTfOK and barstate.isconfirmed and (rsiObTurn or stretchUp)
+osTurn = showRev and revTfOK and barstate.isconfirmed and (rsiOsTurn or stretchDn)
+
+plotshape(obTurn ? high : na, "OB turn", shape.triangledown, location.abovebar, cRev,
+        size = size.small, text = "OB", textcolor = cRev, force_overlay = true)
+plotshape(osTurn ? low : na, "OS turn", shape.triangleup, location.belowbar, cRev,
+        size = size.small, text = "OS", textcolor = cRev, force_overlay = true)
+
+alertcondition(obTurn, "OB turn", "Overbought turn - RSI back below the upper level or stretch fading")
+alertcondition(osTurn, "OS turn", "Oversold turn - RSI back above the lower level or stretch fading")
+
+alertcondition(fakePbL, "FAKE PULLBACK failed BUY",  "Pullback BUY failed - close through the swing-low stop")
+alertcondition(fakePbS, "FAKE PULLDOWN failed SELL", "Pullback SELL failed - close through the swing-high stop")
+
+// ── Fib channel (auto-anchored) ────────────────────────────────────────────
+// Like TradingView's Fib Channel drawing: a base trendline through two swing
+// points plus a width, with Fibonacci ratios drawn as parallel lines. Anchors
+// follow the trend: uptrend = base through the last two confirmed pivot lows,
+// width up to the highest high between them; downtrend = mirror. Rebuilt
+// whenever a new pivot confirms. Appended after the OB/OS block; inputs
+// in_62.. so nothing earlier moves. Costs drawings only, not an indicator slot.
+grpFC     = "Fib channel"
+showFib   = input.bool(true, "Show auto Fib channel", group = grpFC)
+fibPvt    = input.int(10, "Swing pivot length for anchors", minval = 3, maxval = 50, group = grpFC,
+    tooltip = "Larger = bigger swings and a wider, slower channel. Same idea as the S/R pivot length.")
+fibExt    = input.bool(true, "Show 1.618 and -0.618 extensions", group = grpFC)
+fibCol    = input.color(#FFA726, "Channel colour", group = grpFC)
+fibWidth  = input.int(1, "Line width", minval = 1, maxval = 3, group = grpFC)
+fibOnlyOK = input.bool(true, "Show only while price respects the channel", group = grpFC,
+    tooltip = "Hidden until a ratio line has been touched and held at least N times, and " +
+            "hidden again once price closes outside the channel band or the trend flips.")
+fibMinT   = input.int(1, "Touches required before showing", minval = 1, maxval = 5, group = grpFC)
+fibTol    = input.float(0.15, "Touch tolerance (ATR x)", minval = 0.05, maxval = 1, step = 0.05, group = grpFC)
+
+fPh = ta.pivothigh(high, fibPvt, fibPvt)
+fPl = ta.pivotlow(low,  fibPvt, fibPvt)
+
+// Last two confirmed pivot lows / highs with their bar indexes.
+var float pl1 = na, var int pl1i = na, var float pl2 = na, var int pl2i = na   // pl2 = most recent
+var float ph1 = na, var int ph1i = na, var float ph2 = na, var int ph2i = na
+if not na(fPl)
+    pl1 := pl2, pl1i := pl2i
+    pl2 := fPl, pl2i := bar_index - fibPvt
+if not na(fPh)
+    ph1 := ph2, ph1i := ph2i
+    ph2 := fPh, ph2i := bar_index - fibPvt
+
+var line[]  fibLn = array.new_line()
+var label[] fibLb = array.new_label()
+fibUp = close > emaSlow          // channel direction follows the context EMA
+// Channel geometry kept for the per-bar "is it being respected" test.
+var float fcX1 = na, var float fcY1 = na, var float fcSlope = na, var float fcWid = na
+var bool  fcUp = false
+var int   fcTouches = 0
+var bool  fcShown = false
+
+if showFib and (not na(fPl) or not na(fPh)) and barstate.isconfirmed
+    // Base line: two most recent pivots on the trend side. Width: the extreme
+    // of the opposite side between them (highest high in an uptrend).
+    float bx1 = na, float by1 = na, float bx2 = na, float by2 = na, float wid = na
+    if fibUp and not na(pl1) and not na(pl2) and pl2i > pl1i
+        bx1 := pl1i, by1 := pl1, bx2 := pl2i, by2 := pl2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float hh = 0.0
+        for i = 0 to pl2i - pl1i
+            hh := math.max(hh, high[bar_index - pl1i - i])
+        // distance from the base line to the highest high, measured at its bar
+        int hhBar = pl1i
+        for i = 0 to pl2i - pl1i
+            if high[bar_index - pl1i - i] == hh
+                hhBar := pl1i + i
+        wid := hh - (by1 + slope * (hhBar - bx1))
+    else if not fibUp and not na(ph1) and not na(ph2) and ph2i > ph1i
+        bx1 := ph1i, by1 := ph1, bx2 := ph2i, by2 := ph2
+        slope = (by2 - by1) / (bx2 - bx1)
+        float ll = 1.0e12
+        for i = 0 to ph2i - ph1i
+            ll := math.min(ll, low[bar_index - ph1i - i])
+        int llBar = ph1i
+        for i = 0 to ph2i - ph1i
+            if low[bar_index - ph1i - i] == ll
+                llBar := ph1i + i
+        wid := ll - (by1 + slope * (llBar - bx1))          // negative in a downtrend
+    if not na(wid) and wid != 0
+        while array.size(fibLn) > 0
+            line.delete(array.pop(fibLn))
+        while array.size(fibLb) > 0
+            label.delete(array.pop(fibLb))
+        slope = (by2 - by1) / (bx2 - bx1)
+        fcX1 := bx1, fcY1 := by1, fcSlope := slope, fcWid := wid
+        fcUp := fibUp, fcTouches := 0, fcShown := false
+        ratios = fibExt ? array.from(-0.618, 0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618) : array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+        for r = 0 to array.size(ratios) - 1
+            k   = array.get(ratios, r)
+            off = wid * k
+            y1  = by1 + off
+            y2  = by2 + off
+            isEdge = k == 0.0 or k == 1.0
+            isMid  = k == 0.5 or k == 0.618
+            ln = line.new(int(bx1), y1, int(bx2), y2, extend = extend.right,
+                          color = color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55),
+                          width = isEdge ? fibWidth + 1 : fibWidth,
+                          style = isEdge ? line.style_solid : line.style_dotted, force_overlay = true)
+            array.push(fibLn, ln)
+            yNow = by1 + slope * (bar_index - bx1) + off
+            array.push(fibLb, label.new(bar_index + 2, yNow, str.tostring(k, "#.###"),
+                          style = label.style_label_left, color = color.new(fibCol, 100),
+                          textcolor = fibCol, size = size.tiny, force_overlay = true))
+
+// Is the channel being respected? Position of price inside the channel as a
+// ratio (0 = base line, 1 = far edge). A touch = a bar's extreme comes within
+// fibTol ATR of a ratio line and the bar closes back on the inside of it.
+// Respected = enough touches, price still inside the band, trend unchanged.
+fcBase   = not na(fcX1) ? fcY1 + fcSlope * (bar_index - fcX1) : na
+fcPosC   = not na(fcBase) and fcWid != 0 ? (close - fcBase) / fcWid : na
+fcPosH   = not na(fcBase) and fcWid != 0 ? (high  - fcBase) / fcWid : na
+fcPosL   = not na(fcBase) and fcWid != 0 ? (low   - fcBase) / fcWid : na
+fcTolR   = not na(fcWid) and fcWid != 0 ? atr * fibTol / math.abs(fcWid) : na
+if not na(fcPosC) and barstate.isconfirmed
+    lvls = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    bool touched = false
+    for i = 0 to array.size(lvls) - 1
+        k = array.get(lvls, i)
+        // wick reached the line (either side) and the close stayed on the "inside"
+        // (toward the middle of the channel) — a hold, not a break.
+        reached = math.min(math.abs(fcPosH - k), math.abs(fcPosL - k)) <= fcTolR
+        heldIn  = k <= 0.5 ? fcPosC >= k - fcTolR : fcPosC <= k + fcTolR
+        if reached and heldIn
+            touched := true
+    if touched
+        fcTouches += 1
+fcInside  = not na(fcPosC) and fcPosC >= -0.618 and fcPosC <= 1.618
+fcTrendOK = not na(fcPosC) and fcUp == fibUp
+fcRespect = not fibOnlyOK or (fcTouches >= fibMinT and fcInside and fcTrendOK)
+
+// Show / hide by colour so nothing is redrawn every bar. Labels ride along
+// with the latest bar so the ratio is readable at any zoom.
+if showFib and array.size(fibLb) > 0
+    for i = 0 to array.size(fibLb) - 1
+        lb = array.get(fibLb, i)
+        ln = array.get(fibLn, i)
+        x1 = line.get_x1(ln), y1 = line.get_y1(ln), x2 = line.get_x2(ln), y2 = line.get_y2(ln)
+        sl = x2 != x1 ? (y2 - y1) / (x2 - x1) : 0.0
+        label.set_xy(lb, bar_index + 2, y1 + sl * (bar_index - x1))
+        kk = str.tonumber(label.get_text(lb))
+        isEdge = kk == 0.0 or kk == 1.0
+        isMid  = kk == 0.5 or kk == 0.618
+        line.set_color(ln, fcRespect ? color.new(fibCol, isEdge ? 0 : isMid ? 30 : 55) : color.new(fibCol, 100))
+        label.set_textcolor(lb, fcRespect ? fibCol : color.new(fibCol, 100))
+
+ 

@@ -1,1 +1,1 @@
-2026-10-23_1520_before-signal-plots
+2026-10-28_1829_before-sma-bugfix
