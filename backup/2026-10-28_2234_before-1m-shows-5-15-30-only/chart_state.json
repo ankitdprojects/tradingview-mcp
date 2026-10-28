@@ -1,0 +1,574 @@
+{
+  "symbol": "NSE_DLY:NIFTY261103C22700",
+  "resolution": "5",
+  "studies": [
+    {
+      "id": "sgxsNh",
+      "name": "Signals",
+      "pineId": "USER;60a356875df947e894a8fe73e81dd925",
+      "pineVersion": "1.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": 50
+        },
+        {
+          "id": "in_1",
+          "value": 200
+        },
+        {
+          "id": "in_2",
+          "value": false
+        },
+        {
+          "id": "in_3",
+          "value": 200
+        },
+        {
+          "id": "in_4",
+          "value": true
+        },
+        {
+          "id": "in_5",
+          "value": true
+        },
+        {
+          "id": "in_6",
+          "value": 0
+        },
+        {
+          "id": "in_7",
+          "value": 0.8
+        },
+        {
+          "id": "in_8",
+          "value": false
+        },
+        {
+          "id": "in_9",
+          "value": true
+        },
+        {
+          "id": "in_10",
+          "value": true
+        },
+        {
+          "id": "in_11",
+          "value": true
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": true
+        },
+        {
+          "id": "in_14",
+          "value": 30
+        },
+        {
+          "id": "in_15",
+          "value": 0.75
+        },
+        {
+          "id": "in_16",
+          "value": 5
+        },
+        {
+          "id": "in_17",
+          "value": 14
+        },
+        {
+          "id": "in_18",
+          "value": true
+        },
+        {
+          "id": "in_19",
+          "value": 70
+        },
+        {
+          "id": "in_20",
+          "value": 30
+        },
+        {
+          "id": "in_21",
+          "value": false
+        },
+        {
+          "id": "in_22",
+          "value": 5
+        },
+        {
+          "id": "in_23",
+          "value": false
+        },
+        {
+          "id": "in_24",
+          "value": 1.5
+        },
+        {
+          "id": "in_25",
+          "value": 3
+        },
+        {
+          "id": "in_26",
+          "value": 4.5
+        },
+        {
+          "id": "in_27",
+          "value": 0.5
+        },
+        {
+          "id": "in_28",
+          "value": 2
+        },
+        {
+          "id": "in_29",
+          "value": false
+        },
+        {
+          "id": "in_30",
+          "value": false
+        },
+        {
+          "id": "in_31",
+          "value": 10
+        },
+        {
+          "id": "in_32",
+          "value": true
+        },
+        {
+          "id": "in_33",
+          "value": 5
+        },
+        {
+          "id": "in_34",
+          "value": true
+        },
+        {
+          "id": "in_35",
+          "value": 3
+        },
+        {
+          "id": "in_36",
+          "value": true
+        },
+        {
+          "id": "in_37",
+          "value": false
+        },
+        {
+          "id": "in_38",
+          "value": 4294960384
+        },
+        {
+          "id": "in_39",
+          "value": 4286660863
+        },
+        {
+          "id": "in_40",
+          "value": true
+        },
+        {
+          "id": "in_41",
+          "value": 10
+        },
+        {
+          "id": "in_42",
+          "value": 3
+        },
+        {
+          "id": "in_43",
+          "value": true
+        },
+        {
+          "id": "in_44",
+          "value": 20
+        },
+        {
+          "id": "in_45",
+          "value": true
+        },
+        {
+          "id": "in_46",
+          "value": 14
+        },
+        {
+          "id": "in_47",
+          "value": "Top right"
+        },
+        {
+          "id": "in_48",
+          "value": true
+        },
+        {
+          "id": "in_49",
+          "value": 50
+        },
+        {
+          "id": "in_50",
+          "value": false
+        },
+        {
+          "id": "in_51",
+          "value": 5
+        },
+        {
+          "id": "in_52",
+          "value": 0.1
+        },
+        {
+          "id": "in_53",
+          "value": 4282117119
+        },
+        {
+          "id": "in_54",
+          "value": true
+        },
+        {
+          "id": "in_55",
+          "value": "30"
+        },
+        {
+          "id": "in_56",
+          "value": "240"
+        },
+        {
+          "id": "in_57",
+          "value": "D"
+        },
+        {
+          "id": "in_58",
+          "value": 4278236159
+        },
+        {
+          "id": "in_59",
+          "value": 4294936755
+        },
+        {
+          "id": "in_60",
+          "value": 4294967295
+        },
+        {
+          "id": "in_61",
+          "value": 1
+        },
+        {
+          "id": "in_62",
+          "value": true
+        },
+        {
+          "id": "in_63",
+          "value": false
+        },
+        {
+          "id": "in_64",
+          "value": 20
+        },
+        {
+          "id": "in_65",
+          "value": 1
+        },
+        {
+          "id": "in_66",
+          "value": 2
+        },
+        {
+          "id": "in_67",
+          "value": 0.6
+        },
+        {
+          "id": "in_68",
+          "value": true
+        },
+        {
+          "id": "in_69",
+          "value": 9
+        },
+        {
+          "id": "in_70",
+          "value": 21
+        },
+        {
+          "id": "in_71",
+          "value": true
+        },
+        {
+          "id": "in_72",
+          "value": 4285982208
+        },
+        {
+          "id": "in_73",
+          "value": 4283585279
+        },
+        {
+          "id": "in_74",
+          "value": true
+        },
+        {
+          "id": "in_75",
+          "value": 4289052416
+        },
+        {
+          "id": "in_76",
+          "value": 4278190293
+        },
+        {
+          "id": "in_77",
+          "value": true
+        },
+        {
+          "id": "in_78",
+          "value": 4278236159
+        },
+        {
+          "id": "in_79",
+          "value": 4278218239
+        },
+        {
+          "id": "in_80",
+          "value": true
+        },
+        {
+          "id": "in_81",
+          "value": 4289654889
+        },
+        {
+          "id": "in_82",
+          "value": 4286614271
+        },
+        {
+          "id": "in_83",
+          "value": true
+        },
+        {
+          "id": "in_84",
+          "value": 4294967295
+        },
+        {
+          "id": "in_85",
+          "value": 4292927712
+        }
+      ]
+    },
+    {
+      "id": "rViYv6",
+      "name": "Levels",
+      "pineId": "USER;fbc8ba2b042c442e9bf50f6857f91b59",
+      "pineVersion": "3.0",
+      "inputs": [
+        {
+          "id": "in_0",
+          "value": true
+        },
+        {
+          "id": "in_1",
+          "value": 10
+        },
+        {
+          "id": "in_2",
+          "value": 3
+        },
+        {
+          "id": "in_3",
+          "value": true
+        },
+        {
+          "id": "in_4",
+          "value": true
+        },
+        {
+          "id": "in_5",
+          "value": 15
+        },
+        {
+          "id": "in_6",
+          "value": 50
+        },
+        {
+          "id": "in_7",
+          "value": 200
+        },
+        {
+          "id": "in_8",
+          "value": false
+        },
+        {
+          "id": "in_9",
+          "value": 200
+        },
+        {
+          "id": "in_10",
+          "value": true
+        },
+        {
+          "id": "in_11",
+          "value": 14
+        },
+        {
+          "id": "in_12",
+          "value": true
+        },
+        {
+          "id": "in_13",
+          "value": 70
+        },
+        {
+          "id": "in_14",
+          "value": 30
+        },
+        {
+          "id": "in_15",
+          "value": true
+        },
+        {
+          "id": "in_16",
+          "value": 10
+        },
+        {
+          "id": "in_17",
+          "value": true
+        },
+        {
+          "id": "in_18",
+          "value": 4280723455
+        },
+        {
+          "id": "in_19",
+          "value": 1
+        },
+        {
+          "id": "in_20",
+          "value": true
+        },
+        {
+          "id": "in_21",
+          "value": 1
+        },
+        {
+          "id": "in_22",
+          "value": 0.15
+        },
+        {
+          "id": "in_23",
+          "value": true
+        },
+        {
+          "id": "in_24",
+          "value": 5
+        },
+        {
+          "id": "in_25",
+          "value": true
+        },
+        {
+          "id": "in_26",
+          "value": 3
+        },
+        {
+          "id": "in_27",
+          "value": true
+        },
+        {
+          "id": "in_28",
+          "value": false
+        },
+        {
+          "id": "in_29",
+          "value": 4294960384
+        },
+        {
+          "id": "in_30",
+          "value": 4286660863
+        },
+        {
+          "id": "in_31",
+          "value": true
+        },
+        {
+          "id": "in_32",
+          "value": 3
+        },
+        {
+          "id": "in_33",
+          "value": true
+        },
+        {
+          "id": "in_34",
+          "value": 10
+        },
+        {
+          "id": "in_35",
+          "value": 3
+        },
+        {
+          "id": "in_36",
+          "value": true
+        },
+        {
+          "id": "in_37",
+          "value": 20
+        },
+        {
+          "id": "in_38",
+          "value": true
+        },
+        {
+          "id": "in_39",
+          "value": 50
+        },
+        {
+          "id": "in_40",
+          "value": 4282117119
+        },
+        {
+          "id": "in_41",
+          "value": true
+        },
+        {
+          "id": "in_42",
+          "value": false
+        },
+        {
+          "id": "in_43",
+          "value": false
+        },
+        {
+          "id": "in_44",
+          "value": false
+        },
+        {
+          "id": "in_45",
+          "value": false
+        },
+        {
+          "id": "in_46",
+          "value": 9
+        },
+        {
+          "id": "in_47",
+          "value": 15
+        },
+        {
+          "id": "in_48",
+          "value": 21
+        },
+        {
+          "id": "in_49",
+          "value": 15
+        },
+        {
+          "id": "in_50",
+          "value": 4283454447
+        },
+        {
+          "id": "in_51",
+          "value": 4288325158
+        }
+      ]
+    }
+  ]
+}

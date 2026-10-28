@@ -49,7 +49,8 @@ f15StL = not is15 or f15Adx >= 20            // Supertrend flip only with ADX �
 f15StS = f15StL
 smaSigOn  = input.bool(true, "SMA 50/200 cross BUY / SELL signals", group = "Display")
 sma1mOnly = input.bool(true, "SMA 50/200 cross signals only on the 1-minute chart", group = "Display")
-smaTfOK   = smaSigOn and (not sma1mOnly or is1m)
+// (2026-10-29) the 1-minute chart shows no 1-minute signals — only the 5min / 15min / 30min labels
+smaTfOK   = smaSigOn and (not sma1mOnly or is1m) and not is1m
 alerts    = input.bool(true, "Enable alerts")
 
 // ── SMAs ──────────────────────────────────────────────────────────────────
@@ -436,7 +437,7 @@ htfSig() =>
 
 drawHtf(bool on, string tf, color col) =>
     [b, s, tb, ts, spB, spS, px] = request.security(syminfo.tickerid, tf, htfSig(), lookahead = barmerge.lookahead_off)
-    fresh = on and othersOK and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
+    fresh = on and (othersOK or (is1m and timeframe.in_seconds(tf) == 1800)) and not is15 and not is60 and barstate.isconfirmed and timeframe.in_seconds() < timeframe.in_seconds(tf) and ta.change(time(tf)) != 0
     // solid label with the word and the timeframe, offset from the candle so nothing overlaps it
     if fresh and b
         label.new(bar_index, low - atr14 * htGap, "BUY " + tf + "m", style = label.style_label_up, color = color.new(col, 0), textcolor = color.black, size = size.small, tooltip = "BUY " + tf + "m\n" + tb + "  " + "stop " + str.tostring(spB, format.mintick))
@@ -501,8 +502,8 @@ wkBody   = math.abs(close - open)
 wkRange  = high - low
 wkLower  = math.min(open, close) - low
 wkUpper  = high - math.max(open, close)
-wkTf     = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkL and rsiL
-wkTfS    = wkOn and (is1m or is15 or is60 or wkAllTf) and sigOK and blkS and rsiS
+wkTf     = wkOn and (is15 or is60 or wkAllTf) and not is1m and sigOK and blkL and rsiL
+wkTfS    = wkOn and (is15 or is60 or wkAllTf) and not is1m and sigOK and blkS and rsiS
 wkBuy  = wkTf  and wkRange > 0 and wkLower >= wkBody * wkRatio and wkLower >= wkRange * wkPct and low <= wkMean - atr14 * wkAtr and close < wkMean
 wkSell = wkTfS and wkRange > 0 and wkUpper >= wkBody * wkRatio and wkUpper >= wkRange * wkPct and high >= wkMean + atr14 * wkAtr and close > wkMean
 if showLbl and wkBuy
@@ -753,7 +754,7 @@ s60Sig() =>
     _tgtS = _stS ? close - (_stopS - close) * tgtR : _mean
     [_b, _s, _tb, _ts, _stopB, _stopS, _tgtB, _tgtS]
 [s60B, s60S, s60Tb, s60Ts, s60StopB, s60StopS, s60TgtB, s60TgtS] = request.security(syminfo.tickerid, "60", s60Sig(), lookahead = barmerge.lookahead_off)
-s60Fresh = s60On and lt60 and barstate.isconfirmed and ta.change(time("60")) != 0
+s60Fresh = s60On and lt60 and not is1m and barstate.isconfirmed and ta.change(time("60")) != 0
 s60Buy   = s60Fresh and s60B and blkL and rsiL
 s60Sell  = s60Fresh and s60S and blkS and rsiS
 if s60Buy
