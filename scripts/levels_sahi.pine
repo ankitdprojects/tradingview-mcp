@@ -4,7 +4,7 @@ indicator("Levels (Sahi)", overlay=true, max_labels_count=500, max_lines_count=5
 // and the opening range drawn by bar index (no timeframe.change, ta.vwap or xloc.bar_time).
 // Levels — everything that is not a BUY / SELL signal (split 2026-10-29): PDH / PDL / PDC + opening range,
 // VWAP and the thick Supertrend (from OI Profile, OI itself removed), and from SMA Signals v55 the regime tint,
-// Fib channel, BOS / CHoCH + order blocks, S/R, Supertrend line, ATR / ADX / RSI table, OB / OS marks, MA lines
+// Fib channel, BOS / CHoCH + order blocks, Supertrend line, ATR / ADX / RSI table, OB / OS marks, MA lines
 // and resting liquidity. BUY / SELL signals are in the "Signals" indicator.
 
 // ── Prev-day levels, VWAP, thick Supertrend (from OI Profile) ──────────
@@ -359,15 +359,7 @@ liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, max
 // outright instead of being tagged "swept". The sweep SIGNAL below is unchanged (still smcPiv swings).
 
 alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "Levels: structure break on {{ticker}}")
-// ── Support / Resistance + Supertrend + ATR / ADX (v19) ──────────────────
-grpSR    = "Support / Resistance"
-srOn     = input.bool(true, "Show S/R levels",                 group = grpSR)
-srPiv    = input.int(15,    "Pivot length", minval = 3,        group = grpSR)
-srMax    = input.int(3,     "Levels kept (each side)", minval = 1, maxval = 12, group = grpSR)
-srTol    = input.float(0.3, "Merge levels closer than (ATR x)", step = 0.1, group = grpSR)
-srResC   = input.color(#ef5350, "Resistance colour", group = grpSR)
-srSupC   = input.color(#26a69a, "Support colour",    group = grpSR)
-
+// ── Supertrend + ATR / ADX (v19; plain S/R levels removed 2026-10-29, liquidity lines kept) ──
 grpST    = "Supertrend"
 stOn     = input.bool(true, "Show Supertrend",                 group = grpST)
 stLen    = input.int(10,    "ATR length", minval = 1,          group = grpST)
@@ -379,38 +371,6 @@ grpAX    = "ATR / ADX"
 axOn     = input.bool(true, "Show ATR / ADX panel",           group = grpAX)
 adxLen   = input.int(14,    "ADX length", minval = 1,          group = grpAX)
 axPos    = input.string("Top right", "Panel position", options = ["Top right", "Top left", "Bottom right", "Bottom left"], group = grpAX)
-
-// S/R: confirmed pivot highs become resistance, pivot lows support; nearby levels merge; lines extend right
-srPh = ta.pivothigh(high, srPiv, srPiv)
-srPl = ta.pivotlow(low,  srPiv, srPiv)
-var line[]  srRl = array.new_line(), var line[]  srSl = array.new_line()
-var label[] srRb = array.new_label(), var label[] srSb = array.new_label()
-addLevel(line[] lines, label[] labs, float px, int startBar, color col, string tag) =>
-    // drop an existing level within tolerance (it gets replaced by the fresher one)
-    if array.size(lines) > 0
-        for i = array.size(lines) - 1 to 0
-            if math.abs(line.get_y1(array.get(lines, i)) - px) <= atr14 * srTol
-                line.delete(array.remove(lines, i)), label.delete(array.remove(labs, i))
-    array.push(lines, line.new(startBar, px, bar_index + 1, px, color = color.new(col, 30), style = line.style_solid, width = 1, extend = extend.right))
-    array.push(labs, label.new(bar_index + 1, px, tag + " " + str.tostring(px, format.mintick), style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.tiny))
-    while array.size(lines) > srMax
-        line.delete(array.shift(lines)), label.delete(array.shift(labs))
-if srOn and not na(srPh)
-    addLevel(srRl, srRb, srPh, bar_index - srPiv, srResC, "R")
-if srOn and not na(srPl)
-    addLevel(srSl, srSb, srPl, bar_index - srPiv, srSupC, "S")
-// keep labels at the right edge; a broken level swaps colour (resistance below price acts as support)
-if srOn and barstate.islast
-    for i = 0 to (array.size(srRb) > 0 ? array.size(srRb) - 1 : na)
-        lb = array.get(srRb, i), ln = array.get(srRl, i)
-        label.set_x(lb, bar_index + 1)
-        c = line.get_y1(ln) > close ? srResC : srSupC
-        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
-    for i = 0 to (array.size(srSb) > 0 ? array.size(srSb) - 1 : na)
-        lb = array.get(srSb, i), ln = array.get(srSl, i)
-        label.set_x(lb, bar_index + 1)
-        c = line.get_y1(ln) < close ? srSupC : srResC
-        line.set_color(ln, color.new(c, 30)), label.set_textcolor(lb, c)
 
 // Supertrend + ADX
 [stLine, stDir] = ta.supertrend(stMult, stLen)
@@ -483,18 +443,20 @@ plot(showEma ? ta.ema(close, emaC) : na, "EMA 21", color = color.new(#ff4081, 0)
 // liqKeep per side are kept, and a level is DELETED the bar price trades through it.
 grpLQ  = "Liquidity"
 liqPiv = input.int(15, "Major swing pivot length for liquidity lines", minval = 3, maxval = 60, group = grpLQ)
+liqTopC = input.color(#ef5350, "Liquidity top colour",    group = grpLQ)
+liqBotC = input.color(#26a69a, "Liquidity bottom colour", group = grpLQ)
 lqPh = ta.pivothigh(high, liqPiv, liqPiv)
 lqPl = ta.pivotlow(low,  liqPiv, liqPiv)
 var line[]  liqHl = array.new_line(), var line[]  liqLl = array.new_line()
 var label[] liqHb = array.new_label(), var label[] liqLb = array.new_label()
 if liqOn and not na(lqPh) and lqPh > close
-    array.push(liqHl, line.new(bar_index - liqPiv, lqPh, bar_index + 1, lqPh, color = color.new(smcBear, 20), style = line.style_dotted, width = 2, extend = extend.right))
-    array.push(liqHb, label.new(bar_index + 1, lqPh, "liquidity ▲ " + str.tostring(lqPh, format.mintick), style = label.style_label_left, color = color.new(smcBear, 100), textcolor = smcBear, size = size.tiny))
+    array.push(liqHl, line.new(bar_index - liqPiv, lqPh, bar_index + 1, lqPh, color = color.new(liqTopC, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqHb, label.new(bar_index + 1, lqPh, "liquidity ▲ " + str.tostring(lqPh, format.mintick), style = label.style_label_left, color = color.new(liqTopC, 100), textcolor = liqTopC, size = size.tiny))
     while array.size(liqHl) > liqKeep
         line.delete(array.shift(liqHl)), label.delete(array.shift(liqHb))
 if liqOn and not na(lqPl) and lqPl < close
-    array.push(liqLl, line.new(bar_index - liqPiv, lqPl, bar_index + 1, lqPl, color = color.new(smcBull, 20), style = line.style_dotted, width = 2, extend = extend.right))
-    array.push(liqLb, label.new(bar_index + 1, lqPl, "liquidity ▼ " + str.tostring(lqPl, format.mintick), style = label.style_label_left, color = color.new(smcBull, 100), textcolor = smcBull, size = size.tiny))
+    array.push(liqLl, line.new(bar_index - liqPiv, lqPl, bar_index + 1, lqPl, color = color.new(liqBotC, 20), style = line.style_dotted, width = 2, extend = extend.right))
+    array.push(liqLb, label.new(bar_index + 1, lqPl, "liquidity ▼ " + str.tostring(lqPl, format.mintick), style = label.style_label_left, color = color.new(liqBotC, 100), textcolor = liqBotC, size = size.tiny))
     while array.size(liqLl) > liqKeep
         line.delete(array.shift(liqLl)), label.delete(array.shift(liqLb))
 // swept = price traded through the level → the line and tag are removed
