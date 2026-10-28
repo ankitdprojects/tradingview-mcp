@@ -4,7 +4,7 @@ indicator("Levels (Sahi)", overlay=true, max_labels_count=500, max_lines_count=5
 // and the opening range drawn by bar index (no timeframe.change, ta.vwap or xloc.bar_time).
 // Levels — everything that is not a BUY / SELL signal (split 2026-10-29): PDH / PDL / PDC + opening range,
 // VWAP and the thick Supertrend (from OI Profile, OI itself removed), and from SMA Signals v55 the regime tint,
-// Fib channel, BOS / CHoCH + order blocks, Supertrend line, ATR / ADX / RSI table, OB / OS marks, MA lines
+// Fib channel, BOS / CHoCH + order blocks, Supertrend line, OB / OS marks, MA lines
 // and resting liquidity. BUY / SELL signals are in the "Signals" indicator.
 
 // ── Prev-day levels, VWAP, thick Supertrend (from OI Profile) ──────────
@@ -34,9 +34,6 @@ rsiHi    = input.int(70,  "Overbought", minval = 50, maxval = 100,  group = grpR
 rsiLo    = input.int(30,  "Oversold",   minval = 0,  maxval = 50,   group = grpRSI)
 rsi      = ta.rsi(close, rsiLen)
 
-// table rows use these (same defaults as Signals)
-tgtR       = input.float(1.5, "SMA target T1 (R multiple; recommended 1.5 intraday, 3 daily)", step=0.5, group="Targets")
-minStopAtr = input.float(0.5, "Min stop distance (ATR)", step=0.1, group="Targets")
 atr14 = ta.atr(14)
 
 // ── Supertrend (kept in-script: Basic plan allows only 2 indicator slots)
@@ -359,7 +356,7 @@ liqKeep  = input.int(3,     "Liquidity levels kept (each side)", minval = 1, max
 // outright instead of being tagged "swept". The sweep SIGNAL below is unchanged (still smcPiv swings).
 
 alertcondition(smcOn and (brkUp or brkDn), "BOS / CHoCH", "Levels: structure break on {{ticker}}")
-// ── Supertrend + ATR / ADX (v19; plain S/R levels removed 2026-10-29, liquidity lines kept) ──
+// ── Supertrend (v19; plain S/R levels and the ATR / ADX / RSI panel removed 2026-10-29) ──
 grpST    = "Supertrend"
 stOn     = input.bool(true, "Show Supertrend",                 group = grpST)
 stLen    = input.int(10,    "ATR length", minval = 1,          group = grpST)
@@ -367,33 +364,9 @@ stMult   = input.float(3.0, "Multiplier", step = 0.5,          group = grpST)
 stSigOn  = input.bool(true, "BUY / SELL on Supertrend flip",  group = grpST)
 stAdxMin = input.float(20,  "Flip signal needs ADX above (0 = off)", step = 1, minval = 0, group = grpST)
 
-grpAX    = "ATR / ADX"
-axOn     = input.bool(true, "Show ATR / ADX panel",           group = grpAX)
-adxLen   = input.int(14,    "ADX length", minval = 1,          group = grpAX)
-axPos    = input.string("Top right", "Panel position", options = ["Top right", "Top left", "Bottom right", "Bottom left"], group = grpAX)
-
-// Supertrend + ADX
+// Supertrend
 [stLine, stDir] = ta.supertrend(stMult, stLen)
-[diP, diM, adx] = ta.dmi(adxLen, adxLen)
 plot(stOn ? stLine : na, "Supertrend", color = stDir < 0 ? color.new(#00c853, 0) : color.new(#ff1744, 0), linewidth = 2, style = plot.style_linebr)
-// ATR / ADX panel (table = no plot budget used)
-var table axT = table.new(axPos == "Top right" ? position.top_right : axPos == "Top left" ? position.top_left : axPos == "Bottom right" ? position.bottom_right : position.bottom_left, 2, 6, bgcolor = color.new(#000000, 70), border_width = 1, border_color = color.new(#787b86, 60))
-if axOn and barstate.islast
-    adxTxt = adx >= 25 ? "strong trend" : adx >= 20 ? "trending" : "range"
-    adxCol = adx >= 25 ? #00c853 : adx >= 20 ? #ffd600 : #9598a1
-    table.cell(axT, 0, 0, "ATR " + str.tostring(atr14, format.mintick), text_color = color.white, text_size = size.small)
-    table.cell(axT, 1, 0, str.tostring(100 * atr14 / close, "#.##") + "%", text_color = #9598a1, text_size = size.small)
-    table.cell(axT, 0, 1, "ADX " + str.tostring(adx, "#.#"), text_color = adxCol, text_size = size.small)
-    table.cell(axT, 1, 1, adxTxt, text_color = adxCol, text_size = size.small)
-    table.cell(axT, 0, 2, "+DI " + str.tostring(diP, "#.#"), text_color = diP > diM ? #00c853 : #9598a1, text_size = size.small)
-    table.cell(axT, 1, 2, "-DI " + str.tostring(diM, "#.#"), text_color = diM > diP ? #ff1744 : #9598a1, text_size = size.small)
-    table.cell(axT, 0, 3, "Supertrend", text_color = color.white, text_size = size.small)
-    table.cell(axT, 1, 3, stDir < 0 ? "UP" : "DOWN", text_color = stDir < 0 ? #00c853 : #ff1744, text_size = size.small)
-    table.cell(axT, 0, 4, "1.5R move", text_color = color.white, text_size = size.small)
-    table.cell(axT, 1, 4, str.tostring(atr14 * minStopAtr * tgtR, format.mintick) + " min", text_color = #9598a1, text_size = size.small)
-    rsiCol = rsi >= rsiHi ? #ff1744 : rsi <= rsiLo ? #00c853 : color.white
-    table.cell(axT, 0, 5, "RSI " + str.tostring(rsi, "#.#"), text_color = rsiCol, text_size = size.small)
-    table.cell(axT, 1, 5, rsi >= rsiHi ? "overbought" : rsi <= rsiLo ? "oversold" : "neutral", text_color = rsiCol, text_size = size.small)
 
 grpEM    = "50 EMA touch"
 emOn     = input.bool(true, "Show 50 EMA",                     group = grpEM)
